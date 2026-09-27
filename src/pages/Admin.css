@@ -1,0 +1,45 @@
+.admin-container {
+  min-height: 100vh;
+  background: #f5f7fb;
+  padding: 40px;
+  color: #222;
+}
+
+.admin-title {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 30px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 25px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 25px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.08);
+  transition: .3s;
+  min-height: 140px;
+display: flex;
+flex-direction: column;
+justify-content: center;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.stat-card h3 {
+  color: #777;
+  margin-bottom: 10px;
+}
+
+.stat-card h1 {
+  color: #222;
+  font-size: 34px;
+}

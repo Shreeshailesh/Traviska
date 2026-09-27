@@ -1,0 +1,49 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+server/node_modules/
+**/node_modules/
+
+# Vite / build output
+dist/
+dist-ssr/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+*.local
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+server/.env
+
+# Uploaded runtime files
+server/uploads/
+uploads/
+**/uploads/
+
+# Editor / OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.gitignore.save
+# Local video asset too large for GitHub
+src/assets/videos/hero.mp4

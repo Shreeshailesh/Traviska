@@ -1,0 +1,49 @@
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 20px 50px;
+  background: transparent;
+
+  z-index: 1000;
+  box-sizing: border-box;
+
+  transition: all 0.3s ease;
+}
+.navbar.scrolled {
+  background: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+.logo {
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+}
+.navbar.scrolled .logo {
+  color: #ff6b00;
+}
+
+.nav-links {
+  display: flex;
+  gap: 30px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: white;
+  font-size: 16px;
+  transition: 0.3s;
+}
+.navbar.scrolled .nav-links a {
+  color: black;
+}
+
+.nav-links a:hover {
+  color: #ff6b00;
+}
