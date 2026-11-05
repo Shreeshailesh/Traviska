@@ -15,28 +15,40 @@ minWidth: "260px",
     >
       <h2 style={{ marginBottom: "40px" }}>Traviska</h2>
 
-      <p style={{ marginBottom: "20px", cursor: "pointer" }}>
-        📊 Dashboard
-      </p>
+      <p
+  onClick={() => navigate("/admin")}
+  style={{ marginBottom: "20px", cursor: "pointer" }}
+>
+  📊 Dashboard
+</p>
 
-      <p style={{ marginBottom: "20px", cursor: "pointer" }}>
-        📅 Bookings
-      </p>
+      <p
+  onClick={() => navigate("/admin/bookings")}
+  style={{ marginBottom: "20px", cursor: "pointer" }}
+>
+  📅 Bookings
+</p>
 
      <p
-  onClick={() => navigate("/admin/add-trip")}
+  onClick={() => navigate("/admin/trips")}
   style={{ marginBottom: "20px", cursor: "pointer" }}
 >
   🧳 Trips
 </p>
 
-      <p style={{ marginBottom: "20px", cursor: "pointer" }}>
-        👥 Customers
-      </p>
+      <p
+  onClick={() => navigate("/admin/customers")}
+  style={{ marginBottom: "20px", cursor: "pointer" }}
+>
+  👥 Customers
+</p>
 
-      <p style={{ marginBottom: "20px", cursor: "pointer" }}>
-        ⚙️ Settings
-      </p>
+      <p
+  onClick={() => navigate("/admin/settings")}
+  style={{ marginBottom: "20px", cursor: "pointer" }}
+>
+  ⚙️ Settings
+</p>
     </div>
   );
 }

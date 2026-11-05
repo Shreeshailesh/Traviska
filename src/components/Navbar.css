@@ -47,3 +47,22 @@
 .nav-links a:hover {
   color: #ff6b00;
 }
+
+/* Mobile navbar */
+@media (max-width: 600px) {
+  .navbar {
+    padding: 15px 16px;
+  }
+
+  .logo {
+    font-size: 22px;
+  }
+
+  .nav-links {
+  gap: 8px;
+}
+
+  .nav-links a {
+    font-size: 13px;
+  }
+}

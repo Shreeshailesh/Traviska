@@ -25,33 +25,122 @@ function Booking() {
   const total = price * travellers;
 
   const handleSubmit = async () => {
-    if (!name || !email || !phone || !date) {
-      alert("Please fill all required details");
-      return;
+  if (!name.trim() || !email.trim() || !phone.trim() || !date) {
+    alert("Please fill all required details");
+    return;
+  }
+
+  if (!trip?._id || !trip?.slotId) {
+    alert("Please select a valid trip and travel date");
+    return;
+  }
+
+  if (!Number.isSafeInteger(travellers) || travellers < 1) {
+    alert("Please enter a valid number of travelers");
+    return;
+  }
+
+  if (!(window as any).Razorpay) {
+    alert("Payment gateway could not load. Please refresh the page.");
+    return;
+  }
+
+  try {
+    // Step 1: Create a Razorpay order using the server's trip price.
+    const orderResponse = await axios.post(
+      "http://localhost:5001/create-order",
+      {
+        tripId: trip._id,
+        slotId: trip.slotId,
+        travellers,
+      }
+    );
+
+    const order = orderResponse.data.order;
+
+    if (!orderResponse.data.success || !order?.id) {
+      throw new Error("Could not create payment order");
     }
 
-    try {
-      const response = await axios.post(
-        "http://localhost:5001/booking",
-        {
-          trip,
-          slotId: trip?.slotId,
-          name,
-          email,
-          phone,
-          date,
-          travellers,
-          requests,
-          total,
+    // Step 2: Open Razorpay Checkout.
+    const razorpay = new (window as any).Razorpay({
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      amount: order.amount,
+      currency: "INR",
+      name: "Traviska",
+      description: trip.title,
+      order_id: order.id,
+      prefill: {
+        name,
+        email,
+        contact: phone,
+      },
+      theme: {
+        color: "#ff6b00",
+      },
+
+      // Step 3: Verify payment and save the booking on the server.
+      handler: async (paymentResponse: any) => {
+        try {
+         const customerToken = localStorage.getItem("customerToken");
+
+const verification = await axios.post(
+  "http://localhost:5001/verify-payment",
+  {
+    razorpay_order_id: paymentResponse.razorpay_order_id,
+    razorpay_payment_id: paymentResponse.razorpay_payment_id,
+    razorpay_signature: paymentResponse.razorpay_signature,
+    bookingDetails: {
+      tripId: trip._id,
+      slotId: trip.slotId,
+      travellers,
+      name,
+      email,
+      phone,
+      requests,
+    },
+  },
+  {
+    headers: customerToken
+      ? { Authorization: `Bearer ${customerToken}` }
+      : {},
+  }
+); 
+
+          if (
+            verification.data.success &&
+            verification.data.bookingConfirmed
+          ) {
+            alert("Payment successful! Your booking is confirmed.");
+          } else {
+            alert(
+              `Payment received, but booking confirmation is pending. ` +
+              `Contact support with order ID: ${order.id}`
+            );
+          }
+        } catch (verificationError) {
+          console.error("Payment verification error:", verificationError);
+
+          alert(
+            `Your payment may have been received, but we could not ` +
+            `confirm your booking. Do not pay again. ` +
+            `Contact support with order ID: ${order.id}`
+          );
         }
-      );
+      },
+    });
 
-      alert(response.data.message);
-    } catch (err) {
-      console.error(err);
-      alert("Booking failed!");
-    }
-  };
+    razorpay.on("payment.failed", (response: any) => {
+      console.error("Razorpay payment failed:", response.error);
+      alert("Payment was not completed. Please check its status before retrying.");
+    });
+
+    razorpay.open();
+  } catch (error) {
+    console.error("Payment order creation failed:", error);
+    alert("Could not start payment. Please try again.");
+  }
+};
 
   return (
     <div

@@ -20,9 +20,14 @@ const handleLogin = async () => {
 
     console.log("Server Response:", data);
     if (data.success) {
-        localStorage.setItem("token", data.token);
-navigate("/admin");
-    }
+  if (data.user?.role !== "admin") {
+    alert("Admin access only");
+    return;
+  }
+
+  localStorage.setItem("token", data.token);
+  navigate("/admin");
+}
   } catch (err) {
     console.log(err);
     alert("Login Failed");
