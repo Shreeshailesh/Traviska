@@ -204,6 +204,13 @@ app.post("/booking", async (req, res) => {
 });
 
 app.post("/create-order", async (req, res) => {
+
+    if (process.env.NODE_ENV === "production") {
+    return res.status(503).json({
+      success: false,
+      message: "Online payments are not available yet. Please contact Traviska for booking assistance.",
+    });
+  }
   try {
     const { tripId, slotId, travellers } = req.body;
 
@@ -277,6 +284,12 @@ app.post("/create-order", async (req, res) => {
 });
 
 app.post("/verify-payment", async (req, res) => {
+    if (process.env.NODE_ENV === "production") {
+    return res.status(503).json({
+      success: false,
+      message: "Online payments are not available yet. Please contact Traviska for booking assistance.",
+    });
+  }
   try {
 
     let authenticatedCustomerId = null;
