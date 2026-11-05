@@ -740,12 +740,136 @@ app.get("/customer/verify", authMiddleware, async (req, res) => {
         role: customer.role,
       },
     });
-  } catch (error) {
-    console.error("Customer verification failed:", error);
 
+      } catch (error) {
+    console.error("Customer verification failed:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to verify customer",
+    });
+  }
+});
+
+  app.get("/customer/profile", authMiddleware, async (req, res) => {
+  try {
+    if (req.user?.role !== "customer") {
+      return res.status(403).json({
+        success: false,
+        message: "Customer access required",
+      });
+    }
+
+    const customer = await User.findOne({
+      _id: req.user.id,
+      role: "customer",
+    }).select("name email phone");
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      customer: {
+        id: customer._id,
+        name: customer.name,
+        email: customer.email || "",
+        phone: customer.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to fetch customer profile:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load customer profile",
+    });
+  }
+});
+
+app.put("/customer/profile", authMiddleware, async (req, res) => {
+  try {
+    if (req.user?.role !== "customer") {
+      return res.status(403).json({
+        success: false,
+        message: "Customer access required",
+      });
+    }
+
+    const { name, email } = req.body;
+
+    if (typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required",
+      });
+    }
+
+    if (name.trim().length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Name must be 100 characters or fewer",
+      });
+    }
+
+    if (
+      email !== undefined &&
+      (typeof email !== "string" ||
+        (email.trim() !== "" &&
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address",
+      });
+    }
+
+    const customer = await User.findOne({
+      _id: req.user.id,
+      role: "customer",
+    });
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found",
+      });
+    }
+
+    customer.name = name.trim();
+
+    if (email !== undefined) {
+      customer.email = email.trim().toLowerCase() || undefined;
+    }
+
+    await customer.save();
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      customer: {
+        id: customer._id,
+        name: customer.name,
+        email: customer.email || "",
+        phone: customer.phone,
+      },
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "This email is already registered",
+      });
+    }
+
+    console.error("Failed to update customer profile:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update customer profile",
     });
   }
 });
