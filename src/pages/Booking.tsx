@@ -200,9 +200,11 @@ function Booking() {
         error
       );
 
-      alert(
-        "Could not start payment. Please try again."
-      );
+     alert(
+  import.meta.env.PROD
+    ? "Online payments are temporarily unavailable. Please contact Traviska for booking assistance."
+    : "Could not start payment. Please try again."
+);
     } finally {
       setIsSubmitting(false);
     }
