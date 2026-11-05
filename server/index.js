@@ -87,7 +87,16 @@ mongoose
     console.error(err);
   });
 
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+  })
+);
 app.use(express.json());
 
 const razorpay = new Razorpay({
@@ -1688,7 +1697,7 @@ app.get("/trips/:tripId/slots", async (req, res) => {
   }
 });
 
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
