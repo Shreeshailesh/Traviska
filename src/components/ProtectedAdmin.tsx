@@ -1,33 +1,56 @@
+
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
+import { API_BASE_URL } from "../api";
 import Admin from "../pages/Admin";
-import { useLocation } from "react-router-dom";
 import AddTrip from "../pages/AddTrip";
 
 export default function ProtectedAdmin() {
-    const location = useLocation();
-  const [status, setStatus] = useState<"checking" | "allowed" | "denied">(
-    "checking"
-  );
+  const location = useLocation();
+
+  const [status, setStatus] = useState<
+    "checking" | "allowed" | "denied"
+  >("checking");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    let cancelled = false;
 
-    if (!token) {
-      setStatus("denied");
-      return;
-    }
+    const verifyAdmin = async () => {
+      const token = localStorage.getItem("token");
 
-    axios
-      .get("http://localhost:5001/admin/verify", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      .then(() => setStatus("allowed"))
-      .catch(() => setStatus("denied"));
+      if (!token) {
+        if (!cancelled) {
+          setStatus("denied");
+        }
+        return;
+      }
+
+      try {
+        await axios.get(`${API_BASE_URL}/admin/verify`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!cancelled) {
+          setStatus("allowed");
+        }
+      } catch (error) {
+        console.error("Admin verification failed:", error);
+
+        if (!cancelled) {
+          setStatus("denied");
+        }
+      }
+    };
+
+    verifyAdmin();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (status === "checking") {
@@ -38,5 +61,9 @@ export default function ProtectedAdmin() {
     return <Navigate to="/login" replace />;
   }
 
-  return location.pathname === "/admin/add-trip" ? <AddTrip /> : <Admin />;
+  return location.pathname === "/admin/add-trip" ? (
+    <AddTrip />
+  ) : (
+    <Admin />
+  );
 }

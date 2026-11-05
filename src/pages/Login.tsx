@@ -1,38 +1,52 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../api";
 
 function Login() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-const [email, setEmail] = useState("");
-const [password, setPassword] = useState("");
-const handleLogin = async () => {
-  try {
-    console.log("Step 1: Login button clicked");
-    const { data } = await axios.post(
-      "http://localhost:5001/login",
-      {
-        email,
-        password,
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      alert("Please enter your email and password");
+      return;
+    }
+
+    if (isLoading) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { data } = await axios.post(
+        `${API_BASE_URL}/login`,
+        {
+          email: email.trim(),
+          password,
+        }
+      );
+
+      if (data.success && data.user?.role === "admin" && data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("isAdmin", "true");
+
+        navigate("/admin", { replace: true });
+      } else {
+        alert("Admin access only");
       }
-    );
-
-    console.log("Server Response:", data);
-    if (data.success) {
-  if (data.user?.role !== "admin") {
-    alert("Admin access only");
-    return;
-  }
-
-  localStorage.setItem("token", data.token);
-  navigate("/admin");
-}
-  } catch (err) {
-    console.log(err);
-    alert("Login Failed");
-  }
-};
+    } catch (error) {
+      console.error("Admin login failed:", error);
+      alert("Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div
@@ -42,6 +56,7 @@ const handleLogin = async () => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
+        padding: "20px",
       }}
     >
       <div
@@ -49,7 +64,8 @@ const handleLogin = async () => {
           background: "#fff",
           padding: "40px",
           borderRadius: "15px",
-          width: "400px",
+          width: "100%",
+          maxWidth: "400px",
           boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
           textAlign: "center",
         }}
@@ -64,10 +80,11 @@ const handleLogin = async () => {
         </h1>
 
         <input
-  type="email"
-  placeholder="Email"
-  value={email}
-  onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
           style={{
             width: "100%",
             padding: "12px",
@@ -77,14 +94,21 @@ const handleLogin = async () => {
             fontSize: "16px",
             color: "#000",
             background: "#fff",
+            boxSizing: "border-box",
           }}
         />
 
         <input
-  type="password"
-  placeholder="Password"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleLogin();
+            }
+          }}
           style={{
             width: "100%",
             padding: "12px",
@@ -94,20 +118,28 @@ const handleLogin = async () => {
             fontSize: "16px",
             color: "#000",
             background: "#fff",
+            boxSizing: "border-box",
           }}
         />
 
-      <button
-  style={{
-    padding: "10px 25px",
-    cursor: "pointer",
-  }}
-  onClick={handleLogin}
-  
->
-  Login
-</button>
-
+        <button
+          type="button"
+          onClick={handleLogin}
+          disabled={isLoading}
+          style={{
+            background: "#ff6b00",
+            color: "#fff",
+            border: "none",
+            padding: "12px 30px",
+            borderRadius: "8px",
+            fontSize: "16px",
+            fontWeight: "600",
+            cursor: isLoading ? "not-allowed" : "pointer",
+            opacity: isLoading ? 0.7 : 1,
+          }}
+        >
+          {isLoading ? "Logging in..." : "Login"}
+        </button>
       </div>
     </div>
   );

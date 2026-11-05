@@ -22,7 +22,7 @@ import CustomerLogin from "./pages/CustomerLogin";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import ProtectedCustomer from "./components/ProtectedCustomer";
 import ProtectedAdmin from "./components/ProtectedAdmin";
-import AddTrip from "./pages/AddTrip";
+
 
 
 function AppContent() {

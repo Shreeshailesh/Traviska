@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../api";
 import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import axios from "axios";
@@ -16,7 +17,7 @@ export default function ProtectedCustomer() {
     }
 
     axios
-      .get("http://localhost:5001/customer/verify", {
+      .get(`${API_BASE_URL}/customer/verify`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

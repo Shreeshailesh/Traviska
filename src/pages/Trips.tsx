@@ -1,9 +1,9 @@
+import { API_BASE_URL } from "../api";
 import "./Trips.css";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import TripCard from "../components/TripCard";
-import heroImage from "../assets/hero.png";
+
 
 function Trips() {
 
@@ -13,7 +13,7 @@ function Trips() {
  useEffect(() => {
   const fetchTrips = async () => {
     try {
-      const { data } = await axios.get("http://localhost:5001/trips");
+      const { data } = await axios.get(`${API_BASE_URL}/trips`);
       setTrips(data);
     } catch (err) {
       console.error("Failed to fetch trips:", err);

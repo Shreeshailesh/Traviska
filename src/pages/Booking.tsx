@@ -1,146 +1,212 @@
+
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../api";
 
 function Booking() {
   const location = useLocation();
-
   const trip = location.state;
 
   const [travellers, setTravellers] = useState(1);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [date, setDate] = useState(
-  trip?.selectedDate
-    ? new Date(trip.selectedDate).toISOString().split("T")[0]
-    : ""
-);
-  const [requests, setRequests] = useState("");
 
-  const price = Number(
-    trip?.price?.toString().replace(/[₹,]/g, "")
-  ) || 0;
+  const [date, setDate] = useState(
+    trip?.selectedDate
+      ? new Date(trip.selectedDate)
+          .toISOString()
+          .split("T")[0]
+      : ""
+  );
+
+  const [requests, setRequests] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const price =
+    Number(
+      trip?.price?.toString().replace(/[₹,]/g, "")
+    ) || 0;
 
   const total = price * travellers;
 
   const handleSubmit = async () => {
-  if (!name.trim() || !email.trim() || !phone.trim() || !date) {
-    alert("Please fill all required details");
-    return;
-  }
-
-  if (!trip?._id || !trip?.slotId) {
-    alert("Please select a valid trip and travel date");
-    return;
-  }
-
-  if (!Number.isSafeInteger(travellers) || travellers < 1) {
-    alert("Please enter a valid number of travelers");
-    return;
-  }
-
-  if (!(window as any).Razorpay) {
-    alert("Payment gateway could not load. Please refresh the page.");
-    return;
-  }
-
-  try {
-    // Step 1: Create a Razorpay order using the server's trip price.
-    const orderResponse = await axios.post(
-      "http://localhost:5001/create-order",
-      {
-        tripId: trip._id,
-        slotId: trip.slotId,
-        travellers,
-      }
-    );
-
-    const order = orderResponse.data.order;
-
-    if (!orderResponse.data.success || !order?.id) {
-      throw new Error("Could not create payment order");
+    if (isSubmitting) {
+      return;
     }
 
-    // Step 2: Open Razorpay Checkout.
-    const razorpay = new (window as any).Razorpay({
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-      amount: order.amount,
-      currency: "INR",
-      name: "Traviska",
-      description: trip.title,
-      order_id: order.id,
-      prefill: {
-        name,
-        email,
-        contact: phone,
-      },
-      theme: {
-        color: "#ff6b00",
-      },
+    if (
+      !name.trim() ||
+      !email.trim() ||
+      !phone.trim() ||
+      !date
+    ) {
+      alert("Please fill all required details");
+      return;
+    }
 
-      // Step 3: Verify payment and save the booking on the server.
-      handler: async (paymentResponse: any) => {
-        try {
-         const customerToken = localStorage.getItem("customerToken");
+    if (!trip?._id || !trip?.slotId) {
+      alert("Please select a valid trip and travel date");
+      return;
+    }
 
-const verification = await axios.post(
-  "http://localhost:5001/verify-payment",
-  {
-    razorpay_order_id: paymentResponse.razorpay_order_id,
-    razorpay_payment_id: paymentResponse.razorpay_payment_id,
-    razorpay_signature: paymentResponse.razorpay_signature,
-    bookingDetails: {
-      tripId: trip._id,
-      slotId: trip.slotId,
-      travellers,
-      name,
-      email,
-      phone,
-      requests,
-    },
-  },
-  {
-    headers: customerToken
-      ? { Authorization: `Bearer ${customerToken}` }
-      : {},
-  }
-); 
+    if (
+      !Number.isSafeInteger(travellers) ||
+      travellers < 1
+    ) {
+      alert("Please enter a valid number of travelers");
+      return;
+    }
 
-          if (
-            verification.data.success &&
-            verification.data.bookingConfirmed
-          ) {
-            alert("Payment successful! Your booking is confirmed.");
-          } else {
+    if (!(window as any).Razorpay) {
+      alert(
+        "Payment gateway could not load. Please refresh the page."
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Step 1: Create a Razorpay order.
+      // The backend calculates the actual trip price.
+      const orderResponse = await axios.post(
+        `${API_BASE_URL}/create-order`,
+        {
+          tripId: trip._id,
+          slotId: trip.slotId,
+          travellers,
+        }
+      );
+
+      const order = orderResponse.data.order;
+
+      if (
+        !orderResponse.data.success ||
+        !order?.id
+      ) {
+        throw new Error(
+          "Could not create payment order"
+        );
+      }
+
+      // Step 2: Open Razorpay Checkout.
+      const razorpay = new (window as any).Razorpay({
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: "INR",
+        name: "Traviska",
+        description: trip.title,
+        order_id: order.id,
+
+        prefill: {
+          name,
+          email,
+          contact: phone,
+        },
+
+        theme: {
+          color: "#ff6b00",
+        },
+
+        // Step 3: Verify payment on the backend.
+        handler: async (paymentResponse: any) => {
+          try {
+            const customerToken =
+              localStorage.getItem("customerToken");
+
+            const verification = await axios.post(
+              `${API_BASE_URL}/verify-payment`,
+              {
+                razorpay_order_id:
+                  paymentResponse.razorpay_order_id,
+
+                razorpay_payment_id:
+                  paymentResponse.razorpay_payment_id,
+
+                razorpay_signature:
+                  paymentResponse.razorpay_signature,
+
+                bookingDetails: {
+                  tripId: trip._id,
+                  slotId: trip.slotId,
+                  travellers,
+                  name,
+                  email,
+                  phone,
+                  requests,
+                },
+              },
+              {
+                // Authenticated customers get bookings
+                // linked to their customer account.
+                // Guests can book without a token.
+                headers: customerToken
+                  ? {
+                      Authorization:
+                        `Bearer ${customerToken}`,
+                    }
+                  : {},
+              }
+            );
+
+            if (
+              verification.data.success &&
+              verification.data.bookingConfirmed
+            ) {
+              alert(
+                "Payment successful! Your booking is confirmed."
+              );
+            } else {
+              alert(
+                "Payment received, but booking confirmation is pending. " +
+                  `Contact support with order ID: ${order.id}`
+              );
+            }
+          } catch (verificationError) {
+            console.error(
+              "Payment verification error:",
+              verificationError
+            );
+
             alert(
-              `Payment received, but booking confirmation is pending. ` +
-              `Contact support with order ID: ${order.id}`
+              "Your payment may have been received, but we could not " +
+                "confirm your booking. Do not pay again. " +
+                `Contact support with order ID: ${order.id}`
             );
           }
-        } catch (verificationError) {
-          console.error("Payment verification error:", verificationError);
+        },
+      });
+
+      razorpay.on(
+        "payment.failed",
+        (response: any) => {
+          console.error(
+            "Razorpay payment failed:",
+            response.error
+          );
 
           alert(
-            `Your payment may have been received, but we could not ` +
-            `confirm your booking. Do not pay again. ` +
-            `Contact support with order ID: ${order.id}`
+            "Payment was not completed. Please check its status before retrying."
           );
         }
-      },
-    });
+      );
 
-    razorpay.on("payment.failed", (response: any) => {
-      console.error("Razorpay payment failed:", response.error);
-      alert("Payment was not completed. Please check its status before retrying.");
-    });
+      razorpay.open();
+    } catch (error) {
+      console.error(
+        "Payment order creation failed:",
+        error
+      );
 
-    razorpay.open();
-  } catch (error) {
-    console.error("Payment order creation failed:", error);
-    alert("Could not start payment. Please try again.");
-  }
-};
+      alert(
+        "Could not start payment. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -157,10 +223,16 @@ const verification = await axios.post(
           background: "#fff",
           padding: "35px",
           borderRadius: "16px",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+          boxShadow:
+            "0 10px 25px rgba(0,0,0,0.08)",
         }}
       >
-        <h1 style={{ color: "#222", marginBottom: "25px" }}>
+        <h1
+          style={{
+            color: "#222",
+            marginBottom: "25px",
+          }}
+        >
           Book Your Trip
         </h1>
 
@@ -173,15 +245,30 @@ const verification = await axios.post(
               marginBottom: "25px",
             }}
           >
-            <h2 style={{ margin: "0 0 8px", color: "#222" }}>
+            <h2
+              style={{
+                margin: "0 0 8px",
+                color: "#222",
+              }}
+            >
               {trip.title}
             </h2>
 
-            <p style={{ margin: "5px 0", color: "#555" }}>
+            <p
+              style={{
+                margin: "5px 0",
+                color: "#555",
+              }}
+            >
               📍 {trip.location}
             </p>
 
-            <p style={{ margin: "5px 0", color: "#555" }}>
+            <p
+              style={{
+                margin: "5px 0",
+                color: "#555",
+              }}
+            >
               ⏳ {trip.duration}
             </p>
 
@@ -201,7 +288,9 @@ const verification = await axios.post(
           type="text"
           placeholder="Full Name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) =>
+            setName(e.target.value)
+          }
           style={inputStyle}
         />
 
@@ -209,7 +298,9 @@ const verification = await axios.post(
           type="email"
           placeholder="Email Address"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) =>
+            setEmail(e.target.value)
+          }
           style={inputStyle}
         />
 
@@ -217,20 +308,28 @@ const verification = await axios.post(
           type="tel"
           placeholder="Phone Number"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) =>
+            setPhone(e.target.value)
+          }
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Travel Date</label>
+        <label style={labelStyle}>
+          Travel Date
+        </label>
 
         <input
           type="date"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) =>
+            setDate(e.target.value)
+          }
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Number of Travelers</label>
+        <label style={labelStyle}>
+          Number of Travelers
+        </label>
 
         <input
           type="number"
@@ -245,7 +344,9 @@ const verification = await axios.post(
         <textarea
           placeholder="Special Requests"
           value={requests}
-          onChange={(e) => setRequests(e.target.value)}
+          onChange={(e) =>
+            setRequests(e.target.value)
+          }
           style={{
             ...inputStyle,
             height: "100px",
@@ -258,17 +359,26 @@ const verification = await axios.post(
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: "15px",
             marginTop: "25px",
             paddingTop: "20px",
             borderTop: "1px solid #eee",
           }}
         >
-          <strong style={{ fontSize: "20px", color: "#222" }}>
+          <strong
+            style={{
+              fontSize: "20px",
+              color: "#222",
+            }}
+          >
             Total: ₹{total}
           </strong>
 
           <button
+            type="button"
             onClick={handleSubmit}
+            disabled={isSubmitting}
             style={{
               background: "#ff6b00",
               color: "#fff",
@@ -277,10 +387,15 @@ const verification = await axios.post(
               borderRadius: "8px",
               fontSize: "16px",
               fontWeight: "600",
-              cursor: "pointer",
+              cursor: isSubmitting
+                ? "not-allowed"
+                : "pointer",
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
-            Confirm Booking
+            {isSubmitting
+              ? "Processing..."
+              : "Confirm Booking"}
           </button>
         </div>
       </div>
