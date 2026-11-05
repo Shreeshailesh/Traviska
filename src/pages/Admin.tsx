@@ -1,10 +1,11 @@
+import { API_BASE_URL } from "../api";
 import { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import "./Admin.css";
 import { useNavigate } from "react-router-dom";
-import AdminSidebar from "./admin/AdminSidebar";
+
 
 function Admin() {
     const navigate = useNavigate();
@@ -100,7 +101,7 @@ const [manualBookingSaving, setManualBookingSaving] = useState(false);
 
 const fetchBookings = async () => {
   try {
-    const { data } = await axios.get("http://localhost:5001/bookings", {
+    const { data } = await axios.get(`${API_BASE_URL}/bookings`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
@@ -116,7 +117,7 @@ const fetchBookings = async () => {
 
   const fetchTrips = async () => {
   try {
-const { data } = await axios.get("http://localhost:5001/trips", {
+const { data } = await axios.get(`${API_BASE_URL}/trips`, {
   headers: {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
   },
@@ -135,7 +136,7 @@ const updateBookingStatus = async (
 ) => {
   try {
     const response = await axios.put(
-      `http://localhost:5001/bookings/${bookingId}/status`,
+      `${API_BASE_URL}/bookings/${bookingId}/status`,
       { status },
       {
         headers: {
@@ -185,7 +186,7 @@ const recordManualPayment = async (booking: any) => {
 
   try {
     const response = await axios.put(
-      `http://localhost:5001/admin/bookings/${booking._id}/record-payment`,
+      `${API_BASE_URL}/admin/bookings/${booking._id}/record-payment`,
       { paymentReference },
       {
         headers: {
@@ -211,7 +212,7 @@ const createManualBooking = async () => {
     setManualBookingSaving(true);
 
     const response = await axios.post(
-      "http://localhost:5001/admin/manual-bookings",
+      `${API_BASE_URL}/admin/manual-bookings`,
       manualBooking,
       {
         headers: {
@@ -250,7 +251,7 @@ const createManualBooking = async () => {
 const fetchSlots = async () => {
   try {
     const { data } = await axios.get(
-      "http://localhost:5001/trip-slots",
+      `${API_BASE_URL}/trip-slots`,
       {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -267,7 +268,7 @@ const fetchSlots = async () => {
 const updateTrip = async () => {
   try {
     await axios.put(
-  `http://localhost:5001/trips/${editingTrip._id}`,
+  `${API_BASE_URL}/trips/${editingTrip._id}`,
   editingTrip,
   {
     headers: {
@@ -292,7 +293,7 @@ const deleteTrip = async (id: string) => {
   return;
 }
   try {
-    await axios.delete(`http://localhost:5001/trips/${id}`, {
+    await axios.delete(`${API_BASE_URL}/trips/${id}`, {
   headers: {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
   },
@@ -337,7 +338,7 @@ const createSlot = async () => {
 
   try {
     await axios.post(
-      "http://localhost:5001/trip-slots",
+      `${API_BASE_URL}/trip-slots`,
       {
         trip: selectedTripForSlot,
         date: slotDate,
@@ -368,7 +369,7 @@ const updateSlot = async () => {
 
   try {
     await axios.put(
-      `http://localhost:5001/trip-slots/${editingSlot._id}`,
+      `${API_BASE_URL}/trip-slots/${editingSlot._id}`,
       {
         date: editingSlot.date,
         totalSlots: Number(editingSlot.totalSlots),
@@ -393,7 +394,7 @@ const updateSlot = async () => {
 const toggleSlot = async (slot: any) => {
   try {
     const response = await axios.put(
-      `http://localhost:5001/trip-slots/${slot._id}/toggle`,
+      `${API_BASE_URL}/trip-slots/${slot._id}/toggle`,
       {},
       {
         headers: {

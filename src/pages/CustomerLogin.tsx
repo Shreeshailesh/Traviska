@@ -1,4 +1,5 @@
 
+import { API_BASE_URL } from "../api";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -79,7 +80,7 @@ const verifier = recaptchaVerifierRef.current;
     const idToken = await result.user.getIdToken();
 
     const response = await fetch(
-  "http://localhost:5001/customer/firebase-login",
+  `${API_BASE_URL}/customer/firebase-login`,
   {
     method: "POST",
     headers: {
