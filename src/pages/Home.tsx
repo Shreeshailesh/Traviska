@@ -45,14 +45,14 @@ function Home() {
 
         <div className="hero-content">
           <p className="tagline">
-            TRAVEL • CONNECT • EXPERIENCE
+            TRAVEL • EXPLORE • EXPERIENCE
           </p>
 
-          <h1>
-            Discover India
-            <br />
-            One Journey at a Time
-          </h1>
+         <h1>
+  Not Just Trips.
+  <br />
+  Stories Worth Living.
+</h1>
 
           <p className="description">
             Weekend getaways, road trips, backpacking
