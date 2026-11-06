@@ -51,18 +51,29 @@
 /* Mobile navbar */
 @media (max-width: 600px) {
   .navbar {
-    padding: 15px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 10px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
   }
 
   .logo {
-    font-size: 22px;
+    font-size: 17px;
+    flex-shrink: 0;
   }
 
   .nav-links {
-  gap: 8px;
-}
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 7px;
+    min-width: 0;
+  }
 
   .nav-links a {
-    font-size: 13px;
+    font-size: 10px;
+    white-space: nowrap;
   }
 }
