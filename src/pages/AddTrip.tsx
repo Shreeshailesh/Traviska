@@ -184,13 +184,13 @@ function AddTrip() {
       }
     );
 
-    const filename = uploadResponse.data.filename;
+       const imageUrl = uploadResponse.data.url;
 
-    if (!filename) {
+    if (!imageUrl) {
       throw new Error("Image upload failed");
     }
 
-    return `${API_BASE_URL}/uploads/${filename}`;
+    return imageUrl;
   };
 
   const handleAddTrip = async () => {

@@ -273,7 +273,7 @@ color: #222;
 @media (max-width: 768px) {
   .gallery-item {
     flex: 0 0 100%;
-    height: 240px;
+   height: 190px;
   }
 
   .gallery-track {
@@ -282,8 +282,8 @@ color: #222;
 }
 
 .trip-gallery .gallery-arrow {
-  width: 40px !important;
-  height: 40px !important;
+  width: 32px !important;
+  height: 32px !important;
   min-width: 40px !important;
   padding: 0 !important;
   margin: 0 !important;

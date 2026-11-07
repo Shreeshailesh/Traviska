@@ -550,10 +550,10 @@ function TripDetails() {
           <div
             style={{
               color: "#ff6b00",
-              fontSize: "32px",
+              fontSize: "clamp(22px, 5vw, 32px)",
               fontWeight: "700",
               textAlign: "center",
-              marginBottom: "25px",
+             marginBottom: "12px",
             }}
           >
             Moments From The Journey
