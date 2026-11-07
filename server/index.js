@@ -14,10 +14,15 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const firebaseAdmin = require("./firebaseAdmin");
 const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
+
+cloudinary.config({
+  secure: true,
+});
 const FileType = require("file-type");
 
 const upload = multer({
-  dest: "uploads/",
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024,
   },
@@ -106,7 +111,7 @@ const razorpay =
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET,
       });
-      
+
 app.get("/", (req, res) => {
   res.send("Traviska Backend is Running 🚀");
 });
@@ -1414,7 +1419,7 @@ app.post(
       next();
     });
   },
-  (req, res) => {
+    async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -1422,10 +1427,42 @@ app.post(
       });
     }
 
-    res.json({
-      success: true,
-      filename: req.file.filename,
-    });
+    try {
+      const detected = await FileType.fromBuffer(req.file.buffer);
+
+      if (!detected || !["image/jpeg", "image/png", "image/webp"].includes(detected.mime)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid image file",
+        });
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "traviska/trips",
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        stream.end(req.file.buffer);
+      });
+
+      res.json({
+        success: true,
+        url: result.secure_url,
+      });
+    } catch (err) {
+      console.error("Cloudinary upload failed:", err);
+      res.status(500).json({
+        success: false,
+        message: "Image upload failed",
+      });
+    }
   }
 );
 
