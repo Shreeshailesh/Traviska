@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import heroVideo from "../assets/videos/hero.mp4";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import {
   ChevronRight,
@@ -31,10 +31,49 @@ import {
 } from "../components/HomeIllustrations";
 import "./Home.css";
 
+// High-speed CDN URLs so video loads smoothly worldwide on mobile & web
+const HERO_VIDEO_URL =
+  "https://res.cloudinary.com/clpacmp1/video/upload/q_auto,f_auto/traviska_hero_video.mp4";
+const HERO_POSTER_URL =
+  "https://res.cloudinary.com/clpacmp1/video/upload/so_0,q_auto,f_auto/traviska_hero_video.jpg";
+
 function Home() {
   const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
+
+  // Enforce autoplay on mobile & desktop browsers (iOS Safari, Android Chrome, Mac Safari)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.defaultMuted = true;
+    video.muted = true;
+
+    const playVideo = () => {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Fallback if autoplay is restricted until first touch
+          const handleFirstInteraction = () => {
+            video.play().catch(() => {});
+            window.removeEventListener("touchstart", handleFirstInteraction);
+            window.removeEventListener("click", handleFirstInteraction);
+          };
+          window.addEventListener("touchstart", handleFirstInteraction, {
+            once: true,
+            passive: true,
+          });
+          window.addEventListener("click", handleFirstInteraction, {
+            once: true,
+          });
+        });
+      }
+    };
+
+    playVideo();
+  }, []);
 
   useEffect(() => {
     const fetchTrips = async () => {
@@ -62,16 +101,20 @@ function Home() {
   return (
     <div className="home-page-container">
       {/* ============================================================
-          HERO SECTION (Preserved Exactly As Requested)
+          HERO SECTION
           ============================================================ */}
       <section className="hero">
         <video
+          ref={videoRef}
           className="hero-video"
           autoPlay
           muted
           loop
           playsInline
+          preload="auto"
+          poster={HERO_POSTER_URL}
         >
+          <source src={HERO_VIDEO_URL} type="video/mp4" />
           <source src={heroVideo} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
