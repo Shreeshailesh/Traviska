@@ -338,3 +338,47 @@ export const FooterMountainPanorama = () => (
     </svg>
   </div>
 );
+
+// Gentle undulating wave transition for Trip Details banner into cream content
+export const BannerWaveSeparator = () => (
+  <div
+    style={{
+      position: "absolute",
+      bottom: -1,
+      left: 0,
+      width: "100%",
+      height: "75px",
+      overflow: "hidden",
+      zIndex: 3,
+      pointerEvents: "none",
+    }}
+  >
+    <svg
+      viewBox="0 0 1440 90"
+      preserveAspectRatio="none"
+      style={{
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        display: "block",
+      }}
+    >
+      <path
+        d="M0,45 C280,75 520,15 800,45 C1080,75 1320,25 1440,40 L1440,90 L0,90 Z"
+        fill="#c8e4be"
+        fillOpacity="0.38"
+      />
+      <path
+        d="M0,55 C360,20 680,70 1020,38 C1240,18 1380,55 1440,60 L1440,90 L0,90 Z"
+        fill="#daedd4"
+        fillOpacity="0.75"
+      />
+      <path
+        d="M0,68 C320,45 640,82 960,60 C1200,45 1360,72 1440,68 L1440,90 L0,90 Z"
+        fill="#faf7f0"
+      />
+    </svg>
+  </div>
+);

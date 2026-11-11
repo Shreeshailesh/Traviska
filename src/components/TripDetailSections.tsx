@@ -1,4 +1,14 @@
-import DynamicLucideIcon from "./DynamicLucideIcon";
+import { useState } from "react";
+import {
+  CalendarX,
+  FileText,
+  ShieldAlert,
+  ChevronUp,
+  ChevronDown,
+  CheckCircle2,
+  Shield,
+} from "lucide-react";
+import { TitleBrush } from "./HomeIllustrations";
 import type { TripSectionData } from "./AdminTripSectionsEditor";
 
 interface TripDetailSectionsProps {
@@ -9,253 +19,226 @@ interface TripDetailSectionsProps {
   importantNotes?: TripSectionData;
 }
 
-interface SectionTheme {
-  title: string;
-  subtitle: string;
-  bgPastel: string;
-  borderColor: string;
-  hoverBorder: string;
-  badgeBg: string;
-  iconColor: string;
-  titleColor: string;
-  defaultIcon: string;
-}
-
-const SECTION_THEMES: Record<string, SectionTheme> = {
-  safetyInformation: {
-    title: "Safety Information",
-    subtitle: "Your safety, health, and well-being remain our topmost priority throughout the expedition.",
-    bgPastel: "#f0fdf4",
-    borderColor: "#bbf7d0",
-    hoverBorder: "#86efac",
-    badgeBg: "#dcfce7",
-    iconColor: "#15803d",
-    titleColor: "#166534",
-    defaultIcon: "ShieldCheck",
-  },
-  whyChooseUs: {
-    title: "Why Choose Us",
-    subtitle: "What sets Traviska adventures apart from ordinary travel.",
-    bgPastel: "#fffbeb",
-    borderColor: "#fde68a",
-    hoverBorder: "#fcd34d",
-    badgeBg: "#fef3c7",
-    iconColor: "#b45309",
-    titleColor: "#92400e",
-    defaultIcon: "Award",
-  },
+// Default policy data matching Image 1 exactly
+const DEFAULT_POLICIES = {
   cancellationPolicy: {
     title: "Cancellation Policy",
     subtitle: "Clear, transparent rules and refund timelines for your reservation.",
-    bgPastel: "#fff1f2",
-    borderColor: "#fecdd3",
-    hoverBorder: "#fda4af",
-    badgeBg: "#ffe4e6",
-    iconColor: "#be123c",
-    titleColor: "#9f1239",
-    defaultIcon: "CalendarX",
+    iconColor: "#1e7e34",
+    iconBg: "#eaf6e5",
+    waveFill: "#90c684",
+    items: [
+      "Free cancellation up to 7 days before the trip – full refund.",
+      "Cancellations 3–7 days before the trip – 50% refund.",
+      "Cancellations within 3 days – no refund.",
+      "In case of trip cancellation by Traviska (weather or other unavoidable reasons), a full refund or reschedule will be offered.",
+    ],
   },
   termsAndConditions: {
     title: "Terms & Conditions",
     subtitle: "Essential guidelines, ID requirements, and participant agreements.",
-    bgPastel: "#f0f9ff",
-    borderColor: "#bae6fd",
-    hoverBorder: "#7dd3fc",
-    badgeBg: "#e0f2fe",
-    iconColor: "#0369a1",
-    titleColor: "#075985",
-    defaultIcon: "FileText",
+    iconColor: "#0284c7",
+    iconBg: "#e5f2fa",
+    waveFill: "#93c5fd",
+    items: [
+      "All travellers must carry a valid government-issued ID.",
+      "Participants are expected to follow the trip itinerary and instructions by the trip lead.",
+      "Traviska reserves the right to modify the itinerary due to weather, safety, or unforeseen events.",
+      "Misconduct or unsafe behavior may lead to removal from the trip without a refund.",
+    ],
   },
-  importantNotes: {
-    title: "Important Notes",
-    subtitle: "Packing essentials, terrain expectations, and eco-friendly practices.",
-    bgPastel: "#faf5ff",
-    borderColor: "#e9d5ff",
-    hoverBorder: "#d8b4fe",
-    badgeBg: "#f3e8ff",
-    iconColor: "#7e22ce",
-    titleColor: "#6b21a8",
-    defaultIcon: "Info",
+  safetyInformation: {
+    title: "Safety Information",
+    subtitle: "Your safety, health, and well-being remain our topmost priority throughout the expedition.",
+    iconColor: "#d97706",
+    iconBg: "#fef3e2",
+    waveFill: "#fcd34d",
+    items: [
+      "Experienced trip leaders and a support team will accompany every expedition.",
+      "Basic first-aid support will be available throughout the trip.",
+      "Please inform us in advance about any medical conditions or special requirements.",
+      "Follow safety guidelines during activities like trekking, hiking, or camping.",
+    ],
   },
 };
 
 export default function TripDetailSections({
   safetyInformation,
-  whyChooseUs,
   cancellationPolicy,
   termsAndConditions,
-  importantNotes,
 }: TripDetailSectionsProps) {
-  const sectionsToRender: Array<{
-    key: string;
-    data: TripSectionData;
-    theme: SectionTheme;
-  }> = [];
+  // All 3 accordions open by default as in Image 1
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    cancellationPolicy: true,
+    termsAndConditions: true,
+    safetyInformation: true,
+  });
 
-  const checkAndAdd = (key: string, data?: TripSectionData) => {
-    if (
-      data &&
-      data.enabled &&
-      Array.isArray(data.items) &&
-      data.items.some((it) => it.heading?.trim() || it.description?.trim())
-    ) {
-      sectionsToRender.push({
-        key,
-        data,
-        theme: SECTION_THEMES[key],
-      });
-    }
+  const toggleSection = (key: string) => {
+    setExpanded((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   };
 
-  checkAndAdd("safetyInformation", safetyInformation);
-  checkAndAdd("whyChooseUs", whyChooseUs);
-  checkAndAdd("cancellationPolicy", cancellationPolicy);
-  checkAndAdd("termsAndConditions", termsAndConditions);
-  checkAndAdd("importantNotes", importantNotes);
+  // Helper to extract items either from custom admin data or fall back to default
+  const getSectionPoints = (
+    customData?: TripSectionData,
+    defaultList: string[] = []
+  ): string[] => {
+    if (
+      customData &&
+      Array.isArray(customData.items) &&
+      customData.items.length > 0
+    ) {
+      const valid = customData.items
+        .map((it) => {
+          if (it.heading && it.description) {
+            return `${it.heading}: ${it.description}`;
+          }
+          return it.heading || it.description || "";
+        })
+        .filter((s) => s.trim().length > 0);
 
-  if (sectionsToRender.length === 0) {
-    return null;
-  }
+      if (valid.length > 0) return valid;
+    }
+    return defaultList;
+  };
+
+  const sections = [
+    {
+      key: "cancellationPolicy",
+      meta: DEFAULT_POLICIES.cancellationPolicy,
+      icon: <CalendarX size={22} color="#1e7e34" />,
+      points: getSectionPoints(
+        cancellationPolicy,
+        DEFAULT_POLICIES.cancellationPolicy.items
+      ),
+    },
+    {
+      key: "termsAndConditions",
+      meta: DEFAULT_POLICIES.termsAndConditions,
+      icon: <FileText size={22} color="#0284c7" />,
+      points: getSectionPoints(
+        termsAndConditions,
+        DEFAULT_POLICIES.termsAndConditions.items
+      ),
+    },
+    {
+      key: "safetyInformation",
+      meta: DEFAULT_POLICIES.safetyInformation,
+      icon: <ShieldAlert size={22} color="#d97706" />,
+      points: getSectionPoints(
+        safetyInformation,
+        DEFAULT_POLICIES.safetyInformation.items
+      ),
+    },
+  ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "36px", marginTop: "40px" }}>
-      {sectionsToRender.map(({ key, data, theme }) => {
-        const validItems = data.items.filter(
-          (it) => it.heading?.trim() || it.description?.trim()
-        );
+    <section className="travel-policies-section">
+      {/* SECTION HEADER */}
+      <div className="travel-policies-header">
+        <div className="policies-badge">
+          <Shield size={14} className="policies-badge-icon" />
+          <span>Policies &amp; Information</span>
+        </div>
 
-        return (
-          <section
-            key={key}
-            style={{
-              background: "#ffffff",
-              borderRadius: "16px",
-              padding: "28px 24px",
-              border: "1px solid #e5e7eb",
-              boxShadow: "0 4px 18px rgba(0,0,0,0.03)",
-            }}
-          >
-            {/* Section Header */}
-            <div style={{ marginBottom: "22px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "10px",
-                    background: theme.badgeBg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <DynamicLucideIcon
-                    name={theme.defaultIcon}
-                    size={20}
-                    color={theme.iconColor}
-                  />
-                </div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "clamp(20px, 3.5vw, 24px)",
-                    fontWeight: "700",
-                    color: "#111827",
-                  }}
-                >
-                  {theme.title}
-                </h2>
-              </div>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "14px",
-                  color: "#6b7280",
-                  lineHeight: "1.5",
+        <h2 className="policies-title">Travel Policies &amp; Guidelines</h2>
+        <TitleBrush />
+        <p className="policies-subtitle">
+          Everything you need to know for a safe, smooth, and enjoyable journey with Traviska.
+        </p>
+      </div>
+
+      {/* ACCORDION CARDS LIST */}
+      <div className="policies-cards-stack">
+        {sections.map(({ key, meta, icon, points }) => {
+          const isOpen = expanded[key] ?? true;
+
+          return (
+            <div key={key} className="policy-accordion-card">
+              {/* ACCORDION HEADER */}
+              <div
+                className="policy-card-top"
+                onClick={() => toggleSection(key)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    toggleSection(key);
+                  }
                 }}
               >
-                {theme.subtitle}
-              </p>
-            </div>
-
-            {/* Pastel Feature Cards Grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                gap: "18px",
-              }}
-            >
-              {validItems.map((item, idx) => (
+                {/* Colored icon box */}
                 <div
-                  key={idx}
-                  style={{
-                    background: theme.bgPastel,
-                    border: `1px solid ${theme.borderColor}`,
-                    borderRadius: "14px",
-                    padding: "20px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                  className="policy-icon-box"
+                  style={{ backgroundColor: meta.iconBg }}
+                >
+                  {icon}
+                </div>
+
+                {/* Title & Subtitle */}
+                <div className="policy-card-text">
+                  <h3 className="policy-card-title">{meta.title}</h3>
+                  <p className="policy-card-subtitle">{meta.subtitle}</p>
+                </div>
+
+                {/* Right toggle button */}
+                <button
+                  type="button"
+                  className="policy-toggle-btn"
+                  aria-label={isOpen ? "Collapse section" : "Expand section"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection(key);
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div
-                      style={{
-                        width: "42px",
-                        height: "42px",
-                        borderRadius: "10px",
-                        background: "#ffffff",
-                        border: `1px solid ${theme.borderColor}`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                        boxShadow: "0 2px 5px rgba(0,0,0,0.04)",
-                      }}
-                    >
-                      <DynamicLucideIcon
-                        name={item.icon || theme.defaultIcon}
-                        size={22}
-                        color={theme.iconColor}
-                      />
-                    </div>
-                    {item.heading && (
-                      <h3
-                        style={{
-                          margin: 0,
-                          fontSize: "16px",
-                          fontWeight: "700",
-                          color: "#1f2937",
-                          lineHeight: "1.3",
-                        }}
-                      >
-                        {item.heading}
-                      </h3>
-                    )}
-                  </div>
+                  {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
 
-                  {item.description && (
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "14px",
-                        lineHeight: "1.6",
-                        color: "#4b5563",
-                        whiteSpace: "pre-line",
-                      }}
-                    >
-                      {item.description}
-                    </p>
-                  )}
+                {/* Subtle mountain / wave backdrop silhouette */}
+                <svg
+                  className="policy-card-wave"
+                  viewBox="0 0 500 50"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M0,50 Q120,20 250,38 T500,20 L500,50 Z"
+                    fill={meta.waveFill}
+                    fillOpacity="0.18"
+                  />
+                  <path
+                    d="M0,50 Q180,30 350,15 T500,35 L500,50 Z"
+                    fill={meta.waveFill}
+                    fillOpacity="0.25"
+                  />
+                </svg>
+              </div>
+
+              {/* ACCORDION BODY (BULLET POINTS) */}
+              {isOpen && (
+                <div className="policy-card-body">
+                  <div className="policy-card-divider" />
+                  <ul className="policy-points-list">
+                    {points.map((pt, idx) => (
+                      <li key={idx} className="policy-point-item">
+                        <CheckCircle2
+                          size={18}
+                          className="policy-check-icon"
+                          fill="#16a34a"
+                          color="#ffffff"
+                        />
+                        <span className="policy-point-text">{pt}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              )}
             </div>
-          </section>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

@@ -8,7 +8,9 @@ function Booking() {
   const location = useLocation();
   const trip = location.state;
 
-  const [travellers, setTravellers] = useState(1);
+  const [travellers, setTravellers] = useState(
+    trip?.travellers ? Number(trip.travellers) : 1
+  );
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
