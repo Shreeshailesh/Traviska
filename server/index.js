@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const Booking = require("./models/Booking");
 const PaymentIssue = require("./models/PaymentIssue");
 const Trip = require("./models/Trip");
+const GlobalTripSections = require("./models/GlobalTripSections");
 const TripSlot = require("./models/TripSlot");
 const User = require("./models/User");
 const bcrypt = require("bcryptjs");
@@ -94,6 +95,7 @@ mongoose
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
@@ -1558,8 +1560,12 @@ app.delete("/trips/:id", async (req, res) => {
 
 app.put("/trips/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    if (req.body.price !== undefined) {
-      const price = Number(req.body.price);
+    const updateData = { ...req.body };
+    delete updateData._id;
+    delete updateData.__v;
+
+    if (updateData.price !== undefined) {
+      const price = Number(updateData.price);
 
       if (!Number.isFinite(price) || price <= 0) {
         return res.status(400).json({
@@ -1568,14 +1574,21 @@ app.put("/trips/:id", authMiddleware, adminMiddleware, async (req, res) => {
         });
       }
 
-      req.body.price = price;
+      updateData.price = price;
     }
 
     const trip = await Trip.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { new: true }
+      updateData,
+      { new: true, runValidators: true }
     );
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
 
     res.json({
       success: true,
@@ -1591,6 +1604,63 @@ app.put("/trips/:id", authMiddleware, adminMiddleware, async (req, res) => {
     });
   }
 });
+
+app.get("/global-trip-sections", async (req, res) => {
+  try {
+    let sections = await GlobalTripSections.findOne();
+    if (!sections) {
+      sections = await GlobalTripSections.create({});
+    }
+    res.json(sections);
+  } catch (err) {
+    console.error("Failed to fetch global trip sections:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch trip sections",
+    });
+  }
+});
+
+app.put(
+  "/global-trip-sections",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const payload = {
+        safetyInformation: req.body.safetyInformation,
+        whyChooseUs: req.body.whyChooseUs,
+        cancellationPolicy: req.body.cancellationPolicy,
+        termsAndConditions: req.body.termsAndConditions,
+        importantNotes: req.body.importantNotes,
+        updatedAt: new Date(),
+      };
+
+      let sections = await GlobalTripSections.findOne();
+      if (!sections) {
+        sections = await GlobalTripSections.create(payload);
+      } else {
+        sections = await GlobalTripSections.findByIdAndUpdate(
+          sections._id,
+          payload,
+          { new: true, runValidators: true }
+        );
+      }
+
+      res.json({
+        success: true,
+        message: "Detailed trip sections updated successfully",
+        sections,
+      });
+    } catch (err) {
+      console.error("Failed to update global trip sections:", err);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update trip sections",
+      });
+    }
+  }
+);
 
 app.post("/login", async (req, res) => {
   try {

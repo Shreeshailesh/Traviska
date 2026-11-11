@@ -1,54 +1,74 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import "./Sidebar.css";
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const navItems = [
+    { label: "📊 Dashboard", path: "/admin" },
+    { label: "📅 Bookings", path: "/admin/bookings" },
+    { label: "🧳 Trips", path: "/admin/trips" },
+    { label: "📑 Detailed Sections", path: "/admin/sections" },
+    { label: "👥 Customers", path: "/admin/customers" },
+    { label: "⚙️ Settings", path: "/admin/settings" },
+  ];
+
+  const handleItemClick = (path: string) => {
+    navigate(path);
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <div
-      style={{
-        width: "260px",
-minWidth: "260px",
-        background: "#111827",
-        color: "white",
-        minHeight: "100vh",
-        padding: "30px 20px",
-      }}
-    >
-      <h2 style={{ marginBottom: "40px" }}>Traviska</h2>
+    <>
+      {/* Backdrop for mobile off-canvas drawer */}
+      {isOpen && (
+        <div
+          className="admin-sidebar-backdrop"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
 
-      <p
-  onClick={() => navigate("/admin")}
-  style={{ marginBottom: "20px", cursor: "pointer" }}
->
-  📊 Dashboard
-</p>
+      <aside className={`admin-sidebar ${isOpen ? "open" : ""}`}>
+        <div className="admin-sidebar-header">
+          <h2 className="admin-sidebar-title">Traviska</h2>
+          <button
+            type="button"
+            className="admin-sidebar-close-btn"
+            onClick={onClose}
+            aria-label="Close sidebar"
+          >
+            ✕
+          </button>
+        </div>
 
-      <p
-  onClick={() => navigate("/admin/bookings")}
-  style={{ marginBottom: "20px", cursor: "pointer" }}
->
-  📅 Bookings
-</p>
+        <nav className="admin-sidebar-nav">
+          {navItems.map((item) => {
+            const isActive =
+              item.path === "/admin"
+                ? location.pathname === "/admin"
+                : location.pathname.startsWith(item.path);
 
-     <p
-  onClick={() => navigate("/admin/trips")}
-  style={{ marginBottom: "20px", cursor: "pointer" }}
->
-  🧳 Trips
-</p>
-
-      <p
-  onClick={() => navigate("/admin/customers")}
-  style={{ marginBottom: "20px", cursor: "pointer" }}
->
-  👥 Customers
-</p>
-
-      <p
-  onClick={() => navigate("/admin/settings")}
-  style={{ marginBottom: "20px", cursor: "pointer" }}
->
-  ⚙️ Settings
-</p>
-    </div>
+            return (
+              <p
+                key={item.path}
+                onClick={() => handleItemClick(item.path)}
+                className={`admin-sidebar-item ${isActive ? "active" : ""}`}
+              >
+                {item.label}
+              </p>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }

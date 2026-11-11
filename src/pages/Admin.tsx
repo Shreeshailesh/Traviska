@@ -5,6 +5,11 @@ import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import "./Admin.css";
 import { useNavigate } from "react-router-dom";
+import AdminTripSectionsEditor, {
+  normalizeSections,
+  createDefaultSections,
+  type TripSectionsState,
+} from "../components/AdminTripSectionsEditor";
 
 
 function Admin() {
@@ -12,6 +17,7 @@ function Admin() {
 
     const location = useLocation();
 const activeSection = location.pathname.split("/")[2] || "dashboard";
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [bookings, setBookings] = useState([]);
   const [bookingSearch, setBookingSearch] = useState("");
@@ -42,12 +48,17 @@ const activeSection = location.pathname.split("/")[2] || "dashboard";
   const [editingTrip, setEditingTrip] = useState<any>(null);
   const editTripRef = useRef<HTMLDivElement>(null);
 
+  const prevEditingTripId = useRef<string | null>(null);
   useEffect(() => {
-  if (editingTrip) {
+  if (editingTrip && editingTrip._id !== prevEditingTripId.current) {
+    prevEditingTripId.current = editingTrip._id;
     editTripRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
+  }
+  if (!editingTrip) {
+    prevEditingTripId.current = null;
   }
 }, [editingTrip]);
 
@@ -80,6 +91,49 @@ const [manualBooking, setManualBooking] = useState({
 
 const [manualBookingSaving, setManualBookingSaving] = useState(false);
 
+const [globalSections, setGlobalSections] = useState<TripSectionsState>(
+  createDefaultSections()
+);
+const [loadingSections, setLoadingSections] = useState(false);
+const [savingSections, setSavingSections] = useState(false);
+
+const fetchGlobalSections = async () => {
+  try {
+    setLoadingSections(true);
+    const { data } = await axios.get(`${API_BASE_URL}/global-trip-sections`);
+    if (data) {
+      setGlobalSections(normalizeSections(data));
+    }
+  } catch (err) {
+    console.error("Failed to fetch global trip sections:", err);
+  } finally {
+    setLoadingSections(false);
+  }
+};
+
+const saveGlobalSections = async () => {
+  try {
+    setSavingSections(true);
+    const { data } = await axios.put(
+      `${API_BASE_URL}/global-trip-sections`,
+      globalSections,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
+    alert(data.message || "Detailed trip sections saved successfully!");
+    if (data.sections) {
+      setGlobalSections(normalizeSections(data.sections));
+    }
+  } catch (err: any) {
+    console.error("Failed to save global trip sections:", err);
+    alert(err.response?.data?.message || "Failed to save trip sections");
+  } finally {
+    setSavingSections(false);
+  }
+};
 
   const handleLogout = () => {
   localStorage.removeItem("token");
@@ -97,6 +151,7 @@ const [manualBookingSaving, setManualBookingSaving] = useState(false);
   fetchBookings();
   fetchTrips();
   fetchSlots();
+  fetchGlobalSections();
 }, []);
 
 const fetchBookings = async () => {
@@ -418,58 +473,66 @@ const paidBookings = bookings.filter(
 
 
 return (
-  <div
-    style={{
-      display: "flex",
-      background: "#f5f7fb",
-      minHeight: "100vh",
-    }}
-  >
-    <Sidebar />
+  <div className="admin-layout">
+    {/* Mobile Header Bar (shown on screens <= 900px) */}
+    <header className="admin-mobile-header">
+      <div className="admin-mobile-header-left">
+        <button
+          type="button"
+          className="admin-mobile-toggle-btn"
+          onClick={() => setMobileSidebarOpen(true)}
+          aria-label="Open menu"
+        >
+          ☰
+        </button>
+        <span className="admin-mobile-brand">Traviska Admin</span>
+      </div>
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="admin-mobile-logout-btn"
+      >
+        Logout
+      </button>
+    </header>
 
-    <div
-  style={{
-    flex: 1,
-    padding: "40px",
-    overflowX: "auto",
-  }}
-  >
-  
-    <div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "30px",
-  }}
->
-  <h1 className="admin-title">
-    {activeSection === "dashboard"
-  ? "📊 Dashboard"
-  : activeSection === "bookings"
-  ? "📅 Bookings"
-  : activeSection === "trips"
-  ? "🧳 Trips"
-  : activeSection === "customers"
-  ? "👥 Customers"
-  : "⚙️ Settings"}
-  </h1>
+    <Sidebar
+      isOpen={mobileSidebarOpen}
+      onClose={() => setMobileSidebarOpen(false)}
+    />
 
-  <button
-    onClick={handleLogout}
-    style={{
-      background: "#ef4444",
-      color: "#fff",
-      border: "none",
-      padding: "10px 20px",
-      borderRadius: "8px",
-      cursor: "pointer",
-      fontWeight: "bold",
-    }}
-  >
-    Logout
-  </button>
-</div>
+    <div className="admin-main-content">
+      <div className="admin-top-bar">
+        <h1 className="admin-title">
+          {activeSection === "dashboard"
+            ? "📊 Dashboard"
+            : activeSection === "bookings"
+            ? "📅 Bookings"
+            : activeSection === "trips"
+            ? "🧳 Trips"
+            : activeSection === "sections"
+            ? "📑 Detailed Trip Sections"
+            : activeSection === "customers"
+            ? "👥 Customers"
+            : "⚙️ Settings"}
+        </h1>
+
+        <button
+          onClick={handleLogout}
+          className="admin-desktop-logout"
+          style={{
+            background: "#ef4444",
+            color: "#fff",
+            border: "none",
+            padding: "10px 20px",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          Logout
+        </button>
+      </div>
 
 {activeSection === "trips" && (
   <>
@@ -730,6 +793,7 @@ return (
   </h2>
 
 
+<div className="admin-table-scroll">
 <table
     style={{
       width: "100%",
@@ -891,6 +955,7 @@ return (
       })}
     </tbody>
   </table>
+  </div>
 </div>
 
 {editingSlot && (
@@ -958,6 +1023,7 @@ return (
         cursor: "pointer",
         fontWeight: "bold",
       }}
+
     >
       Save Slot
     </button>
@@ -1037,6 +1103,73 @@ return (
   }}
 />
 
+
+<textarea
+  value={editingTrip.description ?? ""}
+  onChange={(e) =>
+    setEditingTrip({
+      ...editingTrip,
+      description: e.target.value,
+    })
+  }
+  placeholder="About This Trip - Description"
+  rows={5}
+  style={{
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "12px",
+    marginBottom: "15px",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    fontSize: "15px",
+    fontFamily: "inherit",
+    resize: "vertical",
+  }}
+/>
+
+
+{[
+  { field: "highlights", label: "Overview & Highlights" },
+  { field: "itinerary", label: "Itinerary" },
+  { field: "inclusions", label: "Inclusions" },
+  { field: "exclusions", label: "Exclusions" },
+  { field: "thingsToCarry", label: "Things to Carry" },
+].map(({ field, label }) => (
+  <div key={field} style={{ marginBottom: "15px" }}>
+    <label
+      style={{
+        display: "block",
+        marginBottom: "8px",
+        fontWeight: 600,
+        color: "#222",
+      }}
+    >
+      {label}
+    </label>
+
+    <textarea
+      value={(editingTrip as any)[field] ?? ""}
+      onChange={(e) =>
+        setEditingTrip({
+          ...editingTrip,
+          [field]: e.target.value,
+        })
+      }
+      placeholder={`Enter ${label}`}
+      rows={5}
+      style={{
+        width: "100%",
+        padding: "12px",
+        border: "1px solid #ccc",
+        borderRadius: "8px",
+        boxSizing: "border-box",
+        fontSize: "15px",
+        resize: "vertical",
+      }}
+    />
+  </div>
+))}
+
 <button
   onClick={updateTrip}
   style={{
@@ -1073,6 +1206,92 @@ return (
   
 )}
 
+{activeSection === "sections" && (
+  <div
+    style={{
+      background: "#fff",
+      padding: "24px 28px",
+      borderRadius: "16px",
+      boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+      marginBottom: "40px",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "14px",
+        borderBottom: "1px solid #eee",
+        paddingBottom: "18px",
+        marginBottom: "20px",
+      }}
+    >
+      <div>
+        <h2 style={{ color: "#222", margin: "0 0 6px", fontSize: "22px" }}>
+          Global Detailed Trip Sections
+        </h2>
+        <p style={{ color: "#6b7280", margin: 0, fontSize: "14px" }}>
+          These 5 sections (Safety Information, Why Choose Us, Cancellation Policy, Terms &amp; Conditions, Important Notes)
+          are displayed universally across <strong>all trip pages</strong>. Points edited here apply to every trip.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={saveGlobalSections}
+        disabled={savingSections}
+        style={{
+          background: "#ff6b00",
+          color: "#fff",
+          border: "none",
+          padding: "12px 24px",
+          borderRadius: "8px",
+          cursor: savingSections ? "not-allowed" : "pointer",
+          fontWeight: "bold",
+          fontSize: "14px",
+          boxShadow: "0 2px 8px rgba(255,107,0,0.25)",
+        }}
+      >
+        {savingSections ? "Saving..." : "Save Sections"}
+      </button>
+    </div>
+
+    {loadingSections ? (
+      <div style={{ padding: "40px 0", textAlign: "center", color: "#6b7280" }}>
+        Loading sections...
+      </div>
+    ) : (
+      <AdminTripSectionsEditor
+        value={globalSections}
+        onChange={setGlobalSections}
+      />
+    )}
+
+    <div style={{ marginTop: "24px", textAlign: "right" }}>
+      <button
+        type="button"
+        onClick={saveGlobalSections}
+        disabled={savingSections}
+        style={{
+          background: "#ff6b00",
+          color: "#fff",
+          border: "none",
+          padding: "12px 24px",
+          borderRadius: "8px",
+          cursor: savingSections ? "not-allowed" : "pointer",
+          fontWeight: "bold",
+          fontSize: "14px",
+          boxShadow: "0 2px 8px rgba(255,107,0,0.25)",
+        }}
+      >
+        {savingSections ? "Saving..." : "Save Sections"}
+      </button>
+    </div>
+  </div>
+)}
+
 {activeSection === "customers" && (
   <div
     style={{
@@ -1093,6 +1312,7 @@ return (
 >
   Total Customers: {customers.length}
 </p>
+    <div className="admin-table-scroll">
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
   <thead>
     <tr>
@@ -1112,6 +1332,7 @@ return (
     ))}
   </tbody>
 </table>
+</div>
   </div>
 )}
 
@@ -1623,7 +1844,8 @@ return (
   + Add Trip
 </button>
 
-  <table
+  <div className="admin-table-scroll">
+<table
     style={{
       width: "100%",
       borderCollapse: "collapse",
@@ -1694,6 +1916,7 @@ onClick={() => setEditingTrip(trip)}
       ))}
     </tbody>
   </table>
+  </div>
 </div>
   </>
 )}

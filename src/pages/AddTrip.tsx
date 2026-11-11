@@ -69,6 +69,11 @@ function AddTrip() {
   const [price, setPrice] = useState("");
   const [image] = useState("");
   const [description, setDescription] = useState("");
+  const [itinerary, setItinerary] = useState("");
+  const [highlights, setHighlights] = useState("");
+  const [inclusions, setInclusions] = useState("");
+  const [exclusions, setExclusions] = useState("");
+  const [thingsToCarry, setThingsToCarry] = useState("");
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -253,6 +258,11 @@ function AddTrip() {
           image: imageUrl,
           photos: galleryUrls,
           description: description.trim(),
+          itinerary: itinerary.trim(),
+          highlights: highlights.trim(),
+          inclusions: inclusions.trim(),
+          exclusions: exclusions.trim(),
+          thingsToCarry: thingsToCarry.trim(),
         },
         {
           headers: getAuthHeaders(),
@@ -465,6 +475,61 @@ function AddTrip() {
           resize: "none",
         }}
       />
+
+      <textarea
+  placeholder="Itinerary (Day 1, Day 2, etc.)"
+  value={itinerary}
+  onChange={(e) => setItinerary(e.target.value)}
+  style={{
+    ...inputStyle,
+    height: "160px",
+    resize: "vertical",
+  }}
+/>
+
+<textarea
+  placeholder="Overview & Highlights (one highlight per line)"
+  value={highlights}
+  onChange={(e) => setHighlights(e.target.value)}
+  style={{
+    ...inputStyle,
+    height: "140px",
+    resize: "vertical",
+  }}
+/>
+
+<textarea
+  placeholder="Inclusions (one item per line)"
+  value={inclusions}
+  onChange={(e) => setInclusions(e.target.value)}
+  style={{
+    ...inputStyle,
+    height: "140px",
+    resize: "vertical",
+  }}
+/>
+
+<textarea
+  placeholder="Exclusions (one item per line)"
+  value={exclusions}
+  onChange={(e) => setExclusions(e.target.value)}
+  style={{
+    ...inputStyle,
+    height: "140px",
+    resize: "vertical",
+  }}
+/>
+
+<textarea
+  placeholder="Things to Carry (one item per line)"
+  value={thingsToCarry}
+  onChange={(e) => setThingsToCarry(e.target.value)}
+  style={{
+    ...inputStyle,
+    height: "140px",
+    resize: "vertical",
+  }}
+/>
 
       <button
         type="button"

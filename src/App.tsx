@@ -27,11 +27,12 @@ import ProtectedAdmin from "./components/ProtectedAdmin";
 
 function AppContent() {
   const location = useLocation();
+  const isAdmin = location.pathname.startsWith("/admin");
+  const isLogin = location.pathname === "/login";
 
   return (
     <>
-      {location.pathname !== "/admin" &&
- location.pathname !== "/login" && <Navbar />}
+      {!isAdmin && !isLogin && <Navbar />}
 
      <Routes>
   <Route path="/" element={<Home />} />
@@ -51,6 +52,7 @@ function AppContent() {
  <Route path="/admin" element={<ProtectedAdmin />} />
 <Route path="/admin/bookings" element={<ProtectedAdmin />} />
 <Route path="/admin/trips" element={<ProtectedAdmin />} />
+<Route path="/admin/sections" element={<ProtectedAdmin />} />
 <Route path="/admin/customers" element={<ProtectedAdmin />} />
 <Route path="/admin/settings" element={<ProtectedAdmin />} />
   <Route path="/admin/add-trip" element={<ProtectedAdmin />} />
@@ -58,8 +60,7 @@ function AppContent() {
   <Route path="/admin-login" element={<Navigate to="/login" replace />} />
 </Routes>
 
-      {location.pathname !== "/admin" &&
- location.pathname !== "/login" && <Footer />}
+      {!isAdmin && !isLogin && <Footer />}
 
     </>
   );

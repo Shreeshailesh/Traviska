@@ -1,6 +1,22 @@
+/* ============================================================
+   TRAVISKA HOME PAGE STYLES (Natural Cream & Deep Pine Theme)
+   ============================================================ */
+
+.home-page-container {
+  background-color: #faf7f0;
+  color: #1a2e1c;
+  overflow-x: hidden;
+  font-family: inherit;
+}
+
+/* ============================================================
+   HERO SECTION (Preserved Exactly As Requested)
+   ============================================================ */
+
 .hero {
   position: relative;
   height: 100vh;
+  min-height: 640px;
   overflow: hidden;
   display: flex;
   justify-content: center;
@@ -18,7 +34,12 @@
 .overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: linear-gradient(
+    180deg,
+    rgba(10, 22, 12, 0.65) 0%,
+    rgba(10, 22, 12, 0.35) 45%,
+    rgba(8, 18, 10, 0.95) 100%
+  );
 }
 
 .hero-content {
@@ -26,392 +47,732 @@
   z-index: 2;
   text-align: center;
   color: white;
-  max-width: 900px;
+  max-width: 860px;
   padding: 20px;
 }
 
 .tagline {
-  letter-spacing: 4px;
-  font-size: 14px;
-  margin-bottom: 20px;
+  letter-spacing: 6px;
+  font-size: 13.5px;
+  margin-bottom: 22px;
+  color: #a8e063;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .hero h1 {
-  font-size: 80px;
-  line-height: 1.1;
+  font-size: clamp(38px, 6.5vw, 76px);
+  line-height: 1.08;
   margin: 0;
   font-weight: 800;
-  text-shadow: 0 5px 20px rgba(0,0,0,0.5);
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  letter-spacing: -0.5px;
+}
+
+.hero-highlight {
+  color: #a8e063;
+  font-style: italic;
+  font-weight: 800;
 }
 
 .description {
-  font-size: 22px;
-  margin-top: 25px;
-  line-height: 1.6;
-  text-shadow: 0 3px 15px rgba(0,0,0,0.5);
+  font-size: clamp(16px, 2.2vw, 20px);
+  margin-top: 22px;
+  line-height: 1.65;
+  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.hero button {
-  margin-top: 35px;
-  padding: 16px 45px;
-
-  border: none;
+.hero-cta {
+  margin-top: 34px;
+  padding: 14px 36px;
+  border: 1.5px solid rgba(168, 224, 99, 0.5);
   border-radius: 40px;
-
-  background: #ff6b00;
-  color: white;
-
-  font-size: 18px;
+  background: rgba(18, 42, 22, 0.7);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 16px;
   font-weight: 600;
-
   cursor: pointer;
-
   transition: all 0.3s ease;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
-.hero button:hover {
-  transform: translateY(-5px);
-  background: #ff8500;
-  box-shadow: 0 15px 35px rgba(0,0,0,0.35);
+
+.hero-cta:hover {
+  background: #1a4220;
+  border-color: #a8e063;
+  color: #a8e063;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(168, 224, 99, 0.2);
 }
-.search-section {
-  position: relative;
-  margin-top: -60px;
-  z-index: 10;
-  padding: 20px 50px;
-}
-.search-box {
-  max-width: 1100px;
-  margin: auto;
 
-  background: white;
-
-  padding: 25px;
-
-  border-radius: 25px;
-
+.scroll-indicator {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  color: #a8e063;
+  width: 34px;
+  height: 50px;
   display: flex;
-  gap: 20px;
-  align-items: end;
-
-  box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: scrollBounce 2.2s infinite;
 }
 
-.search-item {
-  flex: 1;
+.scroll-indicator:hover {
+  background: rgba(168, 224, 99, 0.2);
+  border-color: #a8e063;
+}
+
+@keyframes scrollBounce {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
+/* ============================================================
+   SHARED NATURE SECTION HEADERS
+   ============================================================ */
+
+.nature-section {
+  padding: 85px 40px;
+  background-color: #faf7f0;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.nature-header {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto 50px;
+}
+
+.nature-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #d9eec7;
+  color: #16391d;
+  padding: 6px 18px;
+  border-radius: 30px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.badge-icon {
+  color: #16391d;
+}
+
+.nature-title {
+  font-size: clamp(34px, 4.8vw, 46px);
+  font-weight: 800;
+  color: #0d2b17;
+  margin: 0;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+}
+
+.nature-subtitle {
+  font-size: clamp(15px, 2vw, 17px);
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 14px auto 0;
+  max-width: 620px;
+}
+
+.nature-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+/* ============================================================
+   SECTION 1: POPULAR EXPERIENCES (Cards Grid)
+   ============================================================ */
+
+.popular-section {
+  background-color: #faf7f0;
+}
+
+.popular-cards-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.nature-trip-card {
+  background: #ffffff;
+  border: 1px solid #e7ede2;
+  border-radius: 26px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.search-item label {
-  font-weight: bold;
-}
-
-.search-item input {
-  padding: 15px;
-
-  border-radius: 12px;
-
-  border: 1px solid #e5e5e5;
-
-  font-size: 15px;
-
-  outline: none;
-
-  transition: 0.3s;
-}
-.search-item input:focus {
-  border-color: #ff6b00;
-  box-shadow: 0 0 10px rgba(255,107,0,0.25);
-}
-
-.search-btn {
-  padding: 15px 35px;
-
-  background: #ff6b00;
-
-  color: white;
-
-  border: none;
-
-  border-radius: 30px;
-
   cursor: pointer;
-
-  font-size: 16px;
-
-  font-weight: 600;
-
-  transition: 0.3s;
-}
-.search-btn:hover {
-  background: #ff8500;
-  transform: translateY(-3px);
-}
-.trips-section {
-  padding: 70px 50px;
-  text-align: center;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.04);
 }
 
-.trips-section h2 {
-  font-size: 40px;
-  margin-bottom: 10px;
+.nature-trip-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 18px 40px rgba(14, 43, 23, 0.12);
+  border-color: #c9dec2;
 }
 
-.section-subtitle {
-  color: #666;
-  margin-bottom: 40px;
-}
-
-
-.trip-cards {
-  display: flex;
-  gap: 30px;
-  justify-content: center;
-}
-
-
-.trip-card {
-  width: 320px;
-
-  background: white;
-
-  border-radius: 25px;
-
-  overflow: hidden;
-
-  box-shadow: 0 15px 40px rgba(0,0,0,0.12);
-
-  transition: all 0.3s ease;
-}
-
-
-.trip-card:hover {
-
-  transform: translateY(-12px);
-
-  box-shadow: 0 25px 50px rgba(0,0,0,0.18);
-
-}
-
-
-.trip-card img {
-
+.trip-card-media {
+  position: relative;
   width: 100%;
+  height: 235px;
+  background: #eef3eb;
+  overflow: hidden;
+}
 
-  height: 230px;
-
+.trip-card-img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-
-  transition: 0.4s;
-
-}
-.trip-card:hover img {
-
-  transform: scale(1.08);
-
+  display: block;
+  transition: transform 0.5s ease;
 }
 
-
-.card-content {
-  padding: 25px;
-  text-align: left;
-  color: #222;
+.nature-trip-card:hover .trip-card-img {
+  transform: scale(1.06);
 }
-.card-content h3 {
-  color: #111;
-}
-.card-content p {
-  color: #666;
-}
-.card-content button {
-  margin-top: 15px;
 
-  padding: 12px 25px;
-
-  border: none;
-
-  border-radius: 25px;
-
-  background: #ff6b00;
-
-  color: white;
-
+.trip-card-no-img {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e2ecd9;
+  color: #27471f;
+  font-weight: 700;
   font-size: 15px;
+}
 
+.trip-photo-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(14, 38, 20, 0.8);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 3;
+}
+
+.trip-card-content {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.trip-card-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #1e3f20;
+  font-size: 13.5px;
   font-weight: 600;
-
-  cursor: pointer;
-
-  transition: 0.3s;
+  margin-bottom: 8px;
 }
 
-
-.card-content button:hover {
-  background: #ff8500;
-
-  transform: translateY(-3px);
-}
-.card-content h4 {
-  margin-top: 15px;
-
-  font-size: 20px;
-
-  color: #ff6b00;
+.location-pin {
+  color: #3b6328;
 }
 
-.card-content h3 {
+.trip-card-heading {
   font-size: 24px;
-  margin-bottom: 10px;
-}
-.why-section {
-  padding: 80px 50px;
-  background: #f8f8f8;
-  text-align: center;
+  font-weight: 800;
+  color: #0d2b17;
+  margin: 0 0 16px;
+  line-height: 1.25;
 }
 
-
-.why-section h2 {
-  font-size: 40px;
+.trip-card-divider {
+  height: 1px;
+  background: #edf2e8;
+  margin-bottom: 16px;
 }
 
+.trip-card-pricing-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  min-height: 52px;
+}
 
-.features {
+.pricing-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.pricing-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.pricing-val {
+  font-size: 26px;
+  font-weight: 900;
+  color: #0d2b17;
+  letter-spacing: -0.5px;
+}
+
+.pricing-watermark {
+  display: flex;
+  align-items: flex-end;
+  height: 50px;
+}
+
+.nature-card-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0e2b17;
+  color: #ffffff;
+  padding: 13px 20px;
+  border-radius: 30px;
+  border: none;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-family: inherit;
+}
+
+.nature-card-btn:hover {
+  background: #174224;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(14, 43, 23, 0.25);
+}
+
+.popular-view-all-wrap {
   display: flex;
   justify-content: center;
-  gap: 25px;
-  margin-top: 50px;
+  align-items: center;
+  margin-top: 45px;
 }
 
-
-.feature-card {
-  background: white;
-  padding: 30px;
-  width: 250px;
-  border-radius: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+.popular-view-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #0e2b17;
+  color: #ffffff;
+  padding: 14px 38px;
+  border-radius: 40px;
+  border: 1.5px solid #204e28;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: inherit;
+  box-shadow: 0 6px 20px rgba(14, 43, 23, 0.15);
+  letter-spacing: 0.3px;
 }
 
-
-.icon {
-  font-size: 40px;
-  margin-bottom: 15px;
+.popular-view-all-btn:hover {
+  background-color: #174224;
+  border-color: #a8e063;
+  color: #a8e063;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(14, 43, 23, 0.25);
 }
 
+.popular-view-all-btn svg {
+  transition: transform 0.25s ease;
+}
 
-.feature-card h3 {
+.popular-view-all-btn:hover svg {
+  transform: translateX(4px);
+}
+
+/* ============================================================
+   SECTION 2: WHY TRAVEL WITH TRAVISKA? (Horizontal Scroller)
+   ============================================================ */
+
+.why-travel-section {
+  background-color: #faf7f0;
+  padding-top: 50px;
+}
+
+.why-cards-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #c5dbbc transparent;
+}
+
+.why-cards-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.why-cards-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.why-cards-grid::-webkit-scrollbar-thumb {
+  background: #c5dbbc;
+  border-radius: 10px;
+}
+
+.why-feature-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #dce8d5;
+  border-radius: 26px;
+  padding: 34px 30px 85px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
+  min-width: 300px;
+  max-width: 340px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+
+.why-feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 14px 30px rgba(14, 43, 23, 0.08);
+  border-color: #c5dbbc;
+}
+
+.why-card-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #487332;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(72, 115, 50, 0.25);
+}
+
+.why-card-title {
   font-size: 22px;
+  font-weight: 800;
+  color: #0d2b17;
+  margin: 0 0 12px;
+  line-height: 1.3;
+  z-index: 2;
+  position: relative;
 }
+
+.why-card-desc {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #4b5563;
+  margin: 0;
+  z-index: 2;
+  position: relative;
+  max-width: 420px;
+}
+
+/* ============================================================
+   SECTION 3: TRAVELLER STORIES (Testimonial Cards)
+   ============================================================ */
+
 .stories-section {
-  padding: 80px 50px;
-  text-align: center;
+  background-color: #faf7f0;
+  padding-top: 60px;
+  padding-bottom: 90px;
+  position: relative;
+  overflow: hidden;
 }
 
-
-.stories {
+.stories-cards-grid {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #c5dbbc transparent;
+}
+
+.stories-cards-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.stories-cards-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stories-cards-grid::-webkit-scrollbar-thumb {
+  background: #c5dbbc;
+  border-radius: 10px;
+}
+
+.nature-story-card {
+  background: #ffffff;
+  border: 1px solid #dce8d5;
+  border-radius: 26px;
+  padding: 32px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.3s ease;
+  min-width: 320px;
+  max-width: 380px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+
+.nature-story-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 35px rgba(14, 43, 23, 0.09);
+  border-color: #c5dbbc;
+}
+
+.story-speech-bubble {
+  width: 42px;
+  height: 42px;
+  border-radius: 50% 50% 50% 4px;
+  background: #487332;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 30px;
-  margin-top: 50px;
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 10px rgba(72, 115, 50, 0.2);
 }
 
-
-.story-card {
-  width: 300px;
-  padding: 30px;
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+.story-stars-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
 }
 
-
-.story-card p {
-  font-size: 18px;
-  line-height: 1.6;
-  font-style: italic;
+.story-body-quote {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: #2d3748;
+  margin: 0 0 24px;
+  flex: 1;
 }
 
-
-.story-card h4 {
-  margin-top: 20px;
+.story-card-separator {
+  height: 1px;
+  background: #edf2e8;
+  margin-bottom: 18px;
 }
-@media (max-width: 768px) {
 
-  .hero {
-    height: 80vh;
+.story-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.story-avatar-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #487332;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.story-profile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.story-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0d2b17;
+  margin: 0 0 2px;
+}
+
+.story-trip-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2f6a2b;
+}
+
+/* 3 Pagination dots matching screenshot */
+.stories-pagination-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 45px;
+}
+
+.stories-pagination-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #cbd8c4;
+  transition: all 0.25s ease;
+}
+
+.stories-pagination-dots .dot.active {
+  background-color: #1e3f20;
+  transform: scale(1.2);
+}
+
+/* ============================================================
+   RESPONSIVE LAYOUTS
+   ============================================================ */
+
+@media (max-width: 1040px) {
+  .popular-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
- 
+  .stories-flight-trail {
+    display: none;
+  }
+}
 
-  .description {
+@media (max-width: 768px) {
+  .nature-section {
+    padding: 60px 20px;
+  }
+
+  .popular-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 100%;
+  }
+
+  /* Show only first 4 cards on mobile */
+  .popular-cards-grid .nature-trip-card:nth-child(n+5) {
+    display: none;
+  }
+
+  .popular-view-all-wrap {
+    margin-top: 26px;
+  }
+
+  .popular-view-all-btn {
+    padding: 12px 28px;
+    font-size: 14px;
+    width: 100%;
+    max-width: 260px;
+    justify-content: center;
+  }
+
+  .nature-trip-card {
+    border-radius: 18px;
+  }
+
+  .trip-card-media {
+    height: 160px;
+  }
+
+  .trip-card-content {
+    padding: 14px 14px 16px;
+  }
+
+  .trip-card-heading {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+
+  .trip-card-location {
+    font-size: 11.5px;
+    margin-bottom: 5px;
+  }
+
+  .pricing-val {
+    font-size: 20px;
+  }
+
+  .pricing-label {
+    font-size: 9.5px;
+  }
+
+  .pricing-watermark {
+    display: none;
+  }
+
+  .nature-card-btn {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    border-radius: 22px;
+  }
+
+  .why-feature-card {
+    min-width: 260px;
+    max-width: 290px;
+    padding: 26px 22px 70px;
+  }
+
+  .why-card-title {
     font-size: 18px;
   }
 
-
-  .search-box {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-
-  .trip-cards {
-    flex-direction: column;
-    align-items: center;
-  }
-
-
-  .trip-card {
-    width: 90%;
-  }
-
-
-  .features {
-    flex-direction: column;
-    align-items: center;
-  }
-
-
-  .feature-card {
-    width: 85%;
-  }
-
-
-  .stories {
-    flex-direction: column;
-    align-items: center;
-  }
-
-
-  .story-card {
-    width: 85%;
-  }
-
-}
-
-
-@media (max-width: 600px) {
-  .hero .tagline {
-    font-size: 12px;
-    letter-spacing: 1px;
-    white-space: nowrap;
-  }
-}
-
-@media (max-width: 600px) {
-  .hero-content .description {
+  .why-card-desc {
     font-size: 13px;
-    line-height: 1.6;
-    max-width: 320px;
-    margin-left: auto;
-    margin-right: auto;
-    overflow-wrap: break-word;
   }
-}
 
-@media (max-width: 600px) {
-  .hero h1 {
-    font-size: clamp(24px, 6vw, 32px);
-    line-height: 1.25;
+  .nature-story-card {
+    min-width: 270px;
+    max-width: 310px;
+    padding: 24px 22px 22px;
+  }
+
+  .stories-mountain-sketch {
+    display: none;
   }
 }

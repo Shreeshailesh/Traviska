@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../api";
 import "./TripDetails.css";
+import TripDetailSections from "../components/TripDetailSections";
 
 function TripDetails() {
   const { id } = useParams();
@@ -12,12 +13,34 @@ function TripDetails() {
   const [trip, setTrip] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [name, setName] = useState("");
+  
   const [photos, setPhotos] = useState<string[]>([]);
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const [openSection, setOpenSection] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [globalSections, setGlobalSections] = useState<any>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchGlobalSections = async () => {
+      try {
+        const { data } = await axios.get(`${API_BASE_URL}/global-trip-sections`);
+        if (!cancelled && data) {
+          setGlobalSections(data);
+        }
+      } catch (err) {
+        console.error("Failed to load global sections:", err);
+      }
+    };
+
+    fetchGlobalSections();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,19 +55,15 @@ function TripDetails() {
 
       try {
         const { data } = await axios.get(
-          `${API_BASE_URL}/trips`
-        );
-
-        const selectedTrip = data.find(
-          (t: any) => t._id === id
+          `${API_BASE_URL}/trips/${id}`
         );
 
         if (!cancelled) {
-          if (selectedTrip) {
-            setTrip(selectedTrip);
+          if (data) {
+            setTrip(data);
             setPhotos(
-              Array.isArray(selectedTrip.photos)
-                ? selectedTrip.photos
+              Array.isArray(data.photos)
+                ? data.photos
                 : []
             );
           } else {
@@ -165,7 +184,12 @@ function TripDetails() {
           📍 {trip.location} | ⏳ {trip.duration}
         </p>
 
-        <h2>Starting {trip.price}</h2>
+        
+<h2>
+  Starting ₹
+  {Number(trip.price).toLocaleString("en-IN")}
+</h2>
+
 
         {/* AVAILABLE TRAVEL DATES */}
         <div
@@ -282,54 +306,46 @@ function TripDetails() {
           </div>
         </div>
 
-        <button onClick={handleBooking}>
-          Book Now
-        </button>
+       
+<button
+  onClick={handleBooking}
+  disabled={!slots.some((slot: any) => slot.status !== "Sold Out")}
+  style={{
+    background: slots.some((slot: any) => slot.status !== "Sold Out")
+      ? "#ff6b00"
+      : "#9ca3af",
+    color: "#ffffff",
+    padding: "14px 24px",
+    border: "none",
+    borderRadius: "10px",
+    fontSize: "16px",
+    fontWeight: "600",
+    cursor: slots.some((slot: any) => slot.status !== "Sold Out")
+      ? "pointer"
+      : "not-allowed",
+    width: "100%",
+    marginTop: "20px",
+  }}
+>
+  {slots.length === 0
+    ? "Dates Coming Soon"
+    : slots.every((slot: any) => slot.status === "Sold Out")
+    ? "Sold Out"
+    : "Book Now"}
+</button>
 
-        {/* ABOUT THE TRIP */}
-        <h2>About This Trip</h2>
 
-        <p>{trip.description}</p>
+       {/* ABOUT THE TRIP */}
+<h2 style={{ marginTop: "32px", marginBottom: "16px" }}>
+  About This Trip
+</h2> 
 
-        <div className="highlights">
-          <div className="highlight-card">
-            <div className="highlight-icon">🌄</div>
-            <h3>Beautiful Locations</h3>
-            <p>
-              Explore amazing places and hidden gems.
-            </p>
-          </div>
+        <p style={{ whiteSpace: "pre-line" }}>
+  {trip.description}
+</p>
 
-          <div className="highlight-card">
-            <div className="highlight-icon">🤝</div>
-            <h3>Travel Community</h3>
-            <p>
-              Meet new people and create memories.
-            </p>
-          </div>
-
-          <div className="highlight-card">
-            <div className="highlight-icon">🏕️</div>
-            <h3>Adventure</h3>
-            <p>
-              Experience exciting activities.
-            </p>
-          </div>
-        </div>
-
-        {/* ITINERARY */}
-        <h2>Itinerary</h2>
-
-        <h3>Day 1</h3>
-        <p>
-          Arrival, sightseeing and exploring the destination.
-        </p>
-
-        <h3>Day 2</h3>
-        <p>
-          Adventure activities, experiences and return
-          journey.
-        </p>
+       
+      
 
         {/* INFORMATION TABS */}
         <div className="trip-information">
@@ -395,24 +411,13 @@ function TripDetails() {
 
             {openSection === "overview" && (
               <>
-                <p>
-                  Experience an exciting journey filled with
-                  adventure, exploration and memorable
-                  moments.
-                </p>
-
-                <ul>
-                  <li>Explore beautiful destinations</li>
-                  <li>
-                    Experience local culture and food
-                  </li>
-                  <li>
-                    Enjoy exciting activities and adventures
-                  </li>
-                  <li>
-                    Travel and connect with new people
-                  </li>
-                </ul>
+                {trip.highlights?.trim() ? (
+  <p style={{ whiteSpace: "pre-line" }}>
+    {trip.highlights}
+  </p>
+) : (
+  <p>Overview & Highlights will be updated soon.</p>
+)}
               </>
             )}
           </div>
@@ -431,20 +436,11 @@ function TripDetails() {
             </h3>
 
             {openSection === "itinerary" && (
-              <>
-                <h4>Day 1</h4>
-                <p>
-                  Arrival at the destination, sightseeing,
-                  exploration and experiencing the local
-                  surroundings.
-                </p>
-
-                <h4>Day 2</h4>
-                <p>
-                  Adventure activities, more experiences and
-                  the return journey.
-                </p>
-              </>
+             <p style={{ whiteSpace: "pre-line" }}>
+  {trip.itinerary?.trim()
+    ? trip.itinerary
+    : "Itinerary details will be updated soon."}
+</p>
             )}
           </div>
 
@@ -462,19 +458,19 @@ function TripDetails() {
             </h3>
 
             {openSection === "inclusions" && (
-              <ul>
-                <li>
-                  Accommodation as mentioned in the trip
-                  details
-                </li>
-                <li>Transportation during the trip</li>
-                <li>Trip captain / coordinator</li>
-                <li>
-                  Planned sightseeing and activities
-                </li>
-                <li>Basic trip assistance</li>
-              </ul>
-            )}
+  trip.inclusions?.trim() ? (
+    <ul>
+      {trip.inclusions
+        .split("\n")
+        .filter((item: string) => item.trim())
+        .map((item: string, index: number) => (
+          <li key={index}>{item.trim()}</li>
+        ))}
+    </ul>
+  ) : (
+    <p>Inclusions will be updated soon.</p>
+  )
+)}
           </div>
 
           <div className="info-section">
@@ -490,24 +486,38 @@ function TripDetails() {
               Exclusions
             </h3>
 
-            {openSection === "exclusions" && (
-              <ul>
-                <li>Personal expenses</li>
-                <li>
-                  Meals not mentioned in the inclusions
-                </li>
-                <li>
-                  Entry fees not specifically mentioned
-                </li>
-                <li>
-                  Personal activities or purchases
-                </li>
-                <li>
-                  Anything not listed under inclusions
-                </li>
-              </ul>
-            )}
+           {openSection === "exclusions" && (
+  trip.exclusions?.trim() ? (
+    <ul>
+      {trip.exclusions
+        .split("\n")
+        .filter((item: string) => item.trim())
+        .map((item: string, index: number) => (
+          <li key={index}>{item.trim()}</li>
+        ))}
+    </ul>
+  ) : (
+    <p>Exclusions will be updated soon.</p>
+  )
+)}
           </div>
+
+          <div className="info-section">
+  <h3>Things to Carry</h3>
+
+  {trip.thingsToCarry?.trim() ? (
+    <ul>
+      {trip.thingsToCarry
+        .split("\n")
+        .filter((item: string) => item.trim())
+        .map((item: string, index: number) => (
+          <li key={index}>{item.trim()}</li>
+        ))}
+    </ul>
+  ) : (
+    <p>Things to Carry will be updated soon.</p>
+  )}
+</div>
 
           <div className="info-section">
             <h3
@@ -544,6 +554,25 @@ function TripDetails() {
             )}
           </div>
         </div>
+
+        {/* DYNAMIC 5 SECTIONS (SAFETY, WHY CHOOSE US, CANCELLATION, TERMS, IMPORTANT NOTES) */}
+        <TripDetailSections
+          safetyInformation={
+            globalSections?.safetyInformation || trip?.safetyInformation
+          }
+          whyChooseUs={
+            globalSections?.whyChooseUs || trip?.whyChooseUs
+          }
+          cancellationPolicy={
+            globalSections?.cancellationPolicy || trip?.cancellationPolicy
+          }
+          termsAndConditions={
+            globalSections?.termsAndConditions || trip?.termsAndConditions
+          }
+          importantNotes={
+            globalSections?.importantNotes || trip?.importantNotes
+          }
+        />
 
         {/* PHOTO GALLERY */}
         <div className="trip-gallery">
@@ -607,31 +636,7 @@ function TripDetails() {
           )}
         </div>
 
-        {/* BOOKING BOX */}
-        <div className="booking-box">
-          <h2>Book Your Trip</h2>
-
-          <input
-            placeholder="Your Name"
-            value={name}
-            onChange={(event) =>
-              setName(event.target.value)
-            }
-          />
-
-          <input
-            type="number"
-            placeholder="Number of Travellers"
-          />
-
-          <input type="date" />
-
-          <h3>Total Price: {trip.price}</h3>
-
-          <button onClick={handleBooking}>
-            Book Now
-          </button>
-        </div>
+       
       </div>
     </div>
   );
