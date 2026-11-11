@@ -632,6 +632,9 @@ try {
   slotId: bookingSlot._id,
   date: bookingSlot.date,
   travellers: travellerCount,
+  travellerDetails: Array.isArray(bookingDetails.travellerDetails)
+    ? bookingDetails.travellerDetails
+    : [],
   requests: String(bookingDetails.requests || ""),
   total: razorpayOrder.amount / 100,
   paymentId: razorpay_payment_id,

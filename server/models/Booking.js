@@ -27,6 +27,14 @@ slotId: {
 
   date: String,
   travellers: Number,
+  travellerDetails: [
+    {
+      name: String,
+      phone: String,
+      gender: String,
+      age: String,
+    },
+  ],
   requests: String,
   total: Number,
   paymentId: String,

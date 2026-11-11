@@ -1,0 +1,596 @@
+/* ============================================================
+   BOOKING PAGE STYLING (Pixel-perfect to reference design)
+   ============================================================ */
+
+.booking-page-wrap {
+  position: relative;
+  min-height: 100vh;
+  background-color: #faf7f0;
+  padding: 48px 24px 100px;
+  box-sizing: border-box;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+/* Background Misty Mountain & Pine Tree Decorations */
+.booking-bg-mountains {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 130px;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.booking-bg-pines-left {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 140px;
+  height: 160px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.booking-bg-pines-right {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 140px;
+  height: 160px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.booking-content-container {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   PAGE HEADER
+   ============================================================ */
+
+.booking-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.booking-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background-color: #d9eec7;
+  color: #16391d;
+  padding: 6px 18px;
+  border-radius: 30px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.booking-badge-icon {
+  color: #16391d;
+}
+
+.booking-title {
+  font-size: clamp(32px, 5vw, 44px);
+  font-weight: 800;
+  color: #0d2b17;
+  margin: 0;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+}
+
+.booking-subtitle {
+  font-size: clamp(14.5px, 2vw, 16px);
+  color: #4b5563;
+  margin: 12px auto 0;
+  line-height: 1.55;
+  max-width: 560px;
+}
+
+/* ============================================================
+   MAIN WHITE CARD
+   ============================================================ */
+
+.booking-card {
+  background: #ffffff;
+  border: 1px solid #dce8d5;
+  border-radius: 24px;
+  padding: 34px 34px 30px;
+  box-shadow: 0 10px 32px rgba(13, 43, 23, 0.05);
+  box-sizing: border-box;
+}
+
+/* Top Quick Specs Bar */
+.booking-specs-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  background: #f4f8f1;
+  border: 1px solid #e3efe0;
+  border-radius: 18px;
+  padding: 16px 20px;
+  margin-bottom: 30px;
+}
+
+.booking-spec-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spec-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e2f0dc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1b4b24;
+  flex-shrink: 0;
+}
+
+.spec-text-col {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.spec-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0d2b17;
+  letter-spacing: -0.3px;
+}
+
+.spec-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   FORM SECTIONS
+   ============================================================ */
+
+.booking-sec {
+  margin-bottom: 26px;
+}
+
+.booking-sec-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0d2b17;
+  margin-bottom: 16px;
+  letter-spacing: -0.3px;
+}
+
+.sec-icon {
+  color: #1b4b24;
+  flex-shrink: 0;
+}
+
+.booking-form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.booking-field-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+}
+
+.booking-field-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.booking-field-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.booking-field-label .req {
+  color: #dc2626;
+  font-weight: bold;
+}
+
+/* Input / Select wrapper with left icon */
+.input-with-icon,
+.select-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-with-icon .field-icon,
+.select-with-icon .field-icon {
+  position: absolute;
+  left: 14px;
+  color: #64748b;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.input-with-icon input,
+.select-with-icon select {
+  width: 100%;
+  height: 46px;
+  padding: 0 16px 0 42px;
+  background: #ffffff;
+  border: 1px solid #dce8d5;
+  border-radius: 12px;
+  font-size: 14.5px;
+  color: #1e293b;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.input-with-icon input:focus,
+.select-with-icon select:focus {
+  border-color: #1b4b24;
+  box-shadow: 0 0 0 3px rgba(27, 75, 36, 0.12);
+}
+
+.select-with-icon select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+}
+
+.select-arrow-icon {
+  position: absolute;
+  right: 14px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+/* ============================================================
+   TRAVELLER DETAILS CARDS
+   ============================================================ */
+
+.travellers-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.traveller-card {
+  background: #f4f9f1;
+  border: 1px solid #e2efe0;
+  border-radius: 16px;
+  padding: 16px 18px 18px;
+  transition: all 0.2s ease;
+}
+
+.traveller-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.traveller-badge {
+  background: #d9eec7;
+  color: #16391d;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 12px;
+  border-radius: 20px;
+  display: inline-block;
+  letter-spacing: 0.3px;
+}
+
+.remove-traveller-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.remove-traveller-btn:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
+.traveller-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+.opt-label {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.traveller-fields-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* Gender Pills Group matching reference design */
+.gender-pills-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gender-pill-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #dce8d5;
+  border-radius: 30px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.gender-pill-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.gender-radio-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.8px solid #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.gender-pill-option.active {
+  border-color: #164321;
+  background: #f0f7ec;
+  color: #164321;
+}
+
+.gender-pill-option.active .gender-radio-dot {
+  border-color: #164321;
+  background: #164321;
+  box-shadow: inset 0 0 0 3px #ffffff;
+}
+
+.gender-symbol {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Add Another Traveller Button */
+.add-traveller-wrap {
+  text-align: center;
+  margin: 14px 0 6px;
+}
+
+.add-traveller-btn {
+  background: #ffffff;
+  border: 1.5px solid #2e6224;
+  color: #164321;
+  padding: 9px 22px;
+  border-radius: 30px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.add-traveller-btn:hover {
+  background: #164321;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 67, 33, 0.15);
+}
+
+/* ============================================================
+   SPECIAL REQUESTS TEXTAREA
+   ============================================================ */
+
+.booking-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #dce8d5;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #1e293b;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 85px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.booking-textarea:focus {
+  border-color: #1b4b24;
+  box-shadow: 0 0 0 3px rgba(27, 75, 36, 0.12);
+}
+
+/* ============================================================
+   BOTTOM BAR (TOTAL & CONFIRM BUTTON)
+   ============================================================ */
+
+.booking-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #edf2e8;
+}
+
+.booking-total-display {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.total-label {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0d2b17;
+}
+
+.total-amount {
+  font-size: 26px;
+  font-weight: 900;
+  color: #164321;
+  letter-spacing: -0.5px;
+}
+
+.booking-confirm-btn {
+  background: #164321;
+  color: #ffffff;
+  border: none;
+  padding: 14px 30px;
+  border-radius: 30px;
+  font-size: 15.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.25s ease;
+  box-shadow: 0 6px 18px rgba(22, 67, 33, 0.25);
+  font-family: inherit;
+}
+
+.booking-confirm-btn:hover:not(:disabled) {
+  background: #1e592c;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(22, 67, 33, 0.35);
+}
+
+.booking-confirm-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   RESPONSIVE DESIGN (Desktop > 768px is preserved)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .booking-page-wrap {
+    padding: 30px 16px 80px;
+  }
+
+  .booking-card {
+    padding: 24px 20px;
+    border-radius: 20px;
+  }
+
+  .booking-specs-bar {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 14px 12px;
+  }
+
+  .spec-icon-box {
+    width: 34px;
+    height: 34px;
+  }
+
+  .spec-value {
+    font-size: 15px;
+  }
+
+  .spec-label {
+    font-size: 11px;
+  }
+
+  .traveller-inputs-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .traveller-fields-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .booking-form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 540px) {
+  .booking-specs-bar {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .gender-pills-group {
+    flex-wrap: wrap;
+  }
+
+  .booking-bottom-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .booking-total-display {
+    justify-content: space-between;
+  }
+
+  .booking-confirm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
 import {
   ArrowLeft,
@@ -34,6 +34,9 @@ const FALLBACK_MOMENTS = [
   "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80",
   "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&auto=format&fit=crop&q=80",
   "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800&auto=format&fit=crop&q=80",
 ];
 
 function TripDetails() {
@@ -47,7 +50,10 @@ function TripDetails() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "itinerary" | "inclusions" | "exclusions" | "other"
   >("overview");
-  const [carouselPage, setCarouselPage] = useState(0);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -153,9 +159,103 @@ function TripDetails() {
         slotId: selectedSlot,
         selectedDate: slot.date,
         travellers,
+        slots,
       },
     });
   };
+
+  // Moments gallery photos: combine trip.photos with FALLBACK_MOMENTS so we always have 9 photos across 3 slides
+  const allMoments: string[] = useMemo(() => {
+    const rawPhotos = Array.isArray(trip?.photos)
+      ? trip.photos.filter((p: any) => typeof p === "string" && p.trim().length > 0)
+      : [];
+    const list: string[] = [...rawPhotos];
+    for (const f of FALLBACK_MOMENTS) {
+      if (!list.includes(f)) {
+        list.push(f);
+      }
+    }
+    while (list.length < 9) {
+      list.push(...FALLBACK_MOMENTS);
+    }
+    return list.slice(0, 9);
+  }, [trip?.photos]);
+
+  const pages = useMemo(() => {
+    return [
+      allMoments.slice(0, 3),
+      allMoments.slice(3, 6),
+      allMoments.slice(6, 9),
+    ];
+  }, [allMoments]);
+
+  // Clone page 0 at the end to create seamless forward infinite looping
+  const displayPages = useMemo(() => {
+    return [...pages, pages[0]];
+  }, [pages]);
+
+  // Auto-scroll to the right every 3.5 seconds
+  useEffect(() => {
+    if (isPaused) return;
+
+    const timer = setInterval(() => {
+      setIsTransitioning(true);
+      setCarouselIndex((prev) => prev + 1);
+    }, 3500);
+
+    return () => clearInterval(timer);
+  }, [isPaused]);
+
+  // Reset seamless loop when clone page reaches the end
+  const handleTransitionEnd = () => {
+    if (carouselIndex >= pages.length) {
+      setIsTransitioning(false);
+      setCarouselIndex(0);
+    }
+  };
+
+  const handlePrevSlide = () => {
+    setIsTransitioning(true);
+    setCarouselIndex((prev) => {
+      if (prev <= 0) return pages.length - 1;
+      return prev - 1;
+    });
+  };
+
+  const handleNextSlide = () => {
+    setIsTransitioning(true);
+    setCarouselIndex((prev) => {
+      if (prev >= pages.length) return 1;
+      return prev + 1;
+    });
+  };
+
+  const handleDotClick = (idx: number) => {
+    setIsTransitioning(true);
+    setCarouselIndex(idx);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsPaused(true);
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsPaused(false);
+    if (touchStartX.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        handleNextSlide();
+      } else {
+        handlePrevSlide();
+      }
+    }
+    touchStartX.current = null;
+  };
+
+  const activeDot = carouselIndex % pages.length;
 
   if (loading) {
     return (
@@ -183,27 +283,6 @@ function TripDetails() {
 
   // Selected slot details
   const selectedSlotData = slots.find((s) => s._id === selectedSlot);
-
-  // Moments gallery photos
-  const momentsPhotos: string[] =
-    Array.isArray(trip.photos) && trip.photos.length >= 3
-      ? trip.photos
-      : FALLBACK_MOMENTS;
-
-  // 3 photos per carousel slide
-  const totalSlides = Math.ceil(momentsPhotos.length / 3) || 1;
-  const currentSlidePhotos: string[] = momentsPhotos.slice(
-    (carouselPage % totalSlides) * 3,
-    (carouselPage % totalSlides) * 3 + 3
-  );
-
-  const handlePrevSlide = () => {
-    setCarouselPage((prev) => (prev - 1 + totalSlides) % totalSlides);
-  };
-
-  const handleNextSlide = () => {
-    setCarouselPage((prev) => (prev + 1) % totalSlides);
-  };
 
   return (
     <div className="trip-details-page-wrap">
@@ -625,7 +704,13 @@ function TripDetails() {
           </p>
         </div>
 
-        <div className="moments-carousel-wrap">
+        <div
+          className="moments-carousel-wrap"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           <button
             type="button"
             className="carousel-arrow prev"
@@ -635,16 +720,31 @@ function TripDetails() {
             ‹
           </button>
 
-          <div className="moments-cards-row">
-            {currentSlidePhotos.map((photo: string, index: number) => (
-              <div key={index} className="moment-photo-card">
-                <img
-                  src={photo}
-                  alt={`${trip.title} moment ${index + 1}`}
-                  loading="lazy"
-                />
-              </div>
-            ))}
+          <div className="moments-viewport">
+            <div
+              className="moments-track"
+              onTransitionEnd={handleTransitionEnd}
+              style={{
+                transform: `translate3d(-${carouselIndex * 100}%, 0, 0)`,
+                transition: isTransitioning
+                  ? "transform 0.65s cubic-bezier(0.25, 1, 0.5, 1)"
+                  : "none",
+              }}
+            >
+              {displayPages.map((pagePhotos, pageIdx) => (
+                <div key={pageIdx} className="moments-page">
+                  {pagePhotos.map((photo: string, photoIdx: number) => (
+                    <div key={photoIdx} className="moment-photo-card">
+                      <img
+                        src={photo}
+                        alt={`${trip.title} moment ${pageIdx * 3 + photoIdx + 1}`}
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
 
           <button
@@ -659,13 +759,13 @@ function TripDetails() {
 
         {/* 3 Pagination dots matching screenshot */}
         <div className="moments-dots">
-          {[0, 1, 2].map((idx) => (
-            <span
+          {pages.map((_, idx) => (
+            <button
               key={idx}
-              className={`moment-dot ${
-                carouselPage % 3 === idx ? "active" : ""
-              }`}
-              onClick={() => setCarouselPage(idx)}
+              type="button"
+              className={`moment-dot ${activeDot === idx ? "active" : ""}`}
+              onClick={() => handleDotClick(idx)}
+              aria-label={`Go to slide ${idx + 1}`}
             />
           ))}
         </div>
