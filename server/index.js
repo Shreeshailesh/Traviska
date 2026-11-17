@@ -1,5 +1,11 @@
 require("dotenv").config();
 
+const dns = require("dns");
+// Prefer IPv4 resolution for robust MongoDB Atlas SRV lookup
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
+
 const express = require("express");
 const cors = require("cors");
 const Razorpay = require("razorpay");
@@ -11,6 +17,8 @@ const Trip = require("./models/Trip");
 const GlobalTripSections = require("./models/GlobalTripSections");
 const TripSlot = require("./models/TripSlot");
 const User = require("./models/User");
+const Coupon = require("./models/Coupon");
+const { validateCouponForBooking } = require("./routes/coupons");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const firebaseAdmin = require("./firebaseAdmin");
@@ -25,17 +33,19 @@ const FileType = require("file-type");
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 15 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       "image/jpeg",
       "image/png",
       "image/webp",
+      "image/jpg",
+      "image/gif",
     ];
 
-    if (!allowedTypes.includes(file.mimetype)) {
-      return cb(new Error("Only JPG, PNG, and WebP images are allowed"));
+    if (!allowedTypes.includes(file.mimetype.toLowerCase())) {
+      return cb(new Error("Only JPG, PNG, WebP, and GIF images are allowed"));
     }
 
     cb(null, true);
@@ -83,15 +93,14 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log("✅ MongoDB Connected");
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB Connection Error:");
-    console.error(err);
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
   });
+});
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -104,7 +113,17 @@ app.use(
     origin: allowedOrigins,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "8mb" }));
+
+// Modular admin, captain, & sales routes (redesign). Existing endpoints below are unchanged.
+app.use(require("./routes/adminDashboard")({ authMiddleware, adminMiddleware }));
+app.use(require("./routes/adminCustomers")({ authMiddleware, adminMiddleware }));
+app.use(require("./routes/adminBookings")({ authMiddleware, adminMiddleware }));
+app.use(require("./routes/adminOperations")({ authMiddleware, adminMiddleware }));
+app.use(require("./routes/captainPortal")());
+app.use(require("./routes/salesPortal")({ authMiddleware }));
+app.use(require("./routes/coupons")({ authMiddleware, adminMiddleware }));
+app.use(require("./routes/gallery")({ authMiddleware, adminMiddleware }));
 
 const razorpay =
   process.env.NODE_ENV === "production"
@@ -134,6 +153,7 @@ app.post("/booking", async (req, res) => {
       travellers,
       requests,
       total,
+      couponCode,
     } = req.body;
 
     if (!slotId) {
@@ -144,6 +164,26 @@ app.post("/booking", async (req, res) => {
     }
 
     const travellerCount = Number(travellers) || 1;
+
+    let appliedCoupon = null;
+    let discAmount = 0;
+    let payable = Number(total) || 0;
+    let orig = payable;
+
+    if (couponCode && typeof couponCode === "string" && couponCode.trim()) {
+      const v = await validateCouponForBooking({
+        code: couponCode,
+        tripTitle: trip?.title || "",
+        bookingAmount: orig,
+        customerPhone: phone,
+        customerEmail: email,
+      });
+      if (v.isValid) {
+        appliedCoupon = v.cleanCode;
+        discAmount = v.discountAmount;
+        payable = v.finalPayable;
+      }
+    }
 
     const slot = await TripSlot.findOneAndUpdate(
       {
@@ -182,7 +222,10 @@ app.post("/booking", async (req, res) => {
       date,
       travellers: travellerCount,
       requests,
-      total,
+      originalTotal: orig,
+      couponCode: appliedCoupon,
+      discountAmount: discAmount,
+      total: payable,
       paymentStatus: "Pending",
     });
 
@@ -222,7 +265,7 @@ app.post("/create-order", async (req, res) => {
     });
   }
   try {
-    const { tripId, slotId, travellers } = req.body;
+    const { tripId, slotId, travellers, pickupLocationId, couponCode, phone, email } = req.body;
 
     const travellerCount = Number(travellers);
 
@@ -252,6 +295,27 @@ app.post("/create-order", async (req, res) => {
       });
     }
 
+    const activePickups = Array.isArray(trip.pickupLocations)
+      ? trip.pickupLocations.filter((p) => p.isActive !== false)
+      : [];
+    if (activePickups.length > 0) {
+      if (!pickupLocationId) {
+        return res.status(400).json({
+          success: false,
+          message: "Please select a pickup location",
+        });
+      }
+      const matchedPickup = activePickups.find(
+        (p) => String(p._id) === String(pickupLocationId)
+      );
+      if (!matchedPickup) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected pickup location is invalid for this trip",
+        });
+      }
+    }
+
     if (slot.totalSlots - slot.bookedSlots < travellerCount) {
       return res.status(400).json({
         success: false,
@@ -259,30 +323,72 @@ app.post("/create-order", async (req, res) => {
       });
     }
 
-    const amount = Math.round(trip.price * travellerCount * 100);
-
-    if (!Number.isSafeInteger(amount) || amount <= 0) {
+    const originalTotal = Math.round(Number(trip.price) * travellerCount);
+    if (!Number.isSafeInteger(originalTotal) || originalTotal <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid trip price",
       });
     }
 
+    let discountAmount = 0;
+    let finalPayable = originalTotal;
+    let appliedCouponCode = "";
+
+    // Server-side coupon validation
+    if (couponCode && typeof couponCode === "string" && couponCode.trim()) {
+      const couponValidation = await validateCouponForBooking({
+        code: couponCode,
+        tripId: trip._id,
+        tripTitle: trip.title,
+        bookingAmount: originalTotal,
+        customerPhone: phone,
+        customerEmail: email,
+      });
+
+      if (!couponValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: couponValidation.message,
+        });
+      }
+
+      discountAmount = couponValidation.discountAmount;
+      finalPayable = couponValidation.finalPayable;
+      appliedCouponCode = couponValidation.cleanCode;
+    }
+
+    finalPayable = Math.max(0, finalPayable);
+
+    // Razorpay minimum order amount is 100 paise (₹1) if online gateway is charged
+    const amount = finalPayable === 0 ? 100 : Math.round(finalPayable * 100);
+
     const order = await razorpay.orders.create({
-  amount,
-  currency: "INR",
-  receipt: `trip_${Date.now()}`,
-  notes: {
-    tripId: String(tripId),
-    slotId: String(slotId),
-    travellers: String(travellerCount),
-    priceAtOrder: String(trip.price),
-  },
-});
+      amount,
+      currency: "INR",
+      receipt: `trip_${Date.now()}`,
+      notes: {
+        tripId: String(tripId),
+        slotId: String(slotId),
+        travellers: String(travellerCount),
+        priceAtOrder: String(trip.price),
+        pickupLocationId: String(pickupLocationId || ""),
+        originalTotal: String(originalTotal),
+        couponCode: String(appliedCouponCode),
+        discountAmount: String(discountAmount),
+        finalPayable: String(finalPayable),
+      },
+    });
 
     res.json({
       success: true,
       order,
+      pricing: {
+        originalTotal,
+        discountAmount,
+        finalPayable,
+        couponCode: appliedCouponCode || null,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -388,14 +494,17 @@ const orderNotes = razorpayOrder.notes || {};
 
 const priceAtOrder = Number(orderNotes.priceAtOrder);
 const orderedTravellers = Number(orderNotes.travellers);
+const orderOriginalTotal = Number(orderNotes.originalTotal) || (priceAtOrder * orderedTravellers);
+const orderDiscount = Number(orderNotes.discountAmount) || 0;
+const expectedPayable = Math.max(0, orderOriginalTotal - orderDiscount);
+const expectedPayablePaise = expectedPayable === 0 ? 100 : Math.round(expectedPayable * 100);
 
 if (
   !Number.isFinite(priceAtOrder) ||
   priceAtOrder <= 0 ||
   !Number.isSafeInteger(orderedTravellers) ||
   orderedTravellers < 1 ||
-  Math.round(priceAtOrder * orderedTravellers * 100) !==
-    razorpayOrder.amount
+  expectedPayablePaise !== razorpayOrder.amount
 ) {
   return res.status(400).json({
     success: false,
@@ -453,6 +562,65 @@ if (!bookingSlot) {
     message: "Selected trip date no longer exists",
   });
 }
+
+// Validate and resolve pickup details
+const activePickups = Array.isArray(bookedTrip.pickupLocations)
+  ? bookedTrip.pickupLocations.filter((p) => p.isActive !== false)
+  : [];
+const selectedPickupId =
+  bookingDetails?.pickupLocationId || orderNotes.pickupLocationId;
+let matchedPickup = null;
+
+if (activePickups.length > 0) {
+  if (!selectedPickupId) {
+    return res.status(400).json({
+      success: false,
+      message: "Pickup location is required for this trip",
+    });
+  }
+  matchedPickup = activePickups.find(
+    (p) => String(p._id) === String(selectedPickupId)
+  );
+  if (!matchedPickup) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected pickup location is not available for this trip",
+    });
+  }
+} else if (selectedPickupId && Array.isArray(bookedTrip.pickupLocations)) {
+  matchedPickup = bookedTrip.pickupLocations.find(
+    (p) => String(p._id) === String(selectedPickupId)
+  );
+}
+
+// Determine effective pickup time with date overrides
+let effectivePickupTime = matchedPickup ? matchedPickup.pickupTime || "" : "";
+if (matchedPickup && Array.isArray(matchedPickup.dateOverrides)) {
+  const override = matchedPickup.dateOverrides.find(
+    (o) =>
+      (bookingSlot._id && o.slotId && String(o.slotId) === String(bookingSlot._id)) ||
+      (bookingSlot.date && o.date && o.date.trim() === String(bookingSlot.date).trim())
+  );
+  if (override && override.pickupTime) {
+    effectivePickupTime = override.pickupTime;
+  }
+}
+
+const pickupSnapshot = matchedPickup
+  ? {
+      name: matchedPickup.name || "",
+      address: matchedPickup.address || "",
+      landmark: matchedPickup.landmark || "",
+      pickupTime: effectivePickupTime,
+      googleMapsUrl: matchedPickup.googleMapsUrl || "",
+    }
+  : {
+      name: String(bookingDetails?.pickupLocation || "").trim(),
+      address: "",
+      landmark: "",
+      pickupTime: "",
+      googleMapsUrl: "",
+    };
 
 const customerName = String(bookingDetails.name || "").trim();
 const customerEmail = String(bookingDetails.email || "").trim();
@@ -631,17 +799,35 @@ try {
   },
   slotId: bookingSlot._id,
   date: bookingSlot.date,
+  pickupLocation: pickupSnapshot.name
+    ? `${pickupSnapshot.name}${pickupSnapshot.pickupTime ? ` (${pickupSnapshot.pickupTime})` : ""}`
+    : String(bookingDetails?.pickupLocation || "").trim(),
+  pickupLocationId: matchedPickup ? matchedPickup._id : null,
+  pickupDetails: pickupSnapshot,
+  bookingCode: `TVK${Math.floor(1000 + Math.random() * 9000)}`,
   travellers: travellerCount,
   travellerDetails: Array.isArray(bookingDetails.travellerDetails)
     ? bookingDetails.travellerDetails
     : [],
   requests: String(bookingDetails.requests || ""),
-  total: razorpayOrder.amount / 100,
+  originalTotal: Number(orderNotes.originalTotal) || (priceAtOrder * travellerCount),
+  couponCode: orderNotes.couponCode ? String(orderNotes.couponCode).trim().toUpperCase() : null,
+  discountAmount: Number(orderNotes.discountAmount) || 0,
+  total: expectedPayable,
   paymentId: razorpay_payment_id,
   orderId: razorpay_order_id,
   paymentStatus: "Paid",
   status: "Confirmed",
 });
+
+if (orderNotes.couponCode && orderNotes.couponCode.trim()) {
+  const cleanCouponCode = String(orderNotes.couponCode).trim().toUpperCase();
+  await Coupon.updateOne(
+    { code: cleanCouponCode },
+    { $inc: { usageCount: 1 } },
+    { session }
+  );
+}
 
 await confirmedBooking.save({ session });
 
@@ -771,12 +957,16 @@ app.get("/customer/verify", authMiddleware, async (req, res) => {
       customer: {
         id: customer._id,
         name: customer.name,
-        phone: customer.phone,
+        email: customer.email || "",
+        phone: customer.phone || "",
         role: customer.role,
+        isEmailVerified: customer.isEmailVerified,
+        authProvider: customer.authProvider,
+        photoUrl: customer.photoUrl || "",
       },
     });
 
-      } catch (error) {
+  } catch (error) {
     console.error("Customer verification failed:", error);
     return res.status(500).json({
       success: false,
@@ -834,7 +1024,7 @@ app.put("/customer/profile", authMiddleware, async (req, res) => {
       });
     }
 
-    const { name, email } = req.body;
+    const { name, email, phone } = req.body;
 
     if (typeof name !== "string" || !name.trim()) {
       return res.status(400).json({
@@ -878,6 +1068,10 @@ app.put("/customer/profile", authMiddleware, async (req, res) => {
 
     if (email !== undefined) {
       customer.email = email.trim().toLowerCase() || undefined;
+    }
+
+    if (phone !== undefined) {
+      customer.phone = phone.trim() || undefined;
     }
 
     await customer.save();
@@ -964,7 +1158,8 @@ app.post(
     const {
       name, email, phone, slotId, travellers,
       requests, paymentMethod, paymentReference,
-      paymentConfirmed,
+      paymentConfirmed, travellerDetails, pickupLocation,
+      pickupLocationId,
     } = req.body;
 
     const count = Number(travellers);
@@ -1053,6 +1248,43 @@ app.post(
         }
       }
 
+      let matchedPickup = null;
+      let effectivePickupTime = "";
+      if (pickupLocationId && Array.isArray(trip.pickupLocations)) {
+        matchedPickup = trip.pickupLocations.find(
+          (p) => String(p._id) === String(pickupLocationId)
+        );
+        if (matchedPickup) {
+          effectivePickupTime = matchedPickup.pickupTime || "";
+          if (Array.isArray(matchedPickup.dateOverrides)) {
+            const override = matchedPickup.dateOverrides.find(
+              (o) =>
+                (slot._id && o.slotId && String(o.slotId) === String(slot._id)) ||
+                (slot.date && o.date && o.date.trim() === String(slot.date).trim())
+            );
+            if (override && override.pickupTime) {
+              effectivePickupTime = override.pickupTime;
+            }
+          }
+        }
+      }
+
+      const pickupSnapshot = matchedPickup
+        ? {
+            name: matchedPickup.name || "",
+            address: matchedPickup.address || "",
+            landmark: matchedPickup.landmark || "",
+            pickupTime: effectivePickupTime,
+            googleMapsUrl: matchedPickup.googleMapsUrl || "",
+          }
+        : {
+            name: String(pickupLocation || "").trim(),
+            address: "",
+            landmark: "",
+            pickupTime: "",
+            googleMapsUrl: "",
+          };
+
       const booking = new Booking({
         name: name.trim(),
         email: String(email || "").trim(),
@@ -1067,7 +1299,14 @@ app.post(
         },
         slotId: slot._id,
         date: slot.date,
+        pickupLocation: pickupSnapshot.name
+          ? `${pickupSnapshot.name}${pickupSnapshot.pickupTime ? ` (${pickupSnapshot.pickupTime})` : ""}`
+          : String(pickupLocation || "").trim(),
+        pickupLocationId: matchedPickup ? matchedPickup._id : null,
+        pickupDetails: pickupSnapshot,
+        bookingCode: `TVK${Math.floor(1000 + Math.random() * 9000)}`,
         travellers: count,
+        travellerDetails: Array.isArray(travellerDetails) ? travellerDetails : [],
         requests: String(requests || ""),
         total: price * count,
         bookingSource: "Admin",
@@ -1471,6 +1710,61 @@ app.post(
   }
 );
 
+app.post(
+  "/upload-multiple",
+  authMiddleware,
+  adminMiddleware,
+  (req, res, next) => {
+    upload.array("images", 15)(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message,
+        });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No images uploaded",
+      });
+    }
+
+    try {
+      const uploadPromises = req.files.map((file) => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: "traviska/trips",
+              resource_type: "image",
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
+            }
+          );
+          stream.end(file.buffer);
+        });
+      });
+
+      const urls = await Promise.all(uploadPromises);
+      res.json({
+        success: true,
+        urls,
+      });
+    } catch (err) {
+      console.error("Cloudinary multi-upload failed:", err);
+      res.status(500).json({
+        success: false,
+        message: "Multiple image upload failed",
+      });
+    }
+  }
+);
+
 app.post("/trips", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const price = Number(req.body.price);
@@ -1542,7 +1836,7 @@ app.get("/trips/:id", async (req, res) => {
 });
 
 
-app.delete("/trips/:id", async (req, res) => {
+app.delete("/trips/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     await Trip.findByIdAndDelete(req.params.id);
 
@@ -1608,6 +1902,103 @@ app.put("/trips/:id", authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+// GET trip pickup locations (public / customer / admin)
+app.get("/trips/:id/pickups", async (req, res) => {
+  try {
+    const { slotId, date } = req.query;
+    const trip = await Trip.findById(req.params.id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    const pickups = (trip.pickupLocations || [])
+      .slice()
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const resolved = pickups.map((p) => {
+      let effectiveTime = p.pickupTime || "";
+      if (Array.isArray(p.dateOverrides) && p.dateOverrides.length > 0) {
+        const override = p.dateOverrides.find(
+          (o) =>
+            (slotId && o.slotId && String(o.slotId) === String(slotId)) ||
+            (date && o.date && o.date.trim() === String(date).trim())
+        );
+        if (override && override.pickupTime) {
+          effectiveTime = override.pickupTime;
+        }
+      }
+
+      return {
+        _id: p._id,
+        name: p.name,
+        address: p.address,
+        landmark: p.landmark,
+        pickupTime: p.pickupTime,
+        effectivePickupTime: effectiveTime,
+        googleMapsUrl: p.googleMapsUrl,
+        isActive: p.isActive !== false,
+        order: p.order || 0,
+        dateOverrides: p.dateOverrides || [],
+      };
+    });
+
+    res.json({
+      success: true,
+      pickupLocations: resolved,
+    });
+  } catch (err) {
+    console.error("Failed to fetch trip pickups:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch pickup locations",
+    });
+  }
+});
+
+// PUT trip pickup locations (Admin only)
+app.put(
+  "/trips/:id/pickups",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const { pickupLocations } = req.body;
+      if (!Array.isArray(pickupLocations)) {
+        return res.status(400).json({
+          success: false,
+          message: "pickupLocations must be an array",
+        });
+      }
+
+      const trip = await Trip.findById(req.params.id);
+      if (!trip) {
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found",
+        });
+      }
+
+      trip.pickupLocations = pickupLocations;
+      await trip.save();
+
+      res.json({
+        success: true,
+        message: "Pickup locations saved successfully",
+        pickupLocations: trip.pickupLocations,
+      });
+    } catch (err) {
+      console.error("Failed to save trip pickups:", err);
+      res.status(500).json({
+        success: false,
+        message: "Failed to save pickup locations",
+      });
+    }
+  }
+);
+
 app.get("/global-trip-sections", async (req, res) => {
   try {
     let sections = await GlobalTripSections.findOne();
@@ -1668,7 +2059,10 @@ app.put(
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const user = await User.findOne({
+      email: { $regex: new RegExp(`^${normalizedEmail}$`, "i") },
+    });
 
     if (!user) {
   return res.status(401).json({
@@ -1722,7 +2116,7 @@ res.json({
 
 app.post("/customer/firebase-login", async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, name: clientProvidedName } = req.body;
 
     if (!idToken || typeof idToken !== "string") {
       return res.status(400).json({
@@ -1731,86 +2125,214 @@ app.post("/customer/firebase-login", async (req, res) => {
       });
     }
 
-    // Firebase token verification will be added next.
+    // Fail-fast guard if MongoDB is not connected
+    if (mongoose.connection.readyState !== 1) {
+      console.warn("⚠️ Firebase login attempted while database readyState is:", mongoose.connection.readyState);
+      return res.status(503).json({
+        success: false,
+        message: "Database connection is not ready. Please try again in a few moments.",
+      });
+    }
+
+    // 1. Server-side token verification using Firebase Admin SDK
     const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const email = (decodedToken.email || "").trim().toLowerCase();
+    const isEmailVerified = Boolean(decodedToken.email_verified);
+    const phone = decodedToken.phone_number || "";
+    const firebaseName = (decodedToken.name || "").trim();
+    const picture = decodedToken.picture || "";
+    const providerId = decodedToken.firebase?.sign_in_provider || "firebase";
 
-if (!decodedToken.phone_number) {
-  return res.status(403).json({
-    success: false,
-    message: "Phone authentication is required",
-  });
-}
+    // 2. Safeguard: Prevent staff/admin email collisions & never mutate staff roles
+    if (email) {
+      const staffUser = await User.findOne({
+        email,
+        role: { $in: ["admin", "sales", "sales_lead"] },
+      });
+      if (staffUser) {
+        return res.status(403).json({
+          success: false,
+          message: "This email is registered to a staff account. Please sign in via the appropriate staff portal.",
+        });
+      }
+    }
 
-console.log("Verified customer phone:", decodedToken.phone_number);
+    // 3. Primary Lookup: by Firebase UID
+    let customer = await User.findOne({ firebaseUid: uid });
 
-let customer = await User.findOne({
-  firebaseUid: decodedToken.uid,
-});
+    if (customer) {
+      // Security check: ensure account is a customer account
+      if (customer.role !== "customer") {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized account role access.",
+        });
+      }
 
-if (!customer) {
-  customer = await User.create({
-    name: "Customer",
-    phone: decodedToken.phone_number,
-    firebaseUid: decodedToken.uid,
-    role: "customer",
-  });
-}
+      // Sync verified email state and details
+      let updated = false;
+      if (isEmailVerified && !customer.isEmailVerified) {
+        customer.isEmailVerified = true;
+        updated = true;
+      }
+      if (email && !customer.email) {
+        customer.email = email;
+        updated = true;
+      }
+      if (picture && !customer.photoUrl) {
+        customer.photoUrl = picture;
+        updated = true;
+      }
+      if (phone && !customer.phone) {
+        customer.phone = phone;
+        updated = true;
+      }
+      if (updated) {
+        await customer.save();
+      }
+    } else {
+      // 4. UID not found yet: check if existing customer with same email exists
+      if (email) {
+        const existingByEmail = await User.findOne({ email });
+        if (existingByEmail) {
+          // If existing account already linked to another UID, reject conflict
+          if (existingByEmail.firebaseUid && existingByEmail.firebaseUid !== uid) {
+            return res.status(409).json({
+              success: false,
+              message: "An account with this email already exists under a different sign-in method. Please sign in with your original method.",
+            });
+          }
 
-console.log("Customer MongoDB ID:", customer._id);
+          // If existing account has no Firebase UID, link ONLY if Firebase email is verified!
+          if (isEmailVerified) {
+            existingByEmail.firebaseUid = uid;
+            existingByEmail.isEmailVerified = true;
+            existingByEmail.authProvider = providerId === "google.com" ? "google" : "password";
+            if (picture && !existingByEmail.photoUrl) existingByEmail.photoUrl = picture;
+            await existingByEmail.save();
+            customer = existingByEmail;
+          } else {
+            // Unverified email trying to link to existing account
+            return res.status(403).json({
+              success: false,
+              message: "Please verify your email address to access your existing account.",
+              needsEmailVerification: true,
+            });
+          }
+        }
+      }
 
-const customerToken = jwt.sign(
-  {
-    id: customer._id.toString(),
-    role: "customer",
-  },
-  process.env.JWT_SECRET,
-  { expiresIn: "7d" }
-);
+      // 5. If still not matched, check if customer with same phone exists (for phone OTP)
+      if (!customer && phone) {
+        const existingByPhone = await User.findOne({ phone });
+        if (existingByPhone && existingByPhone.role === "customer" && !existingByPhone.firebaseUid) {
+          existingByPhone.firebaseUid = uid;
+          existingByPhone.authProvider = "phone";
+          await existingByPhone.save();
+          customer = existingByPhone;
+        }
+      }
 
-return res.status(200).json({
-  success: true,
-  message: "Customer login successful",
-  token: customerToken,
-  customer: {
-    id: customer._id,
-    name: customer.name,
-    phone: customer.phone,
-    role: customer.role,
-  },
-});
+      // 6. If no existing record matched, create a brand-new Customer
+      if (!customer) {
+        const displayName = (clientProvidedName || firebaseName || (email ? email.split("@")[0] : "") || "Customer").trim();
+        customer = await User.create({
+          name: displayName || "Customer",
+          email: email || undefined,
+          phone: phone || undefined,
+          firebaseUid: uid,
+          role: "customer",
+          isEmailVerified,
+          authProvider: providerId === "google.com" ? "google" : (providerId === "password" ? "password" : (providerId === "phone" ? "phone" : "firebase")),
+          photoUrl: picture || "",
+        });
+      }
+    }
+
+    // 7. Sign server-side session JWT
+    const customerToken = jwt.sign(
+      {
+        id: customer._id.toString(),
+        role: "customer",
+        firebaseUid: customer.firebaseUid,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Customer authentication successful",
+      token: customerToken,
+      customer: {
+        id: customer._id,
+        name: customer.name,
+        email: customer.email || "",
+        phone: customer.phone || "",
+        role: "customer",
+        isEmailVerified: customer.isEmailVerified,
+        authProvider: customer.authProvider,
+        photoUrl: customer.photoUrl || "",
+      },
+    });
   } catch (err) {
-    console.error("Customer login error:", err);
+    console.error("Customer Firebase login error:", err.message);
+
+    if (err?.name === "MongooseError" && err?.message?.includes("buffering timed out")) {
+      return res.status(503).json({
+        success: false,
+        message: "Database operation timed out. Please retry in a few moments.",
+      });
+    }
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: err.message || "Server Error",
     });
   }
 });
 
 app.get("/trips/:tripId/slots", async (req, res) => {
   try {
-    const slots = await TripSlot.find({
+    const { includeClosed } = req.query;
+
+    const query = {
       trip: req.params.tripId,
-    }).sort({ date: 1 });
+    };
 
-    const publicSlots = slots.map((slot) => {
-      const available = slot.totalSlots - slot.bookedSlots;
+    // For public website / customer view: closed slots must disappear completely
+    if (includeClosed !== "true") {
+      query.isClosed = { $ne: true };
+    }
 
-      let status = "Available";
+    const slots = await TripSlot.find(query).sort({ date: 1 });
 
-      if (slot.isClosed || available <= 0) {
-        status = "Sold Out";
-      } else if (available <= 3) {
-        status = "Filling Fast";
-      }
+    const publicSlots = slots
+      .filter((slot) => includeClosed === "true" || !slot.isClosed)
+      .map((slot) => {
+        const available = slot.totalSlots - slot.bookedSlots;
 
-      return {
-        _id: slot._id,
-        date: slot.date,
-        status,
-      };
-    });
+        let status = "Available";
+
+        if (slot.isClosed) {
+          status = "Closed";
+        } else if (available <= 0) {
+          status = "Sold Out";
+        } else if (available <= 3) {
+          status = "Filling Fast";
+        }
+
+        return {
+          _id: slot._id,
+          date: slot.date,
+          status,
+          isClosed: Boolean(slot.isClosed),
+          totalSlots: slot.totalSlots,
+          bookedSlots: slot.bookedSlots,
+          availableSlots: available,
+        };
+      });
 
     res.json(publicSlots);
   } catch (err) {
@@ -1823,47 +2345,69 @@ app.get("/trips/:tripId/slots", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5001;
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
-
 // ===============================
 // CREATE TRIP SLOT
 // ===============================
 
 app.post("/trip-slots", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { trip, date, totalSlots } = req.body;
+    const { trip, tripId, date, totalSlots, photoDriveLink, billDriveLink, whatsappGroupLink } = req.body;
+    const targetTripId = trip || tripId;
 
-    if (!trip || !date || !totalSlots) {
+    if (!targetTripId || !date || !totalSlots) {
       return res.status(400).json({
         success: false,
         message: "Trip, date and total slots are required",
       });
     }
 
+    // Parse date safely whether it is ISO "2026-12-24", DD/MM/YYYY "24/12/2026", DD-MM-YYYY, etc.
+    let parsedDate;
+    if (typeof date === "string") {
+      const trimmed = date.trim();
+      const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (ddmmyyyyMatch) {
+        const day = parseInt(ddmmyyyyMatch[1], 10);
+        const month = parseInt(ddmmyyyyMatch[2], 10) - 1;
+        const year = parseInt(ddmmyyyyMatch[3], 10);
+        parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      } else {
+        parsedDate = new Date(trimmed);
+      }
+    } else {
+      parsedDate = new Date(date);
+    }
+
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid departure date format. Please use YYYY-MM-DD or DD/MM/YYYY.",
+      });
+    }
+
     const slot = new TripSlot({
-      trip,
-      date,
-      totalSlots,
+      trip: targetTripId,
+      date: parsedDate,
+      totalSlots: Number(totalSlots) || 24,
+      photoDriveLink: (photoDriveLink || "").trim(),
+      billDriveLink: (billDriveLink || "").trim(),
+      whatsappGroupLink: (whatsappGroupLink || "").trim(),
     });
 
     await slot.save();
+    await slot.populate("trip", "title location price image duration");
 
     res.json({
       success: true,
-      message: "Trip slot created successfully",
+      message: "Departure slot created successfully",
       slot,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Error creating trip slot:", err);
 
     res.status(500).json({
       success: false,
-      message: "Failed to create trip slot",
+      message: err.message || "Failed to create trip slot",
     });
   }
 });
@@ -1874,11 +2418,65 @@ app.post("/trip-slots", authMiddleware, adminMiddleware, async (req, res) => {
 
 app.get("/trip-slots", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const slots = await TripSlot.find()
-      .populate("trip", "title location price")
-      .sort({ date: 1 });
+    const CaptainAssignment = require("./models/CaptainAssignment");
+    const [slots, assignments] = await Promise.all([
+      TripSlot.find()
+        .populate("trip", "title location price image duration")
+        .populate("assignedCaptain", "name avatar phone status rating defaultTripFee")
+        .sort({ date: 1 })
+        .lean(),
+      CaptainAssignment.find({ status: { $ne: "Cancelled" } })
+        .populate("captainId", "name avatar phone status rating defaultTripFee")
+        .lean()
+        .catch(() => []),
+    ]);
 
-    res.json(slots);
+    function normalizeRole(role) {
+      if (!role) return "Head Captain";
+      const r = String(role).trim().toLowerCase();
+      if (r.includes("head") || r.includes("lead")) return "Head Captain";
+      if (r.includes("main") || r.includes("assistant")) return "Main Captain";
+      if (r.includes("trainee")) return "Trainee Captain";
+      return "Head Captain";
+    }
+
+    function getRoleRank(role) {
+      const norm = normalizeRole(role);
+      if (norm === "Head Captain") return 1;
+      if (norm === "Main Captain") return 2;
+      return 3;
+    }
+
+    const slotCaptainsMap = new Map();
+    assignments.forEach((a) => {
+      const sId = String(a.slotId?._id || a.slotId || a.slot?._id || a.slot);
+      const cap = a.captainId || a.captain;
+      if (sId && cap) {
+        if (!slotCaptainsMap.has(sId)) slotCaptainsMap.set(sId, []);
+        const normRole = normalizeRole(a.role);
+        slotCaptainsMap.get(sId).push({
+          ...(typeof cap === "object" ? cap : { _id: cap }),
+          role: normRole,
+          roleRank: getRoleRank(normRole),
+          captainFee: a.captainFee,
+          assignmentId: a._id,
+        });
+      }
+    });
+
+    const enrichedSlots = slots.map((s) => {
+      const sId = String(s._id);
+      const team = (slotCaptainsMap.get(sId) || []).sort((a, b) => a.roleRank - b.roleRank);
+      const headCap = team.find((c) => c.role === "Head Captain") || team[0] || s.assignedCaptain || null;
+
+      return {
+        ...s,
+        assignedCaptain: headCap,
+        assignedCaptains: team,
+      };
+    });
+
+    res.json(enrichedSlots);
   } catch (err) {
     console.error(err);
 
@@ -1891,7 +2489,7 @@ app.get("/trip-slots", authMiddleware, adminMiddleware, async (req, res) => {
 
 app.put("/trip-slots/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { date, totalSlots } = req.body;
+    const { trip, tripId, date, totalSlots, photoDriveLink, billDriveLink, whatsappGroupLink, isClosed } = req.body;
 
     const slot = await TripSlot.findById(req.params.id);
 
@@ -1902,15 +2500,20 @@ app.put("/trip-slots/:id", authMiddleware, adminMiddleware, async (req, res) => 
       });
     }
 
-    if (Number(totalSlots) < slot.bookedSlots) {
+    if (totalSlots !== undefined && Number(totalSlots) < slot.bookedSlots) {
       return res.status(400).json({
         success: false,
-        message: "Total slots cannot be less than booked slots",
+        message: `Total capacity cannot be less than current confirmed bookings (${slot.bookedSlots})`,
       });
     }
 
-    slot.date = date;
-    slot.totalSlots = Number(totalSlots);
+    if (tripId || trip) slot.trip = tripId || trip;
+    if (date) slot.date = date;
+    if (totalSlots !== undefined) slot.totalSlots = Number(totalSlots);
+    if (photoDriveLink !== undefined) slot.photoDriveLink = (photoDriveLink || "").trim();
+    if (billDriveLink !== undefined) slot.billDriveLink = (billDriveLink || "").trim();
+    if (whatsappGroupLink !== undefined) slot.whatsappGroupLink = (whatsappGroupLink || "").trim();
+    if (isClosed !== undefined) slot.isClosed = Boolean(isClosed);
 
     await slot.save();
 
@@ -1929,7 +2532,39 @@ app.put("/trip-slots/:id", authMiddleware, adminMiddleware, async (req, res) => 
   }
 });
 
-app.put("/trip-slots/:id/toggle", authMiddleware, async (req, res) => {
+app.delete("/trip-slots/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const slot = await TripSlot.findById(req.params.id);
+    if (!slot) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip slot not found",
+      });
+    }
+
+    if (slot.bookedSlots > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete departure slot with ${slot.bookedSlots} confirmed booking(s). Please cancel or reassign bookings first.`,
+      });
+    }
+
+    await TripSlot.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Departure slot deleted successfully",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete departure slot",
+    });
+  }
+});
+
+app.put("/trip-slots/:id/toggle", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const slot = await TripSlot.findById(req.params.id);
 
@@ -1960,3 +2595,68 @@ app.put("/trip-slots/:id/toggle", authMiddleware, async (req, res) => {
     });
   }
 });
+
+// =========================================================================
+// SERVER STARTUP WITH ASYNCHRONOUS MONGODB CONNECTION
+// Ensures server only accepts traffic after database is connected.
+// =========================================================================
+
+const PORT = process.env.PORT || 5001;
+
+async function startServer() {
+  try {
+    if (!process.env.MONGODB_URI) {
+      console.error("❌ CRITICAL: MONGODB_URI environment variable is missing in server/.env");
+      process.exit(1);
+    }
+
+    console.log("⏳ Connecting to MongoDB Atlas...");
+
+    // Mongoose connection lifecycle listeners
+    mongoose.connection.on("connected", () => {
+      console.log("✅ MongoDB Connection Established (readyState: 1)");
+    });
+
+    mongoose.connection.on("error", (err) => {
+      console.error("❌ MongoDB Connection Error:", err.message);
+    });
+
+    mongoose.connection.on("disconnected", () => {
+      console.warn("⚠️ MongoDB Connection Lost. Reconnecting...");
+    });
+
+    mongoose.connection.on("reconnected", () => {
+      console.log("🔄 MongoDB Connection Restored.");
+    });
+
+    // Connect with production-grade timeout & pool options
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+    });
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Traviska Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ Fatal MongoDB Connection Failure during startup:", error.message);
+    console.error("Server startup aborted to prevent unhandled database query buffering.");
+    process.exit(1);
+  }
+}
+
+// Clean shutdown handler
+process.on("SIGINT", async () => {
+  try {
+    await mongoose.connection.close();
+    console.log("MongoDB connection closed cleanly on process termination.");
+    process.exit(0);
+  } catch (e) {
+    process.exit(1);
+  }
+});
+
+startServer();

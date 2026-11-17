@@ -23,16 +23,44 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import ProtectedCustomer from "./components/ProtectedCustomer";
 import ProtectedAdmin from "./components/ProtectedAdmin";
 
+import { CaptainAuthProvider } from "./captain/CaptainAuthContext";
+import CaptainLayout from "./captain/CaptainLayout";
+import CaptainLogin from "./captain/CaptainLogin";
+import CaptainTrips from "./captain/CaptainTrips";
+import CaptainTripDetails from "./captain/CaptainTripDetails";
+import CaptainAttendance from "./captain/CaptainAttendance";
+import CaptainUserCheck from "./captain/CaptainUserCheck";
+import CaptainTripExpenses from "./captain/CaptainTripExpenses";
+import CaptainAddExpense from "./captain/CaptainAddExpense";
+import CaptainProfile from "./captain/CaptainProfile";
+import CaptainPayoutHistory from "./captain/CaptainPayoutHistory";
+import CaptainBankDetails from "./captain/CaptainBankDetails";
 
+import { SalesAuthProvider } from "./sales/SalesAuthContext";
+import SalesLayout from "./sales/SalesLayout";
+import SalesLogin from "./sales/SalesLogin";
+import SalesDashboard from "./sales/SalesDashboard";
+import SalesLeads from "./sales/SalesLeads";
+import SalesPipeline from "./sales/SalesPipeline";
+import SalesFollowUps from "./sales/SalesFollowUps";
+import SalesManualBooking from "./sales/SalesManualBooking";
+import OdooSyncCenter from "./sales/OdooSyncCenter";
 
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith("/admin");
-  const isLogin = location.pathname === "/login";
+  const isCaptain = location.pathname.startsWith("/captain");
+  const isSales = location.pathname.startsWith("/sales");
+  const isLogin =
+    location.pathname === "/login" ||
+    location.pathname === "/admin/login" ||
+    location.pathname === "/customer/login" ||
+    location.pathname === "/captain/login" ||
+    location.pathname === "/sales/login";
 
   return (
     <>
-      {!isAdmin && !isLogin && <Navbar />}
+      {!isAdmin && !isCaptain && !isSales && !isLogin && <Navbar />}
 
      <Routes>
   <Route path="/" element={<Home />} />
@@ -42,6 +70,7 @@ function AppContent() {
   <Route path="/trip/:id" element={<TripDetails />} />
   <Route path="/booking" element={<Booking />} />
   <Route path="/admin/login" element={<Login />} />
+  <Route path="/login" element={<CustomerLogin />} />
   <Route path="/customer/login" element={<CustomerLogin />} />
   <Route element={<ProtectedCustomer />}>
   <Route
@@ -49,18 +78,82 @@ function AppContent() {
     element={<CustomerDashboard />}
   />
 </Route>
- <Route path="/admin" element={<ProtectedAdmin />} />
-<Route path="/admin/bookings" element={<ProtectedAdmin />} />
-<Route path="/admin/trips" element={<ProtectedAdmin />} />
-<Route path="/admin/sections" element={<ProtectedAdmin />} />
-<Route path="/admin/customers" element={<ProtectedAdmin />} />
-<Route path="/admin/settings" element={<ProtectedAdmin />} />
+  <Route path="/admin" element={<ProtectedAdmin />} />
+  <Route path="/admin/bookings" element={<ProtectedAdmin />} />
+  <Route path="/admin/trips" element={<ProtectedAdmin />} />
+  <Route path="/admin/sections" element={<ProtectedAdmin />} />
+  <Route path="/admin/customers" element={<ProtectedAdmin />} />
+  <Route path="/admin/operations" element={<ProtectedAdmin />} />
+  <Route path="/admin/operations/*" element={<ProtectedAdmin />} />
+  <Route path="/admin/reports" element={<ProtectedAdmin />} />
+  <Route path="/admin/marketing" element={<ProtectedAdmin />} />
+  <Route path="/admin/settings" element={<ProtectedAdmin />} />
   <Route path="/admin/add-trip" element={<ProtectedAdmin />} />
+
+  {/* Sales Portal Routes */}
+  <Route
+    path="/sales/login"
+    element={
+      <SalesAuthProvider>
+        <SalesLogin />
+      </SalesAuthProvider>
+    }
+  />
+  <Route
+    path="/sales"
+    element={
+      <SalesAuthProvider>
+        <SalesLayout />
+      </SalesAuthProvider>
+    }
+  >
+    <Route index element={<SalesDashboard />} />
+    <Route path="leads" element={<SalesLeads />} />
+    <Route path="pipeline" element={<SalesPipeline />} />
+    <Route path="follow-ups" element={<SalesFollowUps />} />
+    <Route path="manual-booking" element={<SalesManualBooking />} />
+    <Route path="odoo-sync" element={<OdooSyncCenter />} />
+  </Route>
+
+  {/* Captain Portal Routes */}
+  <Route
+    path="/captain/login"
+    element={
+      <CaptainAuthProvider>
+        <CaptainLogin />
+      </CaptainAuthProvider>
+    }
+  />
+  <Route
+    path="/captain"
+    element={
+      <CaptainAuthProvider>
+        <CaptainLayout />
+      </CaptainAuthProvider>
+    }
+  >
+    <Route index element={<Navigate to="/captain/trips" replace />} />
+    <Route path="trips" element={<CaptainTrips />} />
+    <Route path="trips/:slotId" element={<CaptainTripDetails />} />
+    <Route path="trips/:slotId/attendance" element={<CaptainAttendance />} />
+    <Route path="trips/:slotId/user-check" element={<CaptainUserCheck />} />
+    <Route path="trips/:slotId/expenses" element={<CaptainTripExpenses />} />
+    <Route path="trips/:slotId/expenses/add" element={<CaptainAddExpense />} />
+    <Route path="profile" element={<CaptainProfile />} />
+    <Route path="payout-history" element={<CaptainPayoutHistory />} />
+    <Route path="bank-details" element={<CaptainBankDetails />} />
+    
+    {/* Legacy redirect aliases */}
+    <Route path="expenses" element={<Navigate to="/captain/trips" replace />} />
+    <Route path="wallet" element={<Navigate to="/captain/payout-history" replace />} />
+    <Route path="attendance" element={<Navigate to="/captain/trips" replace />} />
+  </Route>
+
   <Route path="/login" element={<Login />} />
   <Route path="/admin-login" element={<Navigate to="/login" replace />} />
 </Routes>
 
-      {!isAdmin && !isLogin && <Footer />}
+      {!isAdmin && !isCaptain && !isSales && !isLogin && <Footer />}
 
     </>
   );

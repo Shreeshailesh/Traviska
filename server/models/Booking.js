@@ -26,6 +26,19 @@ slotId: {
 },
 
   date: String,
+  pickupLocation: String,
+  pickupLocationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+  },
+  pickupDetails: {
+    name: { type: String, default: "" },
+    address: { type: String, default: "" },
+    landmark: { type: String, default: "" },
+    pickupTime: { type: String, default: "" },
+    googleMapsUrl: { type: String, default: "" },
+  },
+  bookingCode: String,
   travellers: Number,
   travellerDetails: [
     {
@@ -37,12 +50,43 @@ slotId: {
   ],
   requests: String,
   total: Number,
+  originalTotal: {
+    type: Number,
+    default: null,
+  },
+  couponCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: null,
+  },
+  couponId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Coupon",
+    default: null,
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+  },
   paymentId: String,
 
    bookingSource: {
   type: String,
-  enum: ["Online", "Admin"],
+  enum: ["Online", "Admin", "Sales", "Manual"],
   default: "Online",
+},
+
+enquiryId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Enquiry",
+  default: null,
+},
+
+salesRepId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User",
+  default: null,
 },
 
 paymentMethod: {
@@ -75,10 +119,71 @@ paymentReferenceKey: {
 },
  
   status: {
-  type: String,
-  enum: ["Pending", "Confirmed", "Cancelled"],
-  default: "Pending",
-},
+    type: String,
+    enum: ["Pending", "Confirmed", "Cancelled"],
+    default: "Pending",
+  },
+
+  isRescheduled: {
+    type: Boolean,
+    default: false,
+  },
+
+  rescheduledAt: {
+    type: Date,
+  },
+
+  rescheduledFrom: {
+    type: String,
+  },
+
+  rescheduleReason: {
+    type: String,
+  },
+
+  rescheduleHistory: [
+    {
+      previousSlotId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "TripSlot",
+      },
+      previousDate: String,
+      newSlotId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "TripSlot",
+      },
+      newDate: String,
+      reason: String,
+      rescheduledAt: {
+        type: Date,
+        default: Date.now,
+      },
+      rescheduledBy: String,
+    },
+  ],
+
+  cancelledAt: {
+    type: Date,
+  },
+
+  cancellationReason: {
+    type: String,
+  },
+
+  cancellationNotes: {
+    type: String,
+  },
+
+  refundStatus: {
+    type: String,
+    enum: ["None", "Pending", "Processed", "Rejected"],
+    default: "None",
+  },
+
+  refundAmount: {
+    type: Number,
+    default: 0,
+  },
 
   createdAt: {
     type: Date,

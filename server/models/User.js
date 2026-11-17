@@ -10,14 +10,14 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: function () {
-      return this.role === "admin";
+      return this.role === "admin" || this.role === "sales" || this.role === "sales_lead";
     },
   },
 
   password: {
     type: String,
     required: function () {
-      return this.role === "admin";
+      return this.role === "admin" || this.role === "sales" || this.role === "sales_lead";
     },
   },
 
@@ -31,8 +31,29 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
-    enum: ["admin", "customer"],
+    enum: ["admin", "customer", "sales", "sales_lead"],
     default: "customer",
+  },
+  department: {
+    type: String,
+    default: "Operations",
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
+  },
+  authProvider: {
+    type: String,
+    enum: ["google", "password", "phone", "legacy", "firebase"],
+    default: "firebase",
+  },
+  photoUrl: {
+    type: String,
+    default: "",
   },
 });
 

@@ -12,7 +12,9 @@ import AdminTripSectionsEditor, {
 } from "../components/AdminTripSectionsEditor";
 
 
-function Admin() {
+// `embedded` renders only the section content, for use inside the new AdminLayout
+// (which provides its own sidebar and topbar). All existing logic is unchanged.
+function Admin({ embedded = false }: { embedded?: boolean }) {
     const navigate = useNavigate();
 
     const location = useLocation();
@@ -473,7 +475,8 @@ const paidBookings = bookings.filter(
 
 
 return (
-  <div className="admin-layout">
+  <div className={embedded ? "admin-embedded" : "admin-layout"}>
+    {!embedded && (<>
     {/* Mobile Header Bar (shown on screens <= 900px) */}
     <header className="admin-mobile-header">
       <div className="admin-mobile-header-left">
@@ -500,8 +503,10 @@ return (
       isOpen={mobileSidebarOpen}
       onClose={() => setMobileSidebarOpen(false)}
     />
+    </>)}
 
-    <div className="admin-main-content">
+    <div className={embedded ? "admin-embedded-content" : "admin-main-content"}>
+      {!embedded && (
       <div className="admin-top-bar">
         <h1 className="admin-title">
           {activeSection === "dashboard"
@@ -533,6 +538,7 @@ return (
           Logout
         </button>
       </div>
+      )}
 
 {activeSection === "trips" && (
   <>

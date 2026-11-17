@@ -6,7 +6,7 @@ import {
   ChevronRight,
   ChevronDown,
   MapPin,
-  Camera,
+  Clock,
   Users,
   Tent,
   Award,
@@ -29,6 +29,7 @@ import {
   FlightTrailDecoration,
   MountainSketchDecoration,
 } from "../components/HomeIllustrations";
+import { HomepageMediaGallery } from "../components/HomepageMediaGallery";
 import "./Home.css";
 
 // High-speed CDN URLs so video loads smoothly worldwide on mobile & web
@@ -182,15 +183,13 @@ function Home() {
           <>
             <div className="popular-cards-grid">
               {trips.slice(0, 6).map((trip: any, index: number) => {
-                // Simulated photo count badges matching screenshot: 3, 21, 8
-                const photoCount =
-                  Array.isArray(trip.photos) && trip.photos.length > 0
-                    ? trip.photos.length
-                    : index === 0
-                    ? 3
-                    : index === 1
-                    ? 21
-                    : 8;
+                const durationText =
+                  trip.duration?.trim() ||
+                  (index % 3 === 0
+                    ? "3 Days / 2 Nights"
+                    : index % 3 === 1
+                    ? "2 Days / 1 Night"
+                    : "4 Days / 3 Nights");
 
                 return (
                   <div
@@ -213,10 +212,10 @@ function Home() {
                         </div>
                       )}
 
-                      {/* PHOTO COUNT BADGE IN TOP RIGHT */}
-                      <div className="trip-photo-badge">
-                        <Camera size={13} />
-                        <span>{photoCount}</span>
+                      {/* DURATION BADGE IN TOP RIGHT WITH CLOCK ICON */}
+                      <div className="trip-duration-badge">
+                        <Clock size={12} />
+                        <span>{durationText}</span>
                       </div>
 
                       {/* TORN RAGGED PAPER EDGE AT BOTTOM OF PHOTO */}
@@ -351,6 +350,12 @@ function Home() {
           </div>
         </div>
       </section>
+
+      {/* ============================================================
+          SECTION: HOMEPAGE MEDIA GALLERY (Moments With Traviska)
+          Continuous Dual-Row Cinematic Marquee
+          ============================================================ */}
+      <HomepageMediaGallery />
 
       {/* ============================================================
           SECTION 3: TRAVELLER STORIES (Exact Match to Design)

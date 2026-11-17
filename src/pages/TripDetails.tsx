@@ -17,6 +17,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Info,
+  MessageCircle,
+  X,
+  Send,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { API_BASE_URL } from "../api";
 import TripDetailSections from "../components/TripDetailSections";
@@ -58,6 +63,52 @@ function TripDetails() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [globalSections, setGlobalSections] = useState<any>(null);
+
+  // Enquiry Modal State
+  const [isEnquireModalOpen, setIsEnquireModalOpen] = useState(false);
+  const [enquireForm, setEnquireForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    notes: "",
+  });
+  const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
+  const [enquirySuccessId, setEnquirySuccessId] = useState<string | null>(null);
+
+  const handleEnquirySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enquireForm.name.trim() || !enquireForm.email.trim() || !enquireForm.phone.trim()) {
+      alert("Please provide your name, email, and mobile number.");
+      return;
+    }
+
+    try {
+      setIsSubmittingEnquiry(true);
+      const matchedSlot = trip?.slots?.find((s: any) => s._id === selectedSlot);
+      const res = await axios.post(`${API_BASE_URL}/api/enquiries/public`, {
+        name: enquireForm.name,
+        email: enquireForm.email,
+        phone: enquireForm.phone,
+        tripId: trip?._id,
+        tripTitle: trip?.title,
+        slotId: selectedSlot || undefined,
+        departureDate: matchedSlot?.date || "",
+        numTravelers: travellers,
+        budget: totalPrice,
+        notes: enquireForm.notes,
+        source: "Website",
+      });
+
+      if (res.data.success) {
+        setEnquirySuccessId(res.data.enquiryId);
+        setEnquireForm({ name: "", email: "", phone: "", notes: "" });
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to submit enquiry. Please try again.");
+    } finally {
+      setIsSubmittingEnquiry(false);
+    }
+  };
 
   // 1. Fetch Global Detailed Trip Sections (Safety, Cancellation, Terms, Notes)
   useEffect(() => {
@@ -116,11 +167,17 @@ function TripDetails() {
       try {
         const { data } = await axios.get(`${API_BASE_URL}/trips/${id}/slots`);
         if (!cancelled && Array.isArray(data)) {
-          setSlots(data);
+          // Closed slots must completely disappear from customer view
+          const activeSlots = data.filter((s: any) => !s.isClosed && s.status !== "Closed");
+          setSlots(activeSlots);
           // Auto-select first available date if not selected yet
-          const firstAvailable = data.find((s: any) => s.status !== "Sold Out");
+          const firstAvailable = activeSlots.find((s: any) => s.status !== "Sold Out");
           if (firstAvailable) {
             setSelectedSlot(firstAvailable._id);
+          } else if (activeSlots.length > 0) {
+            setSelectedSlot(activeSlots[0]._id);
+          } else {
+            setSelectedSlot("");
           }
         }
       } catch (err) {
@@ -151,6 +208,7 @@ function TripDetails() {
     navigate("/booking", {
       state: {
         _id: trip._id,
+        id: trip._id,
         title: trip.title,
         image: trip.image,
         location: trip.location,
@@ -160,6 +218,7 @@ function TripDetails() {
         selectedDate: slot.date,
         travellers,
         slots,
+        pickupLocations: trip.pickupLocations,
       },
     });
   };
@@ -664,6 +723,36 @@ function TripDetails() {
               <ArrowRight size={18} />
             </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                setEnquirySuccessId(null);
+                setIsEnquireModalOpen(true);
+              }}
+              style={{
+                width: "100%",
+                marginTop: "10px",
+                padding: "11px 16px",
+                background: "rgba(168, 224, 99, 0.08)",
+                border: "1px solid rgba(168, 224, 99, 0.3)",
+                borderRadius: "14px",
+                color: "#a8e063",
+                fontSize: "13.5px",
+                fontWeight: "700",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(168, 224, 99, 0.16)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(168, 224, 99, 0.08)")}
+            >
+              <MessageCircle size={16} />
+              <span>Ask Questions / Custom Dates</span>
+            </button>
+
             <div className="booking-trust-badge">
               <ShieldCheck size={16} className="trust-shield-icon" />
               <span>Secure &amp; hassle-free booking</span>
@@ -770,6 +859,262 @@ function TripDetails() {
           ))}
         </div>
       </section>
+
+      {/* ============================================================
+          CUSTOMER TRIP ENQUIRY MODAL (Direct to Sales Portal)
+          ============================================================ */}
+      {isEnquireModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(4px)",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsEnquireModalOpen(false);
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "500px",
+              background: "#0d1b11",
+              border: "1px solid rgba(168, 224, 99, 0.3)",
+              borderRadius: "20px",
+              overflow: "hidden",
+              boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
+              color: "#ffffff",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "20px 24px",
+                background: "linear-gradient(135deg, #092312 0%, #164e27 100%)",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: "#ffffff" }}>
+                  Enquire About {trip?.title}
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#a8e063" }}>
+                  Ask about custom group batches, departure dates or itinerary details
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEnquireModalOpen(false)}
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "30px",
+                  height: "30px",
+                  color: "#ffffff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "24px" }}>
+              {enquirySuccessId ? (
+                <div style={{ textAlign: "center", padding: "16px 0" }}>
+                  <CheckCircle2 size={42} color="#34d399" style={{ margin: "0 auto 12px" }} />
+                  <h4 style={{ fontSize: "18px", fontWeight: "700", color: "#34d399", margin: "0 0 6px" }}>
+                    Enquiry Submitted!
+                  </h4>
+                  <p style={{ fontSize: "13px", color: "#cbd5e1", margin: "0 0 16px" }}>
+                    Reference ID: <strong style={{ color: "#a8e063" }}>#{enquirySuccessId}</strong>. A Traviska travel consultant will reach out via WhatsApp / phone shortly.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsEnquireModalOpen(false)}
+                    style={{
+                      background: "#164e27",
+                      border: "none",
+                      color: "#ffffff",
+                      padding: "10px 24px",
+                      borderRadius: "10px",
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleEnquirySubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#cbd5e1", marginBottom: "4px" }}>
+                      Your Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={enquireForm.name}
+                      onChange={(e) => setEnquireForm({ ...enquireForm, name: e.target.value })}
+                      placeholder="e.g. Ananya Sen"
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: "#ffffff",
+                        fontSize: "13px",
+                        boxSizing: "border-box",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#cbd5e1", marginBottom: "4px" }}>
+                        Phone / WhatsApp *
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={enquireForm.phone}
+                        onChange={(e) => setEnquireForm({ ...enquireForm, phone: e.target.value })}
+                        placeholder="Mobile number"
+                        style={{
+                          width: "100%",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          background: "rgba(0,0,0,0.4)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          color: "#ffffff",
+                          fontSize: "13px",
+                          boxSizing: "border-box",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#cbd5e1", marginBottom: "4px" }}>
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={enquireForm.email}
+                        onChange={(e) => setEnquireForm({ ...enquireForm, email: e.target.value })}
+                        placeholder="Email"
+                        style={{
+                          width: "100%",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          background: "rgba(0,0,0,0.4)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          color: "#ffffff",
+                          fontSize: "13px",
+                          boxSizing: "border-box",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#cbd5e1", marginBottom: "4px" }}>
+                      Questions / Custom Requirements
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={enquireForm.notes}
+                      onChange={(e) => setEnquireForm({ ...enquireForm, notes: e.target.value })}
+                      placeholder="e.g. Can we customize the pickup point? We have a group of 6..."
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: "#ffffff",
+                        fontSize: "13px",
+                        boxSizing: "border-box",
+                        outline: "none",
+                        resize: "vertical",
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsEnquireModalOpen(false)}
+                      style={{
+                        padding: "10px 18px",
+                        borderRadius: "10px",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        background: "transparent",
+                        color: "#cbd5e1",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingEnquiry}
+                      style={{
+                        padding: "10px 22px",
+                        borderRadius: "10px",
+                        border: "none",
+                        background: "linear-gradient(135deg, #164e27 0%, #22c55e 100%)",
+                        color: "#ffffff",
+                        fontSize: "13px",
+                        fontWeight: "700",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        cursor: isSubmittingEnquiry ? "not-allowed" : "pointer",
+                        opacity: isSubmittingEnquiry ? 0.6 : 1,
+                      }}
+                    >
+                      {isSubmittingEnquiry ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>Sending...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send size={14} />
+                          <span>Submit Request</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

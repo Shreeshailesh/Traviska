@@ -47,3 +47,7 @@ Thumbs.db
 .gitignore.save
 # Local video asset too large for GitHub
 src/assets/videos/hero.mp4
+
+# Firebase Admin private keys
+*serviceAccountKey*.json
+*serviceAccount*.json

@@ -13,8 +13,8 @@ async function resetAdmin() {
 
     const user = await User.findOneAndUpdate(
       { email: "admin@traviska.com" },
-      { password: hashedPassword },
-      { new: true }
+      { password: hashedPassword, role: "admin", name: "Traviska Admin" },
+      { returnDocument: "after", upsert: true }
     );
 
     if (!user) {

@@ -114,12 +114,10 @@ function Trips() {
                   </div>
                 )}
 
-                {trip.duration && (
-                  <span className="trip-box-duration">
-                    <Clock3 size={12} />
-                    {trip.duration}
-                  </span>
-                )}
+                <span className="trip-box-duration">
+                  <Clock3 size={12} />
+                  {trip.duration?.trim() || "2 Days / 1 Night"}
+                </span>
 
                 {/* TORN RAGGED PAPER EDGE TRANSITION */}
                 <TornPaperEdge />

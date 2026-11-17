@@ -29,6 +29,53 @@ const tripSlotSchema = new mongoose.Schema({
     default: false,
   },
 
+  assignedCaptain: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Captain",
+  },
+
+  assignedCaptains: [
+    {
+      captain: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Captain",
+      },
+      role: {
+        type: String,
+        enum: ["Head Captain", "Main Captain", "Trainee Captain", "Lead Captain", "Assistant Captain"],
+        default: "Head Captain",
+      },
+      assignedAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
+
+  status: {
+    type: String,
+    enum: ["Scheduled", "In Progress", "Completed", "Cancelled"],
+    default: "Scheduled",
+  },
+
+  photoDriveLink: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+
+  billDriveLink: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+
+  whatsappGroupLink: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,

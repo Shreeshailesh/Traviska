@@ -27,8 +27,8 @@ function Login() {
       const { data } = await axios.post(
         `${API_BASE_URL}/login`,
         {
-          email: email.trim(),
-          password,
+          email: email.trim().toLowerCase(),
+          password: password.trim(),
         }
       );
 
@@ -40,9 +40,12 @@ function Login() {
       } else {
         alert("Admin access only");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Admin login failed:", error);
-      alert("Login failed. Please check your credentials.");
+      const msg =
+        error?.response?.data?.message ||
+        "Login failed. Please check your credentials.";
+      alert(msg);
     } finally {
       setIsLoading(false);
     }

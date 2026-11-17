@@ -36,12 +36,10 @@
 .overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(10, 22, 12, 0.65) 0%,
-    rgba(10, 22, 12, 0.35) 45%,
-    rgba(8, 18, 10, 0.95) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(10, 22, 12, 0.65) 0%,
+      rgba(10, 22, 12, 0.35) 45%,
+      rgba(8, 18, 10, 0.95) 100%);
   z-index: 2;
   pointer-events: none;
 }
@@ -56,6 +54,7 @@
 }
 
 .tagline {
+  white-space: nowrap;
   letter-spacing: 6px;
   font-size: 13.5px;
   margin-bottom: 22px;
@@ -144,9 +143,12 @@
 }
 
 @keyframes scrollBounce {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateX(-50%) translateY(0);
   }
+
   50% {
     transform: translateX(-50%) translateY(8px);
   }
@@ -689,6 +691,17 @@
 }
 
 @media (max-width: 768px) {
+  .hero-content {
+    padding: 16px;
+  }
+
+  .tagline {
+    font-size: 13px !important;
+    letter-spacing: 3.2px !important;
+    white-space: nowrap !important;
+    margin-bottom: 18px !important;
+  }
+
   .nature-section {
     padding: 60px 20px;
   }
@@ -718,6 +731,16 @@
 
   .nature-trip-card {
     border-radius: 18px;
+  }
+
+  .trip-duration-badge,
+  .trip-photo-badge {
+    top: 8px;
+    right: 8px;
+    padding: 3px 7px;
+    font-size: 10px;
+    border-radius: 7px;
+    gap: 4px;
   }
 
   .trip-card-media {
@@ -778,5 +801,14 @@
 
   .stories-mountain-sketch {
     display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .tagline {
+    font-size: 12px !important;
+    letter-spacing: 2.2px !important;
+    white-space: nowrap !important;
+    margin-bottom: 15px !important;
   }
 }

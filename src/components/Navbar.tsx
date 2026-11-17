@@ -1,7 +1,9 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, User, LogOut, LayoutDashboard, ChevronDown } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
 import logo from "../assets/logo.jpg";
 import "./Navbar.css";
 
@@ -9,6 +11,10 @@ function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [customer, setCustomer] = useState<{ id?: string; name?: string; phone?: string } | null>(null);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -26,9 +32,47 @@ function Navbar() {
     };
   }, []);
 
+  // Sync customer auth state from localStorage on route changes
   useEffect(() => {
+    const token = localStorage.getItem("customerToken");
+    const stored = localStorage.getItem("customer");
+    if (token && stored) {
+      try {
+        setCustomer(JSON.parse(stored));
+      } catch {
+        setCustomer({ phone: "Traveller" });
+      }
+    } else {
+      setCustomer(null);
+    }
     setMenuOpen(false);
+    setUserDropdownOpen(false);
   }, [location.pathname]);
+
+  // Click outside to close customer dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn("Firebase signout error:", e);
+    }
+    localStorage.removeItem("customerToken");
+    localStorage.removeItem("customer");
+    setCustomer(null);
+    setUserDropdownOpen(false);
+    setMenuOpen(false);
+    navigate("/");
+  };
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -123,6 +167,103 @@ function Navbar() {
         >
           Contact
         </Link>
+
+        {/* CUSTOMER AUTHENTICATION (Desktop) */}
+        {customer ? (
+          <div className="nav-customer-menu-wrap" ref={userDropdownRef}>
+            <button
+              type="button"
+              className="nav-customer-pill"
+              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+              aria-expanded={userDropdownOpen}
+            >
+              <div className="nav-customer-avatar">
+                <User size={15} />
+              </div>
+              <span className="nav-customer-name">
+                {customer.name && customer.name !== "Customer"
+                  ? customer.name.split(" ")[0]
+                  : customer.phone || "Account"}
+              </span>
+              <ChevronDown size={14} className={`nav-customer-arrow ${userDropdownOpen ? "open" : ""}`} />
+            </button>
+
+            {userDropdownOpen && (
+              <div className="nav-customer-dropdown">
+                <div className="nav-dropdown-profile-header">
+                  <span className="nav-dropdown-title">
+                    {customer.name && customer.name !== "Customer" ? customer.name : "Traveller"}
+                  </span>
+                  <span className="nav-dropdown-phone">{customer.phone}</span>
+                </div>
+                <Link
+                  to="/customer/dashboard"
+                  className="nav-dropdown-link"
+                  onClick={() => setUserDropdownOpen(false)}
+                >
+                  <LayoutDashboard size={15} />
+                  <span>Dashboard &amp; Bookings</span>
+                </Link>
+                <button
+                  type="button"
+                  className="nav-dropdown-link nav-dropdown-logout"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={15} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Link
+            to="/login"
+            className="nav-customer-login-btn"
+            onClick={() => setMenuOpen(false)}
+          >
+            <User size={15} />
+            <span>Login</span>
+          </Link>
+        )}
+
+        {/* CUSTOMER SECTION IN MOBILE MENU */}
+        {menuOpen && (
+          <div className="nav-mobile-auth-section">
+            {customer ? (
+              <>
+                <div className="mobile-auth-user-info">
+                  <User size={16} color="#a8e063" />
+                  <span>{customer.name && customer.name !== "Customer" ? customer.name : customer.phone}</span>
+                </div>
+                <Link
+                  to="/customer/dashboard"
+                  className="mobile-auth-link"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <LayoutDashboard size={16} />
+                  <span>My Dashboard &amp; Bookings</span>
+                </Link>
+                <button
+                  type="button"
+                  className="mobile-auth-link mobile-logout-btn"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="mobile-auth-login-cta"
+                onClick={() => setMenuOpen(false)}
+              >
+                <User size={16} />
+                <span>Customer Login / Register</span>
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       {/* MOBILE SEARCH - visible in mobile menu */}

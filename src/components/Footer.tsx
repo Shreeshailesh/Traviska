@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Home as HomeIcon,
@@ -55,17 +54,6 @@ const MountainLogoIcon = () => (
 );
 
 function Footer() {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) {
-      setSubscribed(true);
-      setEmail("");
-      setTimeout(() => setSubscribed(false), 4000);
-    }
-  };
 
   return (
     <footer className="nature-footer">
@@ -164,6 +152,18 @@ function Footer() {
           </h4>
           <ul className="footer-links-list">
             <li>
+              <Link to="/customer/dashboard">
+                <Users size={14} className="link-item-icon" />
+                <span>My Bookings &amp; Account</span>
+              </Link>
+            </li>
+            <li>
+              <Link to="/login">
+                <ShieldCheck size={14} className="link-item-icon" />
+                <span>Customer Login (OTP)</span>
+              </Link>
+            </li>
+            <li>
               <Link to="/trips">
                 <FileText size={14} className="link-item-icon" />
                 <span>All Trips</span>
@@ -243,32 +243,23 @@ function Footer() {
             <span className="col-heading-underline"></span>
           </h4>
           <p className="footer-newsletter-text">
-            Subscribe to get early access to upcoming expeditions, special getaways, and travel stories.
+            Stay connected with our WhatsApp community for early access to expeditions,
+            exclusive deals, and travel stories.
           </p>
 
-          <form onSubmit={handleSubmit} className="nature-newsletter-form">
-            <div className="nature-newsletter-input-box">
-              <Mail size={16} className="newsletter-mail-icon" />
-              <input
-                type="email"
-                required
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="nature-newsletter-input"
-              />
-              <button type="submit" className="nature-newsletter-submit">
-                <span>Subscribe</span>
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          </form>
-
-          {subscribed && (
-            <p className="newsletter-thankyou">
-              ✨ Thank you for subscribing!
-            </p>
-          )}
+          <a
+            href="https://whatsapp.com/channel/0029Vb9Ikew0lwgjXgtIM51j"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="whatsapp-community-btn"
+            aria-label="Join our WhatsApp community"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm1 15h-2v-2c0-2.76-2.24-5-5-5H7c-2.76 0-5 2.24-5 5 0 .55.45 1 1 1h2v2a1 1 0 0 1 1 1z" />
+            </svg>
+            <span>Join Our WhatsApp Community</span>
+            <ArrowRight size={14} className="community-arrow" />
+          </a>
         </div>
       </div>
 

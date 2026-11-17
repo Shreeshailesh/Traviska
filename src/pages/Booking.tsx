@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import {
@@ -12,6 +12,14 @@ import {
   ArrowRight,
   Plus,
   ChevronDown,
+  MapPin,
+  Clock,
+  ExternalLink,
+  AlertCircle,
+  Compass,
+  CheckCircle2,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import { API_BASE_URL } from "../api";
 import { TitleBrush } from "../components/HomeIllustrations";
@@ -24,10 +32,65 @@ interface TravellerDetail {
   age: string;
 }
 
+interface CustomerPickupLocation {
+  _id: string;
+  name: string;
+  address?: string;
+  landmark?: string;
+  pickupTime: string;
+  effectivePickupTime?: string;
+  googleMapsUrl?: string;
+  isActive: boolean;
+  order?: number;
+  dateOverrides?: {
+    slotId?: string;
+    date?: string;
+    pickupTime?: string;
+  }[];
+}
+
+interface AppliedCouponInfo {
+  code: string;
+  discountType: "flat" | "percentage";
+  value: number;
+  discountAmount: number;
+  finalPayable: number;
+  message?: string;
+}
+
+interface AvailableOffer {
+  id: string;
+  code: string;
+  discountType: string;
+  value: number;
+  minBookingAmount: number;
+  validUntil: string;
+  applicableTrips: string;
+  estimatedDiscount: number;
+  isAmountEligible: boolean;
+  shortDescription: string;
+}
+
 function Booking() {
   const location = useLocation();
   const navigate = useNavigate();
-  const trip = location.state;
+
+  // Retrieve trip from state or fallback to sessionStorage so refresh doesn't lose data
+  const trip = useMemo(() => {
+    if (location.state && (location.state._id || location.state.id || location.state.title)) {
+      try {
+        sessionStorage.setItem("traviska_booking_trip", JSON.stringify(location.state));
+      } catch (e) {}
+      return location.state;
+    }
+    try {
+      const stored = sessionStorage.getItem("traviska_booking_trip");
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return null;
+  }, [location.state]);
+
+  const tripId = trip?._id || trip?.id || trip?.tripId || "";
 
   const initialTravellers = trip?.travellers ? Number(trip.travellers) : 1;
   const [travellers, setTravellers] = useState<number>(initialTravellers);
@@ -42,13 +105,43 @@ function Booking() {
     }))
   );
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customer");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.name && parsed.name !== "Customer") return parsed.name;
+      }
+    } catch {}
+    return "";
+  });
+  const [email, setEmail] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customer");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.email) return parsed.email;
+      }
+    } catch {}
+    return "";
+  });
+  const [phone, setPhone] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customer");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.phone) return String(parsed.phone).replace(/^\+91/, "");
+      }
+    } catch {}
+    return "";
+  });
 
-  const [availableSlots, setAvailableSlots] = useState<any[]>(
-    Array.isArray(trip?.slots) ? trip.slots : []
-  );
+  const [availableSlots, setAvailableSlots] = useState<any[]>(() => {
+    if (Array.isArray(trip?.slots)) {
+      return trip.slots.filter((s: any) => !s.isClosed && s.status !== "Closed");
+    }
+    return [];
+  });
   const [selectedSlotId, setSelectedSlotId] = useState<string>(
     trip?.slotId || (trip?.slots && trip.slots[0]?._id) || ""
   );
@@ -56,16 +149,89 @@ function Booking() {
   const [requests, setRequests] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Pickup Locations State (initialized immediately from trip.pickupLocations if available)
+  const [pickupLocations, setPickupLocations] = useState<CustomerPickupLocation[]>(() => {
+    if (Array.isArray(trip?.pickupLocations) && trip.pickupLocations.length > 0) {
+      return trip.pickupLocations.filter((p: any) => p.isActive !== false);
+    }
+    return [];
+  });
+  const [selectedPickupId, setSelectedPickupId] = useState<string>(() => {
+    if (Array.isArray(trip?.pickupLocations) && trip.pickupLocations.length === 1) {
+      return trip.pickupLocations[0]._id || "";
+    }
+    return "";
+  });
+  const [loadingPickups, setLoadingPickups] = useState<boolean>(() => {
+    return !(Array.isArray(trip?.pickupLocations) && trip.pickupLocations.length > 0);
+  });
+  const [pickupError, setPickupError] = useState<string>("");
+
+  // Coupon & Promotional Offers State
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponInfo | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
+  const [showAvailableOffers, setShowAvailableOffers] = useState(false);
+  const [availableOffers, setAvailableOffers] = useState<AvailableOffer[]>([]);
+  const [loadingOffers, setLoadingOffers] = useState(false);
+
+  // Fetch pickup locations for selected trip and recalculate times on departure date change
+  useEffect(() => {
+    if (!tripId) {
+      setLoadingPickups(false);
+      return;
+    }
+
+    const currentSlot = availableSlots.find((s) => s._id === selectedSlotId);
+    const dateParam = currentSlot?.date || trip?.selectedDate || "";
+
+    setLoadingPickups(true);
+    axios
+      .get(`${API_BASE_URL}/trips/${tripId}/pickups`, {
+        params: {
+          slotId: selectedSlotId || undefined,
+          date: dateParam || undefined,
+        },
+      })
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.pickupLocations)) {
+          // Filter out inactive pickup points
+          const activeOnly: CustomerPickupLocation[] = res.data.pickupLocations.filter(
+            (p: CustomerPickupLocation) => p.isActive !== false
+          );
+          setPickupLocations(activeOnly);
+
+          // If current selection is invalid or no longer active, clear it
+          setSelectedPickupId((prev) => {
+            if (prev && activeOnly.some((p) => p._id === prev)) {
+              return prev;
+            }
+            // Auto-select if there's only 1 pickup point configured
+            return activeOnly.length === 1 ? activeOnly[0]._id : "";
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load pickup locations:", err);
+      })
+      .finally(() => {
+        setLoadingPickups(false);
+      });
+  }, [tripId, selectedSlotId, availableSlots]);
+
   // Fetch slots if not passed in location.state
   useEffect(() => {
-    if (trip?._id && availableSlots.length === 0) {
+    if (tripId && availableSlots.length === 0) {
       axios
-        .get(`${API_BASE_URL}/trips/${trip._id}/slots`)
+        .get(`${API_BASE_URL}/trips/${tripId}/slots`)
         .then((res) => {
           if (Array.isArray(res.data)) {
-            setAvailableSlots(res.data);
-            if (!selectedSlotId && res.data.length > 0) {
-              setSelectedSlotId(res.data[0]._id);
+            const openSlots = res.data.filter((s: any) => !s.isClosed && s.status !== "Closed");
+            setAvailableSlots(openSlots);
+            if (!selectedSlotId && openSlots.length > 0) {
+              setSelectedSlotId(openSlots[0]._id);
             }
           }
         })
@@ -73,7 +239,7 @@ function Booking() {
           console.error("Failed to fetch slots for booking:", err);
         });
     }
-  }, [trip?._id]);
+  }, [tripId]);
 
   // Synchronize travellers count with travellerDetails list
   const updateTravellersCount = (newCount: number) => {
@@ -175,7 +341,120 @@ function Booking() {
 
   const unitPrice =
     Number(trip?.price?.toString().replace(/[₹,]/g, "")) || 0;
-  const total = unitPrice * travellers;
+  const originalTotal = unitPrice * travellers;
+  const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+  const finalPayable = Math.max(0, originalTotal - discountAmount);
+
+  // Fetch available offers for this trip and booking amount
+  const fetchAvailableOffers = async () => {
+    setLoadingOffers(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/coupons/available`, {
+        params: {
+          tripId: trip?._id,
+          amount: originalTotal,
+          phone: phone.trim() || undefined,
+          email: email.trim() || undefined,
+        },
+      });
+      if (res.data.success && Array.isArray(res.data.offers)) {
+        setAvailableOffers(res.data.offers);
+      }
+    } catch (e) {
+      console.warn("Could not load available offers:", e);
+    } finally {
+      setLoadingOffers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableOffers();
+  }, [trip?._id, originalTotal, phone, email]);
+
+  // Re-validate applied coupon if booking total changes
+  useEffect(() => {
+    if (appliedCoupon) {
+      axios
+        .post(`${API_BASE_URL}/coupons/validate`, {
+          code: appliedCoupon.code,
+          tripId: trip?._id,
+          tripTitle: trip?.title,
+          amount: originalTotal,
+          phone,
+          email,
+        })
+        .then((res) => {
+          if (res.data.success && res.data.coupon) {
+            setAppliedCoupon({
+              code: res.data.coupon.code,
+              discountType: res.data.coupon.discountType,
+              value: res.data.coupon.value,
+              discountAmount: res.data.coupon.discountAmount,
+              finalPayable: res.data.coupon.finalPayable,
+              message: res.data.message,
+            });
+            setCouponError(null);
+          }
+        })
+        .catch((err) => {
+          setCouponError(
+            err.response?.data?.message ||
+              `Coupon "${appliedCoupon.code}" is no longer applicable for the updated booking amount.`
+          );
+          setAppliedCoupon(null);
+          setCouponSuccess(null);
+        });
+    }
+  }, [originalTotal, trip?._id, trip?.title]);
+
+  const handleApplyCoupon = async (codeToApply?: string) => {
+    const targetCode = (codeToApply || couponInput).trim().toUpperCase();
+    if (!targetCode) {
+      setCouponError("Please enter a coupon code.");
+      return;
+    }
+
+    setCouponLoading(true);
+    setCouponError(null);
+    setCouponSuccess(null);
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/coupons/validate`, {
+        code: targetCode,
+        tripId: trip?._id,
+        tripTitle: trip?.title,
+        amount: originalTotal,
+        phone,
+        email,
+      });
+
+      if (res.data.success && res.data.coupon) {
+        setAppliedCoupon({
+          code: res.data.coupon.code,
+          discountType: res.data.coupon.discountType,
+          value: res.data.coupon.value,
+          discountAmount: res.data.coupon.discountAmount,
+          finalPayable: res.data.coupon.finalPayable,
+          message: res.data.message,
+        });
+        setCouponSuccess(res.data.message || `Coupon "${res.data.coupon.code}" applied successfully!`);
+        setCouponInput(res.data.coupon.code);
+      } else {
+        setCouponError(res.data.message || "Invalid coupon code.");
+      }
+    } catch (err: any) {
+      setCouponError(err.response?.data?.message || "Invalid or ineligible coupon code.");
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponSuccess(null);
+    setCouponError(null);
+    setCouponInput("");
+  };
 
   const currentSlot =
     availableSlots.find((s) => s._id === selectedSlotId) ||
@@ -215,6 +494,16 @@ function Booking() {
       return;
     }
 
+    if (pickupLocations.length > 0 && !selectedPickupId) {
+      setPickupError("Please select a pickup location for your trip to continue");
+      const pickupEl = document.getElementById("booking-pickup-section");
+      if (pickupEl) {
+        pickupEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      alert("Please select a pickup location to continue your booking");
+      return;
+    }
+
     // Validate traveller details
     for (let i = 0; i < travellerDetails.length; i++) {
       const t = travellerDetails[i];
@@ -242,6 +531,10 @@ function Booking() {
         tripId: trip._id,
         slotId: selectedSlotId,
         travellers,
+        pickupLocationId: selectedPickupId || undefined,
+        couponCode: appliedCoupon?.code || undefined,
+        phone,
+        email,
       });
 
       const order = orderResponse.data.order;
@@ -295,6 +588,14 @@ function Booking() {
                   tripId: trip._id,
                   slotId: selectedSlotId,
                   travellers,
+                  couponCode: appliedCoupon?.code || undefined,
+                  pickupLocationId: selectedPickupId || undefined,
+                  pickupLocation: (() => {
+                    const matched = pickupLocations.find((p) => p._id === selectedPickupId);
+                    if (!matched) return "";
+                    const time = matched.effectivePickupTime || matched.pickupTime;
+                    return `${matched.name}${time ? ` (${time})` : ""}`;
+                  })(),
                   name,
                   email,
                   phone,
@@ -767,6 +1068,196 @@ function Booking() {
           </div>
 
           {/* ============================================================
+              SECTION: PICKUP DETAILS
+              ============================================================ */}
+          <div className="booking-sec" id="booking-pickup-section">
+            <div className="booking-sec-title">
+              <MapPin size={20} className="sec-icon" />
+              <span>Pickup Details</span>
+              {pickupLocations.length > 0 && (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#166534",
+                    background: "#eaf5e9",
+                    padding: "3px 8px",
+                    borderRadius: "10px",
+                    marginLeft: "auto",
+                    letterSpacing: "0.3px",
+                  }}
+                >
+                  * Mandatory
+                </span>
+              )}
+            </div>
+
+            {pickupError && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  color: "#b91c1c",
+                  fontSize: "13px",
+                  marginBottom: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontWeight: 600,
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{pickupError}</span>
+              </div>
+            )}
+
+            {loadingPickups ? (
+              <div
+                style={{
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "10px",
+                  border: "1px solid #e2e8f0",
+                  fontSize: "13px",
+                  color: "#64748b",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <Clock size={16} color="#166534" />
+                <span>Checking available boarding points for this departure...</span>
+              </div>
+            ) : pickupLocations.length === 0 ? (
+              <div
+                style={{
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "10px",
+                  border: "1px solid #e2e8f0",
+                  fontSize: "13px",
+                  color: "#64748b",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <Compass size={18} color="#166534" style={{ flexShrink: 0 }} />
+                <span>
+                  Standard pickup details for this trip package will be coordinated by our trip captain prior to departure.
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#475569" }}>
+                  Select one boarding point for your group:
+                </p>
+
+                {pickupLocations.map((loc) => {
+                  const isSelected = selectedPickupId === loc._id;
+                  const displayTime = loc.effectivePickupTime || loc.pickupTime || "Standard Time";
+
+                  return (
+                    <div
+                      key={loc._id}
+                      onClick={() => {
+                        setSelectedPickupId(loc._id);
+                        setPickupError("");
+                      }}
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: "12px",
+                        border: isSelected ? "2px solid #166534" : "1.5px solid #e2e8f0",
+                        background: isSelected ? "#f0fdf4" : "#ffffff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "14px",
+                        transition: "all 0.15s ease",
+                        boxShadow: isSelected ? "0 2px 8px rgba(22, 101, 52, 0.08)" : "none",
+                      }}
+                    >
+                      {/* Radio indicator */}
+                      <div
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          borderRadius: "50%",
+                          border: isSelected ? "5px solid #166534" : "2px solid #cbd5e1",
+                          background: "#ffffff",
+                          marginTop: "2px",
+                          flexShrink: 0,
+                          boxSizing: "border-box",
+                        }}
+                      />
+
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                          <span style={{ fontSize: "14.5px", fontWeight: 700, color: "#0f172a" }}>
+                            {loc.name}
+                          </span>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              color: isSelected ? "#166534" : "#0f172a",
+                              background: isSelected ? "#dcfce7" : "#f1f5f9",
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                            }}
+                          >
+                            <Clock size={12} /> {displayTime}
+                          </span>
+                        </div>
+
+                        {loc.address && (
+                          <div style={{ fontSize: "12.5px", color: "#475569", display: "flex", alignItems: "center", gap: "5px" }}>
+                            <MapPin size={13} color="#64748b" style={{ flexShrink: 0 }} />
+                            <span>{loc.address}</span>
+                          </div>
+                        )}
+
+                        {loc.landmark && (
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>
+                            Landmark: <strong>{loc.landmark}</strong>
+                          </div>
+                        )}
+
+                        {loc.googleMapsUrl && (
+                          <div style={{ marginTop: "4px" }}>
+                            <a
+                              href={loc.googleMapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                color: "#2563eb",
+                                textDecoration: "none",
+                              }}
+                            >
+                              <ExternalLink size={12} /> View on Google Maps
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ============================================================
               SECTION 4: SPECIAL REQUESTS (OPTIONAL)
               ============================================================ */}
           <div className="booking-sec">
@@ -784,14 +1275,166 @@ function Booking() {
           </div>
 
           {/* ============================================================
-              5. BOTTOM BAR (TOTAL & CONFIRM BOOKING BUTTON)
+              SECTION 5: OFFERS & COUPONS
+              ============================================================ */}
+          <div className="booking-sec" id="booking-coupons-section">
+            <div className="booking-sec-title">
+              <Tag size={20} className="sec-icon" />
+              <span>Offers &amp; Coupons</span>
+            </div>
+
+            {/* Manual Coupon Input Box */}
+            <div className="coupon-input-wrap">
+              <div className="coupon-input-group">
+                <input
+                  type="text"
+                  className="coupon-text-input"
+                  placeholder="Enter coupon code (e.g. EXPLORE500)"
+                  value={couponInput}
+                  onChange={(e) => {
+                    setCouponInput(e.target.value.toUpperCase());
+                    if (couponError) setCouponError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleApplyCoupon();
+                    }
+                  }}
+                  disabled={Boolean(appliedCoupon) || couponLoading}
+                />
+                {appliedCoupon ? (
+                  <button
+                    type="button"
+                    className="coupon-remove-btn"
+                    onClick={handleRemoveCoupon}
+                  >
+                    Remove
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="coupon-apply-btn"
+                    onClick={() => handleApplyCoupon()}
+                    disabled={couponLoading || !couponInput.trim()}
+                  >
+                    {couponLoading ? "Checking..." : "Apply"}
+                  </button>
+                )}
+              </div>
+
+              {/* Status Messages */}
+              {couponSuccess && (
+                <div className="coupon-status-msg success">
+                  <CheckCircle2 size={16} />
+                  <span>{couponSuccess}</span>
+                </div>
+              )}
+              {couponError && (
+                <div className="coupon-status-msg error">
+                  <AlertCircle size={16} />
+                  <span>{couponError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* View Available Offers Accordion Toggle */}
+            <div className="available-offers-container">
+              <button
+                type="button"
+                className="available-offers-toggle"
+                onClick={() => setShowAvailableOffers(!showAvailableOffers)}
+              >
+                <div className="offers-toggle-left">
+                  <Sparkles size={16} style={{ color: "#166534" }} />
+                  <span>View Available Offers ({availableOffers.length})</span>
+                </div>
+                <ChevronDown
+                  size={16}
+                  style={{
+                    transform: showAvailableOffers ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                />
+              </button>
+
+              {showAvailableOffers && (
+                <div className="available-offers-list">
+                  {loadingOffers ? (
+                    <div className="offers-loading">Loading applicable offers...</div>
+                  ) : availableOffers.length === 0 ? (
+                    <div className="offers-empty">No offers currently available for this trip.</div>
+                  ) : (
+                    availableOffers.map((offer) => (
+                      <div
+                        key={offer.id}
+                        className={`offer-card ${appliedCoupon?.code === offer.code ? "applied" : ""}`}
+                      >
+                        <div className="offer-card-main">
+                          <div className="offer-card-badge">{offer.code}</div>
+                          <div className="offer-card-desc">
+                            <strong>{offer.shortDescription}</strong>
+                            {offer.minBookingAmount > 0 && (
+                              <span> • Min order ₹{offer.minBookingAmount.toLocaleString("en-IN")}</span>
+                            )}
+                          </div>
+                          <div className="offer-card-validity">
+                            Valid until {offer.validUntil} • {offer.applicableTrips}
+                          </div>
+                        </div>
+
+                        <div className="offer-card-action">
+                          {appliedCoupon?.code === offer.code ? (
+                            <span className="offer-applied-tag">
+                              <Check size={12} /> Applied
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="offer-apply-pill"
+                              onClick={() => handleApplyCoupon(offer.code)}
+                              disabled={couponLoading}
+                            >
+                              Apply
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ============================================================
+              6. BOTTOM BAR (TOTAL & CONFIRM BOOKING BUTTON)
               ============================================================ */}
           <div className="booking-bottom-row">
             <div className="booking-total-display">
-              <span className="total-label">Total: </span>
-              <span className="total-amount">
-                ₹{total.toLocaleString("en-IN")}
-              </span>
+              {appliedCoupon ? (
+                <div className="total-pricing-breakdown">
+                  <div className="total-breakdown-row original">
+                    <span className="breakdown-label">Original Total:</span>
+                    <span className="breakdown-value strikethrough">₹{originalTotal.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="total-breakdown-row discount">
+                    <span className="breakdown-label">Coupon ({appliedCoupon.code}):</span>
+                    <span className="breakdown-value discount-green">-₹{discountAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="total-breakdown-row final">
+                    <span className="total-label">Payable Total: </span>
+                    <span className="total-amount">₹{finalPayable.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <span className="total-label">Total: </span>
+                  <span className="total-amount">
+                    ₹{originalTotal.toLocaleString("en-IN")}
+                  </span>
+                </>
+              )}
             </div>
 
             <button
@@ -801,7 +1444,7 @@ function Booking() {
               disabled={isSubmitting}
             >
               <span>
-                {isSubmitting ? "Processing..." : "Confirm Booking"}
+                {isSubmitting ? "Processing..." : `Confirm Booking • ₹${finalPayable.toLocaleString("en-IN")}`}
               </span>
               <ArrowRight size={18} />
             </button>

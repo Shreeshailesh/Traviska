@@ -19,6 +19,68 @@ const tripSectionSchema = new mongoose.Schema(
 
 const defaultSection = () => ({ enabled: true, items: [] });
 
+const pickupDateOverrideSchema = new mongoose.Schema(
+  {
+    slotId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TripSlot",
+    },
+    date: {
+      type: String,
+      default: "",
+    },
+    pickupTime: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
+const pickupLocationSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    address: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    landmark: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    pickupTime: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    googleMapsUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+    dateOverrides: {
+      type: [pickupDateOverrideSchema],
+      default: [],
+    },
+  },
+  { timestamps: true }
+);
+
 const tripSchema = new mongoose.Schema({
   title: String,
   location: String,
@@ -57,6 +119,11 @@ const tripSchema = new mongoose.Schema({
   importantNotes: {
     type: tripSectionSchema,
     default: defaultSection,
+  },
+
+  pickupLocations: {
+    type: [pickupLocationSchema],
+    default: [],
   },
 
   createdAt: {
