@@ -160,7 +160,7 @@ function Footer() {
             <li>
               <Link to="/login">
                 <ShieldCheck size={14} className="link-item-icon" />
-                <span>Customer Login (OTP)</span>
+                <span>Customer Login</span>
               </Link>
             </li>
             <li>
@@ -212,19 +212,19 @@ function Footer() {
             <li>
               <a href="tel:9902742004">
                 <Phone size={14} className="link-item-icon" />
-                <span>+91 90027 42004</span>
+                <span>+91 99027 42004</span>
               </a>
             </li>
             <li>
               <a href="https://wa.me/919902742004" target="_blank" rel="noopener noreferrer">
                 <MessageCircle size={14} className="link-item-icon" />
-                <span>+91 90027 42004</span>
+                <span>+91 99027 42004</span>
               </a>
             </li>
             <li>
-              <a href="mailto:traviskaadventures@gmail.com">
+              <a href="mailto:travelwithtraviska@gmail.com">
                 <Mail size={14} className="link-item-icon" />
-                <span>traviskaadventures@gmail.com</span>
+                <span>travelwithtraviska@gmail.com</span>
               </a>
             </li>
             <li>

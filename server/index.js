@@ -2168,7 +2168,7 @@ app.post("/customer/firebase-login", async (req, res) => {
     const uid = decodedToken.uid;
     const email = (decodedToken.email || "").trim().toLowerCase();
     const isEmailVerified = Boolean(decodedToken.email_verified);
-    const phone = decodedToken.phone_number || "";
+    const phone = (decodedToken.phone_number || "").trim();
     const firebaseName = (decodedToken.name || "").trim();
     const picture = decodedToken.picture || "";
     const providerId = decodedToken.firebase?.sign_in_provider || "firebase";
@@ -2176,7 +2176,7 @@ app.post("/customer/firebase-login", async (req, res) => {
     // 2. Safeguard: Prevent staff/admin email collisions & never mutate staff roles
     if (email) {
       const staffUser = await User.findOne({
-        email,
+        email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
         role: { $in: ["admin", "sales", "sales_lead"] },
       });
       if (staffUser) {
@@ -2187,8 +2187,30 @@ app.post("/customer/firebase-login", async (req, res) => {
       }
     }
 
-    // 3. Primary Lookup: by Firebase UID
-    let customer = await User.findOne({ firebaseUid: uid });
+    // Helper: Safely resolve customer across UID, normalized email, or phone
+    const findCustomer = async () => {
+      // Primary: Lookup by verified Firebase UID
+      let doc = await User.findOne({ firebaseUid: uid });
+      if (doc) return doc;
+
+      // Secondary: Lookup by normalized email (case-insensitive)
+      if (email) {
+        doc = await User.findOne({
+          email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+        });
+        if (doc) return doc;
+      }
+
+      // Tertiary: Lookup by phone ONLY for verified phone OTP sign-in
+      if (phone && providerId === "phone") {
+        doc = await User.findOne({ phone, role: "customer" });
+        if (doc) return doc;
+      }
+
+      return null;
+    };
+
+    let customer = await findCustomer();
 
     if (customer) {
       // Security check: ensure account is a customer account
@@ -2199,73 +2221,61 @@ app.post("/customer/firebase-login", async (req, res) => {
         });
       }
 
-      // Sync verified email state and details
-      let updated = false;
-      if (isEmailVerified && !customer.isEmailVerified) {
-        customer.isEmailVerified = true;
-        updated = true;
+      // Conflict detection: account already linked to another distinct Firebase UID
+      if (customer.firebaseUid && customer.firebaseUid !== uid) {
+        return res.status(409).json({
+          success: false,
+          message: "An account with this email already exists under a different sign-in method. Please sign in with your original method.",
+        });
       }
-      if (email && !customer.email) {
-        customer.email = email;
-        updated = true;
-      }
-      if (picture && !customer.photoUrl) {
-        customer.photoUrl = picture;
-        updated = true;
-      }
-      if (phone && !customer.phone) {
-        customer.phone = phone;
-        updated = true;
-      }
-      if (updated) {
-        await customer.save();
-      }
-    } else {
-      // 4. UID not found yet: check if existing customer with same email exists
-      if (email) {
-        const existingByEmail = await User.findOne({ email });
-        if (existingByEmail) {
-          // If existing account already linked to another UID, reject conflict
-          if (existingByEmail.firebaseUid && existingByEmail.firebaseUid !== uid) {
-            return res.status(409).json({
-              success: false,
-              message: "An account with this email already exists under a different sign-in method. Please sign in with your original method.",
-            });
-          }
 
-          // If existing account has no Firebase UID, link ONLY if Firebase email is verified!
-          if (isEmailVerified) {
-            existingByEmail.firebaseUid = uid;
-            existingByEmail.isEmailVerified = true;
-            existingByEmail.authProvider = providerId === "google.com" ? "google" : "password";
-            if (picture && !existingByEmail.photoUrl) existingByEmail.photoUrl = picture;
-            await existingByEmail.save();
-            customer = existingByEmail;
-          } else {
-            // Unverified email trying to link to existing account
+      // Linking guard: Never automatically merge accounts based on unverified identities
+      if (!customer.firebaseUid) {
+        if (providerId === "phone") {
+          if (!phone || customer.phone !== phone) {
             return res.status(403).json({
               success: false,
-              message: "Please verify your email address to access your existing account.",
-              needsEmailVerification: true,
+              message: "Phone number verification mismatch.",
             });
           }
+        } else if (email && !isEmailVerified) {
+          return res.status(403).json({
+            success: false,
+            message: "Please verify your email address to access your existing account.",
+            needsEmailVerification: true,
+          });
         }
       }
 
-      // 5. If still not matched, check if customer with same phone exists (for phone OTP)
-      if (!customer && phone) {
-        const existingByPhone = await User.findOne({ phone });
-        if (existingByPhone && existingByPhone.role === "customer" && !existingByPhone.firebaseUid) {
-          existingByPhone.firebaseUid = uid;
-          existingByPhone.authProvider = "phone";
-          await existingByPhone.save();
-          customer = existingByPhone;
-        }
+      // Atomic update & link verified account details
+      const updateFields = {
+        firebaseUid: uid,
+        isEmailVerified: isEmailVerified || customer.isEmailVerified,
+      };
+
+      if (email && (!customer.email || customer.email !== email)) {
+        updateFields.email = email;
+      }
+      if (phone && !customer.phone) {
+        updateFields.phone = phone;
+      }
+      if (picture && !customer.photoUrl) {
+        updateFields.photoUrl = picture;
+      }
+      if (providerId === "google.com") {
+        updateFields.authProvider = "google";
       }
 
-      // 6. If no existing record matched, create a brand-new Customer
-      if (!customer) {
-        const displayName = (clientProvidedName || firebaseName || (email ? email.split("@")[0] : "") || "Customer").trim();
+      customer = await User.findByIdAndUpdate(
+        customer._id,
+        { $set: updateFields },
+        { new: true, runValidators: true }
+      );
+    } else {
+      // 3. No existing record matched: Create a brand-new Customer
+      const displayName = (clientProvidedName || firebaseName || (email ? email.split("@")[0] : "") || "Customer").trim();
+
+      try {
         customer = await User.create({
           name: displayName || "Customer",
           email: email || undefined,
@@ -2276,10 +2286,33 @@ app.post("/customer/firebase-login", async (req, res) => {
           authProvider: providerId === "google.com" ? "google" : (providerId === "password" ? "password" : (providerId === "phone" ? "phone" : "firebase")),
           photoUrl: picture || "",
         });
+      } catch (createErr) {
+        // Concurrency guard: If a simultaneous request created the user concurrently,
+        // MongoDB E11000 triggers. Safely resolve without exposing error or failing.
+        if (createErr.code === 11000) {
+          console.log("ℹ️ Concurrent customer registration detected, resolving existing account...");
+          customer = await findCustomer();
+          if (customer) {
+            if (!customer.firebaseUid) {
+              customer = await User.findByIdAndUpdate(
+                customer._id,
+                { $set: { firebaseUid: uid, isEmailVerified: isEmailVerified || customer.isEmailVerified } },
+                { new: true }
+              );
+            }
+          } else {
+            return res.status(409).json({
+              success: false,
+              message: "An account with these details is already registered. Please sign in.",
+            });
+          }
+        } else {
+          throw createErr;
+        }
       }
     }
 
-    // 7. Sign server-side session JWT
+    // 4. Sign server-side session JWT
     const customerToken = jwt.sign(
       {
         id: customer._id.toString(),
@@ -2308,6 +2341,14 @@ app.post("/customer/firebase-login", async (req, res) => {
   } catch (err) {
     console.error("Customer Firebase login error:", err.message);
 
+    // Concurrency / Duplicate key safety: Never expose MongoDB collection or index names
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email address already exists. Please sign in with your credentials.",
+      });
+    }
+
     if (err?.name === "MongooseError" && err?.message?.includes("buffering timed out")) {
       return res.status(503).json({
         success: false,
@@ -2317,7 +2358,7 @@ app.post("/customer/firebase-login", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: err.message || "Server Error",
+      message: "Authentication service encountered an issue. Please try again.",
     });
   }
 });

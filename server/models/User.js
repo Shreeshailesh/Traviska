@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
 
   email: {
     type: String,
+    lowercase: true,
+    trim: true,
     required: function () {
       return this.role === "admin" || this.role === "sales" || this.role === "sales_lead";
     },

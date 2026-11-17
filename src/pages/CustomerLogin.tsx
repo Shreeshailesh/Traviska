@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
   signInWithPopup,
@@ -76,6 +76,10 @@ export default function CustomerLogin() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetStatus, setResetStatus] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Deduplication & concurrency guards for login exchanges
+  const authInProgressRef = useRef(false);
+  const activeExchangeRef = useRef<Promise<any> | null>(null);
+
   // Check if already authenticated
   useEffect(() => {
     const existingToken = localStorage.getItem("customerToken");
@@ -88,6 +92,9 @@ export default function CustomerLogin() {
   // Keep auth state persistent
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // If manual action is currently in progress, skip duplicate background sync
+      if (authInProgressRef.current) return;
+
       // If Firebase has a user and localStorage has no token, refresh session
       if (firebaseUser && !localStorage.getItem("customerToken")) {
         try {
@@ -101,25 +108,38 @@ export default function CustomerLogin() {
     return () => unsubscribe();
   }, []);
 
-  // Backend session exchange
+  // Backend session exchange (deduplicated against concurrent calls)
   const completeBackendLogin = async (idToken: string, fallbackName?: string) => {
-    const res = await fetch(`${API_BASE_URL}/customer/firebase-login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, name: fallbackName }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Login failed on server verification.");
+    if (activeExchangeRef.current) {
+      return activeExchangeRef.current;
     }
 
-    // Persist verified customer session
-    localStorage.setItem("customerToken", data.token);
-    localStorage.setItem("customer", JSON.stringify(data.customer));
+    const exchangePromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/customer/firebase-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken, name: fallbackName }),
+        });
 
-    return data;
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || "Login failed on server verification.");
+        }
+
+        // Persist verified customer session
+        localStorage.setItem("customerToken", data.token);
+        localStorage.setItem("customer", JSON.stringify(data.customer));
+
+        return data;
+      } finally {
+        activeExchangeRef.current = null;
+      }
+    })();
+
+    activeExchangeRef.current = exchangePromise;
+    return exchangePromise;
   };
 
   // Google Authentication
@@ -127,6 +147,7 @@ export default function CustomerLogin() {
     setError(null);
     setSuccessMessage(null);
     setGoogleLoading(true);
+    authInProgressRef.current = true;
 
     try {
       const userCredential = await signInWithPopup(auth, googleProvider);
@@ -144,6 +165,7 @@ export default function CustomerLogin() {
       }
       setError(err?.message || "Google sign-in was unsuccessful. Please try again.");
     } finally {
+      authInProgressRef.current = false;
       setGoogleLoading(false);
     }
   };
@@ -161,6 +183,7 @@ export default function CustomerLogin() {
     }
 
     setLoading(true);
+    authInProgressRef.current = true;
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
@@ -216,6 +239,7 @@ export default function CustomerLogin() {
         setError(err?.message || "Sign in failed. Please check your connection and try again.");
       }
     } finally {
+      authInProgressRef.current = false;
       setLoading(false);
     }
   };
@@ -281,6 +305,7 @@ export default function CustomerLogin() {
         setError(err?.message || "Account creation failed. Please try again.");
       }
     } finally {
+      authInProgressRef.current = false;
       setLoading(false);
     }
   };
