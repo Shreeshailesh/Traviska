@@ -169,6 +169,7 @@
   cursor: pointer;
   transition: all 0.25s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .nav-customer-login-btn:hover {
@@ -389,12 +390,27 @@
   align-items: center;
 }
 
+@media (min-width: 901px) and (max-width: 1150px) {
+  .navbar {
+    padding: 12px 24px;
+    gap: 12px;
+  }
+  .navbar .nav-links {
+    gap: 18px;
+  }
+  .nav-customer-login-btn {
+    padding: 7px 14px;
+    font-size: 13px !important;
+  }
+}
+
 /* ===========================
    MOBILE RESPONSIVE
    =========================== */
 
 @media (max-width: 900px) {
-  .nav-desktop-auth {
+  .nav-desktop-auth,
+  .navbar .nav-links .nav-desktop-auth {
     display: none !important;
   }
 

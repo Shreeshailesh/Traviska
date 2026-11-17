@@ -1,0 +1,393 @@
+/* ==========================================================================
+   TRAVISKA ADMIN & OPERATIONS PORTAL LOGIN
+   Exact visual match for the provided brand mockup
+   ========================================================================== */
+
+.admin-login-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f7fbf8 0%, #edf6f0 50%, #e2efe6 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1e293b;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Background Wavy Hills at Bottom */
+.admin-login-hills {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 280px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.admin-login-hills svg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Back Link (Top Left) */
+.admin-login-back-link {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #164e23;
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: #ffffff;
+  border: 1px solid #dce4dc;
+  border-radius: 30px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.admin-login-back-link:hover {
+  background: #f1f5f2;
+  border-color: #164e23;
+  transform: translateX(-2px);
+}
+
+/* Main Card */
+.admin-login-card {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 20px 60px rgba(18, 56, 30, 0.08), 0 2px 10px rgba(0, 0, 0, 0.02);
+  padding: 42px 36px 34px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 5;
+  border: 1px solid rgba(220, 235, 224, 0.5);
+}
+
+/* Logo Wrap */
+.admin-login-logo-wrap {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2px solid #b7e8ab;
+  box-shadow: 0 4px 16px rgba(168, 224, 99, 0.28);
+  margin: 0 auto 16px;
+  overflow: hidden;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-login-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Badge: ADMIN & OPERATIONS PORTAL */
+.admin-login-badge-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.admin-login-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 16px;
+  background: #ecf8ed;
+  border: 1px solid #c8ecc6;
+  border-radius: 30px;
+  color: #135025;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.admin-login-badge svg {
+  color: #15803d;
+  flex-shrink: 0;
+}
+
+/* Title & Subtitle */
+.admin-login-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f3d20;
+  margin: 0 0 8px;
+  text-align: center;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+}
+
+.admin-login-subtitle {
+  font-size: 14px;
+  color: #576b5d;
+  margin: 0 auto 28px;
+  text-align: center;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+/* Error Banner */
+.admin-login-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  margin-bottom: 20px;
+}
+
+.admin-login-alert.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+/* Form Groups */
+.admin-login-form-group {
+  margin-bottom: 18px;
+}
+
+.admin-login-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #2e3d32;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.admin-login-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.admin-login-input-icon {
+  position: absolute;
+  left: 14px;
+  color: #64786a;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.admin-login-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px 0 44px;
+  background: #fbfdfc;
+  border: 1px solid #d3ded6;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #1e2d24;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.admin-login-input.has-toggle {
+  padding-right: 46px;
+}
+
+.admin-login-input:focus {
+  border-color: #166534;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.12);
+}
+
+.admin-login-input::placeholder {
+  color: #8e9f94;
+}
+
+.admin-login-password-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64786a;
+  transition: color 0.2s ease;
+}
+
+.admin-login-password-toggle:hover {
+  color: #1e2d24;
+}
+
+/* Forgot Password */
+.admin-login-forgot-wrap {
+  text-align: right;
+  margin-top: 8px;
+  margin-bottom: 22px;
+}
+
+.admin-login-forgot-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #166534;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  text-decoration: none;
+}
+
+.admin-login-forgot-btn:hover {
+  color: #0f4422;
+  text-decoration: underline;
+}
+
+/* Submit Button */
+.admin-login-submit-btn {
+  width: 100%;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #0e5426 0%, #176f36 100%);
+  color: #ffffff;
+  font-size: 15.5px;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(17, 97, 46, 0.25);
+  box-sizing: border-box;
+}
+
+.admin-login-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0b451f 0%, #13602e 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(17, 97, 46, 0.35);
+}
+
+.admin-login-submit-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Divider & Footer */
+.admin-login-divider {
+  height: 1px;
+  background: #e8efe9;
+  margin: 26px 0 18px;
+  border: none;
+}
+
+.admin-login-footer-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #43594b;
+}
+
+.admin-login-footer-notice svg {
+  color: #15803d;
+  flex-shrink: 0;
+}
+
+/* Modal for Forgot Password */
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 30, 20, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.admin-modal-card {
+  width: 100%;
+  max-width: 400px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 28px 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  position: relative;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.admin-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+}
+
+.spin-animate {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .admin-login-page {
+    padding: 20px 14px;
+  }
+  .admin-login-card {
+    padding: 32px 20px 24px;
+    border-radius: 22px;
+  }
+  .admin-login-title {
+    font-size: 24px;
+  }
+  .admin-login-subtitle {
+    font-size: 13.5px;
+    margin-bottom: 22px;
+  }
+}
+

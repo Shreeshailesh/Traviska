@@ -149,8 +149,7 @@ function AppContent() {
     <Route path="attendance" element={<Navigate to="/captain/trips" replace />} />
   </Route>
 
-  <Route path="/login" element={<Login />} />
-  <Route path="/admin-login" element={<Navigate to="/login" replace />} />
+  <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
 </Routes>
 
       {!isAdmin && !isCaptain && !isSales && !isLogin && <Footer />}

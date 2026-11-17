@@ -223,7 +223,7 @@ function Navbar() {
               onClick={() => setMenuOpen(false)}
             >
               <User size={15} />
-              <span>Login</span>
+              <span>Traveller Login / Register</span>
             </Link>
           )}
         </div>
@@ -261,7 +261,7 @@ function Navbar() {
                 onClick={() => setMenuOpen(false)}
               >
                 <User size={16} />
-                <span>Login</span>
+                <span>Traveller Login / Register</span>
               </Link>
             )}
           </div>
