@@ -34,19 +34,32 @@ function Navbar() {
 
   // Sync customer auth state from localStorage on route changes
   useEffect(() => {
-    const token = localStorage.getItem("customerToken");
-    const stored = localStorage.getItem("customer");
-    if (token && stored) {
-      try {
-        setCustomer(JSON.parse(stored));
-      } catch {
-        setCustomer({ phone: "Traveller" });
+    const syncCustomer = () => {
+      const token = localStorage.getItem("customerToken");
+      const stored = localStorage.getItem("customer");
+      if (token && stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const storedAvatar = localStorage.getItem("customerAvatar");
+          setCustomer({ ...parsed, photoUrl: parsed.photoUrl || storedAvatar || "" });
+        } catch {
+          setCustomer({ phone: "Traveller" });
+        }
+      } else {
+        setCustomer(null);
       }
-    } else {
-      setCustomer(null);
-    }
+    };
+
+    syncCustomer();
     setMenuOpen(false);
     setUserDropdownOpen(false);
+
+    window.addEventListener("storage", syncCustomer);
+    window.addEventListener("traviska-avatar-updated", syncCustomer);
+    return () => {
+      window.removeEventListener("storage", syncCustomer);
+      window.removeEventListener("traviska-avatar-updated", syncCustomer);
+    };
   }, [location.pathname]);
 
   // Click outside to close customer dropdown

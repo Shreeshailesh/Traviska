@@ -60,11 +60,30 @@ type CustomerBooking = {
 
 export default function CustomerDashboard() {
   // Profile State
-  const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [profile, setProfile] = useState<CustomerProfile | null>(() => {
+    const saved = localStorage.getItem("customer");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const storedAvatar = localStorage.getItem("customerAvatar");
+        return { ...parsed, photoUrl: parsed.photoUrl || storedAvatar || "" };
+      } catch {}
+    }
+    return null;
+  });
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState<string>("");
+  const [selectedAvatar, setSelectedAvatar] = useState<string>(() => {
+    const saved = localStorage.getItem("customer");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.photoUrl) return parsed.photoUrl;
+      } catch {}
+    }
+    return localStorage.getItem("customerAvatar") || "";
+  });
 
   const [profileSaving, setProfileSaving] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -76,6 +95,15 @@ export default function CustomerDashboard() {
   // Email verification state
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+
+  // Auto-dismiss notification after 4 seconds
+  useEffect(() => {
+    if (!profileMessage) return;
+    const timer = setTimeout(() => {
+      setProfileMessage(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [profileMessage]);
 
   // Bookings State
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
@@ -102,11 +130,13 @@ export default function CustomerDashboard() {
 
         if (!cancelled) {
           const cust = data.customer;
-          setProfile(cust);
+          const storedAvatar = localStorage.getItem("customerAvatar") || "";
+          const activePhoto = cust.photoUrl || storedAvatar || "";
+          setProfile({ ...cust, photoUrl: activePhoto });
           setProfileName(cust.name || "");
           setProfileEmail(cust.email || "");
           setProfilePhone(cust.phone || "");
-          setSelectedAvatar(cust.photoUrl || "");
+          setSelectedAvatar(activePhoto);
         }
       } catch (err: any) {
         console.error("Profile load error:", err);
@@ -155,8 +185,28 @@ export default function CustomerDashboard() {
   }, []);
 
   const handleOpenEditProfile = () => {
-    setSelectedAvatar(profile?.photoUrl || "");
+    const currentAvatar = profile?.photoUrl || localStorage.getItem("customerAvatar") || "";
+    setSelectedAvatar(currentAvatar);
     setIsEditingProfile(true);
+  };
+
+  const handleSelectAvatar = (url: string) => {
+    setSelectedAvatar(url);
+    // Instant live update in state and Card 1
+    setProfile((prev) => (prev ? { ...prev, photoUrl: url } : prev));
+    if (url) {
+      localStorage.setItem("customerAvatar", url);
+    } else {
+      localStorage.removeItem("customerAvatar");
+    }
+    const saved = localStorage.getItem("customer");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        localStorage.setItem("customer", JSON.stringify({ ...parsed, photoUrl: url }));
+      } catch {}
+    }
+    window.dispatchEvent(new Event("traviska-avatar-updated"));
   };
 
   // Save Profile Changes
@@ -190,7 +240,16 @@ export default function CustomerDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update profile");
 
-      setProfile(data.customer);
+      const finalPhotoUrl = data.customer?.photoUrl || photoUrl;
+      setProfile({
+        ...data.customer,
+        photoUrl: finalPhotoUrl,
+      });
+      if (finalPhotoUrl) {
+        localStorage.setItem("customerAvatar", finalPhotoUrl);
+      } else {
+        localStorage.removeItem("customerAvatar");
+      }
       setProfileMessage({
         type: "success",
         text: "Profile updated successfully!",
@@ -209,7 +268,7 @@ export default function CustomerDashboard() {
               name: data.customer.name,
               email: data.customer.email,
               phone: data.customer.phone,
-              photoUrl: data.customer.photoUrl,
+              photoUrl: finalPhotoUrl,
             })
           );
         } catch {}
@@ -343,13 +402,33 @@ export default function CustomerDashboard() {
       <main className="dash-main-content">
         {/* Profile Alert */}
         {profileMessage && (
-          <div className={`dash-alert ${profileMessage.type}`}>
-            {profileMessage.type === "success" ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <AlertCircle size={16} />
-            )}
-            <span>{profileMessage.text}</span>
+          <div className={`dash-alert ${profileMessage.type}`} role="alert">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
+              {profileMessage.type === "success" ? (
+                <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+              ) : (
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              )}
+              <span>{profileMessage.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProfileMessage(null)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                color: "inherit",
+                opacity: 0.7,
+              }}
+              title="Dismiss"
+              aria-label="Dismiss notification"
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
 
@@ -787,12 +866,34 @@ export default function CustomerDashboard() {
                     <button
                       type="button"
                       className="dash-btn-clear-avatar"
-                      onClick={() => setSelectedAvatar("")}
+                      onClick={() => handleSelectAvatar("")}
                     >
                       Reset to default
                     </button>
                   )}
                 </div>
+
+                {/* LIVE PREVIEW OF SELECTED AVATAR */}
+                <div className="dash-modal-avatar-preview-box">
+                  <div className="dash-modal-preview-circle">
+                    {selectedAvatar ? (
+                      <img src={selectedAvatar} alt="Selected Avatar" className="dash-avatar-img" />
+                    ) : (
+                      <div className="dash-avatar-fallback">
+                        <User size={28} color="#d4f8a6" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="dash-modal-preview-text">
+                    <span className="dash-modal-preview-title">
+                      {AVATAR_PRESETS.find((a) => a.url === selectedAvatar)?.name || "Default Silhouette"}
+                    </span>
+                    <span className="dash-modal-preview-sub">
+                      Selected Avatar (Live Preview)
+                    </span>
+                  </div>
+                </div>
+
                 <div className="dash-avatar-picker-grid">
                   {AVATAR_PRESETS.map((av) => {
                     const isSelected = selectedAvatar === av.url;
@@ -801,7 +902,7 @@ export default function CustomerDashboard() {
                         type="button"
                         key={av.id}
                         className={`dash-avatar-option-btn ${isSelected ? "selected" : ""}`}
-                        onClick={() => setSelectedAvatar(av.url)}
+                        onClick={() => handleSelectAvatar(av.url)}
                         title={av.name}
                         aria-label={`Select ${av.name} avatar`}
                       >
