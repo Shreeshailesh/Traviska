@@ -44,7 +44,9 @@ function Login() {
       console.error("Admin login failed:", error);
       const msg =
         error?.response?.data?.message ||
-        "Login failed. Please check your credentials.";
+        (error?.message?.includes("Network Error")
+          ? "Unable to reach the backend server. Please check your internet connection or try again in a few seconds."
+          : "Login failed. Please check your credentials.");
       alert(msg);
     } finally {
       setIsLoading(false);

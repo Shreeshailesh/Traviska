@@ -56,6 +56,48 @@ const upload = multer({
 
 const app = express();
 
+// -----------------------------------------------------------------------------
+// Production CORS Configuration
+// -----------------------------------------------------------------------------
+const allowedOrigins = [
+  "https://traviska.com",
+  "https://www.traviska.com",
+  "https://traviska.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  process.env.FRONTEND_URL,
+]
+  .filter(Boolean)
+  .map((url) => url.trim().replace(/\/+$/, ""));
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Permit requests with no origin (e.g. server-to-server, curl, mobile apps)
+    if (!origin) return callback(null, true);
+    const cleanOrigin = origin.trim().replace(/\/+$/, "");
+    if (allowedOrigins.includes(cleanOrigin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS for origin: ${origin}`), false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+  ],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+};
+
+// Mount CORS before all routes & middleware to intercept all requests & preflights
+app.use(cors(corsOptions));
+app.options(/(.*)/, cors(corsOptions));
+
+app.use(express.json({ limit: "8mb" }));
 app.use("/uploads", express.static("uploads"));
 
 const authMiddleware = (req, res, next) => {
@@ -101,19 +143,6 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  process.env.FRONTEND_URL,
-].filter(Boolean);
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-  })
-);
-app.use(express.json({ limit: "8mb" }));
 
 // Modular admin, captain, & sales routes (redesign). Existing endpoints below are unchanged.
 app.use(require("./routes/adminDashboard")({ authMiddleware, adminMiddleware }));

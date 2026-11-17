@@ -75,7 +75,7 @@ export default function ProtectedAdmin() {
   }, []);
 
   if (status === "denied") {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   if (status === "checking") {
