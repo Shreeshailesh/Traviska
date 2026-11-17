@@ -1,25 +1,34 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import axios from "axios";
-import { signOut, sendEmailVerification } from "firebase/auth";
+import { sendEmailVerification } from "firebase/auth";
 import { auth } from "../firebase";
 import { API_BASE_URL } from "../api";
 import {
   User,
   Calendar,
-  MapPin,
-  Users,
-  CheckCircle2,
+  Check,
   AlertCircle,
   Compass,
-  LogOut,
   Edit2,
   Save,
   Loader2,
-  ShieldCheck,
-  ChevronRight,
   ArrowRight,
+  Mail,
+  Phone,
+  Luggage,
+  Pencil,
+  Mountain,
+  CalendarCheck,
+  UserCheck,
+  Bell,
+  Percent,
+  X,
+  CheckCircle2,
 } from "lucide-react";
+import bottomDrawingImg from "../assets/dashboard-bottom-drawing.jpg";
+import { AVATAR_PRESETS } from "../assets/avatarPresets";
+import "./CustomerDashboard.css";
 
 type CustomerProfile = {
   id: string;
@@ -50,18 +59,19 @@ type CustomerBooking = {
 };
 
 export default function CustomerDashboard() {
-  const navigate = useNavigate();
-
   // Profile State
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
+  const [selectedAvatar, setSelectedAvatar] = useState<string>("");
 
-  const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [profileMessage, setProfileMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Email verification state
   const [resendingVerification, setResendingVerification] = useState(false);
@@ -96,11 +106,10 @@ export default function CustomerDashboard() {
           setProfileName(cust.name || "");
           setProfileEmail(cust.email || "");
           setProfilePhone(cust.phone || "");
+          setSelectedAvatar(cust.photoUrl || "");
         }
       } catch (err: any) {
         console.error("Profile load error:", err);
-      } finally {
-        if (!cancelled) setProfileLoading(false);
       }
     };
 
@@ -130,7 +139,9 @@ export default function CustomerDashboard() {
       } catch (err: any) {
         console.error("Bookings load error:", err);
         if (!cancelled) {
-          setBookingsError("Unable to load your bookings. Please check back shortly.");
+          setBookingsError(
+            "Unable to load your bookings. Please check back shortly."
+          );
         }
       } finally {
         if (!cancelled) setBookingsLoading(false);
@@ -143,6 +154,11 @@ export default function CustomerDashboard() {
     };
   }, []);
 
+  const handleOpenEditProfile = () => {
+    setSelectedAvatar(profile?.photoUrl || "");
+    setIsEditingProfile(true);
+  };
+
   // Save Profile Changes
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,6 +168,7 @@ export default function CustomerDashboard() {
     const name = profileName.trim();
     const email = profileEmail.trim();
     const phone = profilePhone.trim();
+    const photoUrl = selectedAvatar;
 
     if (!name) {
       setProfileMessage({ type: "error", text: "Name cannot be empty." });
@@ -167,14 +184,17 @@ export default function CustomerDashboard() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name, email, phone }),
+        body: JSON.stringify({ name, email, phone, photoUrl }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update profile");
 
       setProfile(data.customer);
-      setProfileMessage({ type: "success", text: "Profile updated successfully!" });
+      setProfileMessage({
+        type: "success",
+        text: "Profile updated successfully!",
+      });
       setIsEditingProfile(false);
 
       // Sync local storage
@@ -182,17 +202,29 @@ export default function CustomerDashboard() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          localStorage.setItem("customer", JSON.stringify({ ...parsed, name: data.customer.name, email: data.customer.email, phone: data.customer.phone }));
+          localStorage.setItem(
+            "customer",
+            JSON.stringify({
+              ...parsed,
+              name: data.customer.name,
+              email: data.customer.email,
+              phone: data.customer.phone,
+              photoUrl: data.customer.photoUrl,
+            })
+          );
         } catch {}
       }
     } catch (err: any) {
-      setProfileMessage({ type: "error", text: err?.message || "Failed to save profile." });
+      setProfileMessage({
+        type: "error",
+        text: err?.message || "Failed to save profile.",
+      });
     } finally {
       setProfileSaving(false);
     }
   };
 
-  // Resend Email Verification link using Firebase Client SDK
+  // Resend Email Verification link
   const handleResendEmailVerification = async () => {
     if (!auth.currentUser) return;
     setResendingVerification(true);
@@ -206,727 +238,663 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Logout
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.warn("Signout error:", e);
-    }
-    localStorage.removeItem("customerToken");
-    localStorage.removeItem("customer");
-    navigate("/", { replace: true });
-  };
+  const isEmailVerified =
+    profile?.isEmailVerified || auth.currentUser?.emailVerified;
 
-  const isEmailVerified = profile?.isEmailVerified || auth.currentUser?.emailVerified;
+  // Display Name logic
+  const displayName =
+    profile?.name && profile.name !== "Customer"
+      ? profile.name
+      : profile?.email
+      ? profile.email.split("@")[0]
+      : "Shaileshkatharki";
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f4f7f5",
-        color: "#1e293b",
-        paddingTop: "90px",
-        paddingBottom: "60px",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1140px",
-          margin: "0 auto",
-          padding: "0 20px",
-        }}
-      >
-        {/* Top Welcome Banner */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #0d2b17 0%, #164e23 60%, #1f6b32 100%)",
-            color: "#ffffff",
-            borderRadius: "20px",
-            padding: "32px 36px",
-            marginBottom: "30px",
-            boxShadow: "0 10px 30px rgba(13, 43, 23, 0.15)",
-            position: "relative",
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "20px",
-          }}
-        >
-          {/* Mountain Graphic Silhouette */}
-          <div
-            style={{
-              position: "absolute",
-              right: 0,
-              bottom: 0,
-              pointerEvents: "none",
-              opacity: 0.12,
-              width: "360px",
-            }}
-          >
-            <svg viewBox="0 0 240 80" fill="none">
-              <path d="M0 80 L30 45 L70 80 L110 35 L160 80 L200 40 L240 80 Z" fill="#d9eec7" />
-            </svg>
+    <div className="customer-dashboard-page">
+      {/* ===========================
+          HERO BANNER
+          =========================== */}
+      <section className="dashboard-hero">
+        {/* Airplane flight path graphic */}
+        <div className="dash-flight-path" aria-hidden="true">
+          <svg viewBox="0 0 400 90" fill="none">
+            <path
+              d="M 10 70 Q 180 10 360 45"
+              stroke="rgba(255, 255, 255, 0.45)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+            />
+            <g transform="translate(360, 44) rotate(18)">
+              <path
+                d="M 0 -8 L 4 0 L 12 3 L 4 5 L 3 10 L 0 8 L -2 10 L -1 5 L -8 3 L 0 0 Z"
+                fill="#ffffff"
+              />
+            </g>
+          </svg>
+        </div>
+
+        <div className="dash-hero-container">
+          {/* Header Tag */}
+          <div className="dash-hero-tag">
+            <span className="dash-hero-tag-bar"></span>
+            <span>TRAVELLER DASHBOARD</span>
           </div>
 
-          <div>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "4px 12px",
-                background: "rgba(217, 238, 199, 0.18)",
-                border: "1px solid rgba(217, 238, 199, 0.35)",
-                borderRadius: "30px",
-                fontSize: "12px",
-                fontWeight: 700,
-                color: "#d9eec7",
-                letterSpacing: "0.5px",
-                marginBottom: "10px",
-              }}
-            >
-              <Compass size={13} />
-              <span>TRAVELLER DASHBOARD</span>
-            </div>
+          {/* Heading */}
+          <h1 className="dash-hero-title">
+            Welcome back,
+            <br />
+            <span className="dash-hero-name">
+              {displayName}!
+              <svg
+                className="dash-name-brush"
+                viewBox="0 0 240 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 10 C 60 4, 180 4, 236 12 C 180 7, 70 7, 8 14"
+                  stroke="#a8e063"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+          </h1>
 
-            <h1
-              style={{
-                fontSize: "28px",
-                fontWeight: 800,
-                margin: "0 0 6px",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Welcome back, {profile?.name || "Traveller"}!
-            </h1>
+          {/* Subtitle */}
+          <p className="dash-hero-subtitle">
+            Manage your travels, bookings and profile – all in one place.
+          </p>
 
-            <p style={{ margin: 0, fontSize: "14px", color: "#d9eec7", opacity: 0.9 }}>
-              Manage your upcoming expeditions, check booking codes, and update your traveller profile.
-            </p>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <Link
-              to="/trips"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 18px",
-                background: "#ffffff",
-                color: "#0d2b17",
-                borderRadius: "30px",
-                textDecoration: "none",
-                fontSize: "13.5px",
-                fontWeight: 700,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                transition: "all 0.2s ease",
-              }}
-            >
+          {/* CTAs */}
+          <div className="dash-hero-actions">
+            <Link to="/trips" className="dash-btn-explore">
+              <Compass size={18} />
               <span>Explore Trips</span>
-              <ChevronRight size={16} />
+              <ArrowRight size={16} />
             </Link>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "10px 16px",
-                background: "rgba(255, 255, 255, 0.12)",
-                color: "#ffffff",
-                border: "1px solid rgba(255, 255, 255, 0.25)",
-                borderRadius: "30px",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)")}
-            >
-              <LogOut size={14} />
-              <span>Logout</span>
-            </button>
+            <a href="#my-bookings" className="dash-btn-bookings">
+              <Calendar size={16} />
+              <span>My Bookings</span>
+            </a>
           </div>
         </div>
 
-        {/* Email Verification Alert Banner (if unverified) */}
-        {!isEmailVerified && profile?.email && (
-          <div
-            style={{
-              background: "#fffbeb",
-              border: "1px solid #fde68a",
-              borderRadius: "14px",
-              padding: "14px 20px",
-              marginBottom: "24px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: "12px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <AlertCircle size={20} color="#d97706" style={{ flexShrink: 0 }} />
-              <div>
-                <span style={{ fontSize: "13.5px", fontWeight: 700, color: "#92400e" }}>
-                  Email Address Not Verified
-                </span>
-                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#b45309" }}>
-                  Please verify your email ({profile.email}) to secure your account and receive instant departure updates.
-                </p>
-              </div>
-            </div>
+        {/* Wavy transition into main content */}
+        <div className="dash-wave-divider" aria-hidden="true">
+          <svg viewBox="0 0 1440 70" fill="none" preserveAspectRatio="none">
+            <path
+              d="M0 70 L0 25 Q 360 65 720 30 T 1440 35 L 1440 70 Z"
+              fill="#f5f9f6"
+              opacity="0.6"
+            />
+            <path
+              d="M0 70 L0 38 Q 420 75 880 25 T 1440 48 L 1440 70 Z"
+              fill="#fbfdfb"
+            />
+          </svg>
+        </div>
+      </section>
 
-            <div>
-              {verificationSent ? (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "12.5px",
-                    fontWeight: 700,
-                    color: "#166534",
-                  }}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>Verification link sent! Check your inbox.</span>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleResendEmailVerification}
-                  disabled={resendingVerification}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#d97706",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "12.5px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  {resendingVerification ? (
-                    <>
-                      <Loader2 size={14} className="spin-animate" />
-                      <span>Sending...</span>
-                    </>
-                  ) : (
-                    <span>Resend Verification Email</span>
-                  )}
-                </button>
-              )}
-            </div>
+      {/* ===========================
+          MAIN CONTENT CARDS
+          =========================== */}
+      <main className="dash-main-content">
+        {/* Profile Alert */}
+        {profileMessage && (
+          <div className={`dash-alert ${profileMessage.type}`}>
+            {profileMessage.type === "success" ? (
+              <CheckCircle2 size={16} />
+            ) : (
+              <AlertCircle size={16} />
+            )}
+            <span>{profileMessage.text}</span>
           </div>
         )}
 
-        {/* Main 2-Column Grid: Profile on left, Bookings on right */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: "24px",
-            alignItems: "start",
-          }}
-        >
-          {/* Profile Card */}
-          <div
-            style={{
-              background: "#ffffff",
-              border: "1px solid #e2e8f0",
-              borderRadius: "16px",
-              padding: "24px",
-              boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingBottom: "16px",
-                borderBottom: "1px solid #f1f5f9",
-                marginBottom: "18px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div
-                  style={{
-                    width: "38px",
-                    height: "38px",
-                    borderRadius: "50%",
-                    background: "#eaf3ec",
-                    color: "#164e23",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <User size={18} />
+        <div className="dash-grid">
+          {/* =========================================================
+              CARD 1: USER BADGE (LEFT)
+              Deep forest green with topography, pine trees, & avatar
+             ========================================================= */}
+          <div className="dash-card-user">
+            {/* Avatar Container */}
+            <div className="dash-avatar-container">
+              {profile?.photoUrl ? (
+                <img
+                  src={profile.photoUrl}
+                  alt={displayName}
+                  className="dash-avatar-img"
+                />
+              ) : (
+                <div className="dash-avatar-fallback">
+                  <User size={34} color="#d4f8a6" />
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
-                    My Profile
-                  </h3>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>
-                    Traveller Contact Information
-                  </span>
-                </div>
-              </div>
-
-              {!isEditingProfile && (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingProfile(true)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    padding: "6px 12px",
-                    background: "#f1f5f2",
-                    border: "1px solid #dce4dc",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#164e23",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Edit2 size={13} />
-                  <span>Edit</span>
-                </button>
               )}
+              <button
+                type="button"
+                className="dash-avatar-edit-btn"
+                onClick={handleOpenEditProfile}
+                title="Change avatar & edit profile"
+                aria-label="Change avatar & edit profile"
+              >
+                <Pencil size={13} />
+              </button>
             </div>
 
-            {profileMessage && (
-              <div
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: "8px",
-                  fontSize: "12.5px",
-                  marginBottom: "14px",
-                  background: profileMessage.type === "success" ? "#f0fdf4" : "#fef2f2",
-                  color: profileMessage.type === "success" ? "#166534" : "#b91c1c",
-                  border: `1px solid ${profileMessage.type === "success" ? "#bbf7d0" : "#fecaca"}`,
-                }}
+            {/* Name */}
+            <h3 className="dash-user-name">{displayName}</h3>
+
+            {/* Role Badge */}
+            <div className="dash-role-pill">
+              <Compass size={13} color="#bbf2a3" />
+              <span>Traveller</span>
+            </div>
+          </div>
+
+          {/* =========================================================
+              CARD 2: MY PROFILE (CENTER)
+              Contact info, verified email badge, and link phone
+             ========================================================= */}
+          <div className="dash-card-profile">
+            <div className="dash-card-header">
+              <div className="dash-card-header-left">
+                <div className="dash-card-header-icon">
+                  <User size={20} />
+                </div>
+                <div>
+                  <h3 className="dash-card-title">My Profile</h3>
+                  <p className="dash-card-subtitle">
+                    Traveller Contact Information
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="dash-btn-edit-profile"
+                onClick={handleOpenEditProfile}
               >
-                {profileMessage.text}
+                <Edit2 size={13} />
+                <span>Edit Profile</span>
+              </button>
+            </div>
+
+            <div className="dash-profile-rows">
+              {/* Full Name */}
+              <div className="dash-profile-row">
+                <div className="dash-row-left">
+                  <div className="dash-row-icon">
+                    <User size={16} />
+                  </div>
+                  <div className="dash-row-info">
+                    <div className="dash-row-label">Full Name</div>
+                    <div className="dash-row-value">{displayName}</div>
+                  </div>
+                </div>
               </div>
-            )}
 
-            {profileLoading ? (
-              <div style={{ padding: "20px 0", textAlign: "center", color: "#64748b" }}>
-                <Loader2 size={20} className="spin-animate" />
-                <p style={{ margin: "8px 0 0", fontSize: "13px" }}>Loading profile details...</p>
-              </div>
-            ) : isEditingProfile ? (
-              <form onSubmit={handleSaveProfile}>
-                <div style={{ marginBottom: "14px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "11.5px",
-                      fontWeight: 700,
-                      color: "#475569",
-                      textTransform: "uppercase",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      border: "1.5px solid #dce4dc",
-                      borderRadius: "8px",
-                      fontSize: "13.5px",
-                      boxSizing: "border-box",
-                      outline: "none",
-                    }}
-                    required
-                  />
+              {/* Email Address */}
+              <div className="dash-profile-row dash-profile-row-email">
+                <div className="dash-row-left">
+                  <div className="dash-row-icon">
+                    <Mail size={16} />
+                  </div>
+                  <div className="dash-row-info">
+                    <div className="dash-row-label-row">
+                      <span className="dash-row-label">Email Address</span>
+                      {isEmailVerified && (
+                        <span className="dash-verified-badge dash-verified-badge-label">
+                          <Check size={11} strokeWidth={3} />
+                          <span>Verified</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="dash-row-value dash-row-value-email">
+                      {profile?.email || "shaileshkatharki@gmail.com"}
+                    </div>
+                  </div>
                 </div>
-
-                <div style={{ marginBottom: "14px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "11.5px",
-                      fontWeight: 700,
-                      color: "#475569",
-                      textTransform: "uppercase",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={profileEmail}
-                    onChange={(e) => setProfileEmail(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      border: "1.5px solid #dce4dc",
-                      borderRadius: "8px",
-                      fontSize: "13.5px",
-                      boxSizing: "border-box",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: "14px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "11.5px",
-                      fontWeight: 700,
-                      color: "#475569",
-                      textTransform: "uppercase",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={profilePhone}
-                    onChange={(e) => setProfilePhone(e.target.value)}
-                    placeholder="+91 XXXXX XXXXX"
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      border: "1.5px solid #dce4dc",
-                      borderRadius: "8px",
-                      fontSize: "13.5px",
-                      boxSizing: "border-box",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
+                {!isEmailVerified && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsEditingProfile(false);
-                      setProfileName(profile?.name || "");
-                      setProfileEmail(profile?.email || "");
-                      setProfilePhone(profile?.phone || "");
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: "10px",
-                      background: "#f1f5f2",
-                      border: "1px solid #dce4dc",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "#475569",
-                      cursor: "pointer",
-                    }}
+                    className="dash-btn-action-pill"
+                    onClick={handleResendEmailVerification}
+                    disabled={resendingVerification || verificationSent}
                   >
-                    Cancel
+                    {verificationSent
+                      ? "Link Sent!"
+                      : resendingVerification
+                      ? "Sending..."
+                      : "Verify Now"}
                   </button>
-                  <button
-                    type="submit"
-                    disabled={profileSaving}
-                    style={{
-                      flex: 1,
-                      padding: "10px",
-                      background: "linear-gradient(135deg, #164e23 0%, #227938 100%)",
-                      border: "none",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "#ffffff",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    {profileSaving ? (
-                      <Loader2 size={14} className="spin-animate" />
-                    ) : (
-                      <>
-                        <Save size={14} />
-                        <span>Save Changes</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>
-                    Full Name
-                  </span>
-                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>
-                    {profile?.name || "Traveller"}
-                  </p>
-                </div>
+                )}
+              </div>
 
-                <div>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>
-                    Email Address
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
-                    <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>
-                      {profile?.email || "No email registered"}
-                    </p>
-                    {isEmailVerified && (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          padding: "2px 8px",
-                          background: "#eaf3ec",
-                          color: "#166534",
-                          borderRadius: "12px",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        <ShieldCheck size={12} />
-                        Verified
-                      </span>
-                    )}
+              {/* Phone Number */}
+              <div className="dash-profile-row">
+                <div className="dash-row-left">
+                  <div className="dash-row-icon">
+                    <Phone size={16} />
+                  </div>
+                  <div className="dash-row-info">
+                    <div className="dash-row-label">Phone Number</div>
+                    <div className="dash-row-value">
+                      {profile?.phone || "Not linked"}
+                    </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  className="dash-btn-action-pill"
+                  onClick={handleOpenEditProfile}
+                >
+                  {profile?.phone ? "Change" : "Link Now"}
+                </button>
+              </div>
+            </div>
+          </div>
 
+          {/* =========================================================
+              CARD 3: MY EXPEDITIONS & BOOKINGS (RIGHT)
+              Detailed camping illustration & empty/populated bookings
+             ========================================================= */}
+          <div id="my-bookings" className="dash-card-bookings">
+            <div className="dash-card-header">
+              <div className="dash-card-header-left">
+                <div className="dash-card-header-icon">
+                  <Luggage size={20} />
+                </div>
                 <div>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>
-                    Phone Number
-                  </span>
-                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>
-                    {profile?.phone || "Not linked"}
+                  <h3 className="dash-card-title">My Expeditions &amp; Bookings</h3>
+                  <p className="dash-card-subtitle">
+                    Confirmed departures linked to your account
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {bookingsError && (
+              <div className="dash-alert error" style={{ margin: "10px 14px" }}>
+                <AlertCircle size={15} />
+                <span>{bookingsError}</span>
+              </div>
+            )}
+
+            {bookingsLoading ? (
+              <div className="dash-empty-bookings">
+                <Loader2 size={24} className="spin-animate" color="#166534" />
+                <p style={{ marginTop: "10px", fontSize: "13px", color: "#647568" }}>
+                  Loading your expeditions...
+                </p>
+              </div>
+            ) : bookings.length === 0 ? (
+              <div className="dash-empty-bookings">
+                {/* =========================================================
+                    EXACT CAMPING TENT & MOUNTAIN SCENE ILLUSTRATION
+                    Layered peaks, 3 pines left, 3 pines right, glowing A-frame tent
+                   ========================================================= */}
+                <svg
+                  viewBox="0 0 200 96"
+                  fill="none"
+                  className="dash-tent-scene"
+                  aria-hidden="true"
+                >
+                  {/* Subtle Rising Sun Glow */}
+                  <circle cx="152" cy="30" r="14" fill="#fde68a" opacity="0.7" />
+                  <circle cx="152" cy="30" r="22" fill="#fef08a" opacity="0.3" />
+
+                  {/* Distant Mountain Peak (Left) */}
+                  <polygon points="18,84 62,32 108,84" fill="#a7d8ba" opacity="0.45" />
+
+                  {/* Main Mountain Peak (Center-Back) */}
+                  <polygon points="50,84 100,16 150,84" fill="#88c49e" opacity="0.65" />
+                  {/* Mountain Snow Peak Tip */}
+                  <polygon points="90,32 100,16 110,32 105,30 100,34 95,29" fill="#ffffff" opacity="0.85" />
+
+                  {/* Distant Mountain Peak (Right) */}
+                  <polygon points="112,84 154,34 194,84" fill="#9cd2b0" opacity="0.5" />
+
+                  {/* Rolling Grassy Hill Mound */}
+                  <ellipse cx="100" cy="85" rx="88" ry="14" fill="#cbe6ce" />
+
+                  {/* --- 3 TIERED PINE TREES (LEFT) --- */}
+                  {/* Tree 1 (Back, Tall) */}
+                  <polygon points="34,84 41,52 48,84" fill="#144e23" />
+                  <polygon points="36,68 41,52 46,68" fill="#1b5e2b" />
+                  {/* Tree 2 (Middle) */}
+                  <polygon points="46,84 53,44 60,84" fill="#0d3b19" />
+                  <polygon points="48,64 53,44 58,64" fill="#165625" />
+                  {/* Tree 3 (Front, Shorter) */}
+                  <polygon points="58,84 64,56 70,84" fill="#1f7134" />
+                  <polygon points="60,72 64,56 68,72" fill="#298a41" />
+
+                  {/* --- 3 TIERED PINE TREES (RIGHT) --- */}
+                  {/* Tree 4 (Front) */}
+                  <polygon points="130,84 136,54 142,84" fill="#1f7134" />
+                  <polygon points="132,70 136,54 140,70" fill="#298a41" />
+                  {/* Tree 5 (Middle) */}
+                  <polygon points="140,84 147,42 154,84" fill="#0d3b19" />
+                  <polygon points="142,62 147,42 152,62" fill="#165625" />
+                  {/* Tree 6 (Back, Tall) */}
+                  <polygon points="152,84 159,50 166,84" fill="#144e23" />
+                  <polygon points="154,66 159,50 164,66" fill="#1b5e2b" />
+
+                  {/* --- CLASSIC A-FRAME CAMPING TENT (CENTER) --- */}
+                  {/* Tent Shadow on Ground */}
+                  <ellipse cx="100" cy="85" rx="28" ry="4" fill="#9bbd9e" opacity="0.6" />
+
+                  {/* Tent Left Flap (Bright Warm Orange) */}
+                  <polygon points="76,84 100,42 100,84" fill="#f97316" />
+                  {/* Tent Right Flap (Rich Sunset Rust Orange) */}
+                  <polygon points="100,42 124,84 100,84" fill="#ea580c" />
+                  {/* Tent Side Wall / Roof Angle */}
+                  <polygon points="100,42 124,84 114,84 94,42" fill="#c2410c" opacity="0.3" />
+
+                  {/* Tent Front Triangular Opening (Luminous Warm Glow) */}
+                  <polygon points="86,84 100,56 114,84" fill="#fef08a" />
+                  {/* Tent Inner Dark Depth */}
+                  <polygon points="94,84 100,66 106,84" fill="#78350f" opacity="0.75" />
+
+                  {/* Front Crossed Tent Poles (Charcoal) */}
+                  <line x1="82" y1="84" x2="103" y2="38" stroke="#1f2937" strokeWidth="2.5" strokeLinecap="round" />
+                  <line x1="118" y1="84" x2="97" y2="38" stroke="#1f2937" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+
+                <h4 className="dash-empty-title">No bookings found</h4>
+                <p className="dash-empty-desc">
+                  You haven't reserved any trips with this account yet.
+                </p>
+                <Link to="/trips" className="dash-btn-browse">
+                  <span>Browse All Trips</span>
+                  <ArrowRight size={15} />
+                </Link>
+              </div>
+            ) : (
+              <div className="dash-bookings-list">
+                {bookings.map((b) => (
+                  <div key={b._id} className="dash-booking-item">
+                    <div className="dash-booking-item-left">
+                      {b.trip?.image && (
+                        <img
+                          src={b.trip.image}
+                          alt={b.trip.title || "Trip"}
+                          className="dash-booking-thumb"
+                        />
+                      )}
+                      <div>
+                        <h5 className="dash-booking-trip-title">
+                          {b.trip?.title || "Upcoming Expedition"}
+                        </h5>
+                        <div className="dash-booking-meta">
+                          <span>{b.date || "Date TBA"}</span>
+                          <span>•</span>
+                          <span>{b.travellers || 1} Traveller(s)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`dash-status-pill ${
+                        b.status === "confirmed"
+                          ? "dash-status-confirmed"
+                          : "dash-status-pending"
+                      }`}
+                    >
+                      {b.status || "confirmed"}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+        </div>
 
-          {/* Bookings Section ("My Trips") */}
-          <div style={{ gridColumn: "span 2" }}>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: "16px",
-                padding: "24px",
-                boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  paddingBottom: "16px",
-                  borderBottom: "1px solid #f1f5f9",
-                  marginBottom: "20px",
-                }}
-              >
-                <div>
-                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
-                    My Expeditions &amp; Bookings
-                  </h2>
-                  <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-                    Confirmed departures linked to your account
-                  </span>
-                </div>
-
-                <span
-                  style={{
-                    padding: "4px 12px",
-                    background: "#f1f5f9",
-                    borderRadius: "20px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#475569",
-                  }}
-                >
-                  {bookings.length} {bookings.length === 1 ? "Booking" : "Bookings"}
-                </span>
-              </div>
-
-              {bookingsLoading ? (
-                <div style={{ padding: "40px 0", textAlign: "center", color: "#64748b" }}>
-                  <Loader2 size={24} className="spin-animate" />
-                  <p style={{ margin: "10px 0 0", fontSize: "13.5px" }}>Loading your trip records...</p>
-                </div>
-              ) : bookingsError ? (
-                <div
-                  style={{
-                    padding: "20px",
-                    background: "#fef2f2",
-                    borderRadius: "12px",
-                    color: "#b91c1c",
-                    fontSize: "13.5px",
-                  }}
-                >
-                  {bookingsError}
-                </div>
-              ) : bookings.length === 0 ? (
-                <div style={{ padding: "48px 20px", textAlign: "center" }}>
-                  <div
-                    style={{
-                      width: "60px",
-                      height: "60px",
-                      borderRadius: "50%",
-                      background: "#eef6eb",
-                      color: "#164e23",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      margin: "0 auto 16px",
-                    }}
-                  >
-                    <Compass size={28} />
-                  </div>
-                  <h3 style={{ fontSize: "17px", fontWeight: 700, color: "#0f172a", margin: "0 0 6px" }}>
-                    No bookings found
-                  </h3>
-                  <p style={{ fontSize: "13.5px", color: "#64748b", margin: "0 0 20px", maxWidth: "420px", marginInline: "auto" }}>
-                    You haven't reserved any trips with this account yet. Check out our upcoming departures and embark on your next journey!
-                  </p>
-                  <Link
-                    to="/trips"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "11px 22px",
-                      background: "linear-gradient(135deg, #164e23 0%, #206d32 100%)",
-                      color: "#ffffff",
-                      borderRadius: "30px",
-                      fontSize: "13.5px",
-                      fontWeight: 700,
-                      textDecoration: "none",
-                      boxShadow: "0 4px 12px rgba(22, 78, 35, 0.2)",
-                    }}
-                  >
-                    <span>Browse All Trips</span>
-                    <ArrowRight size={16} />
-                  </Link>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {bookings.map((b) => (
-                    <div
-                      key={b._id}
-                      style={{
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "12px",
-                        padding: "18px 20px",
-                        background: "#fbfdfb",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        flexWrap: "wrap",
-                        gap: "16px",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: "240px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              background: "#eaf3ec",
-                              color: "#166534",
-                              borderRadius: "6px",
-                              fontSize: "11.5px",
-                              fontWeight: 700,
-                              letterSpacing: "0.5px",
-                            }}
-                          >
-                            {b.bookingCode || "CONFIRMED"}
-                          </span>
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              background: b.paymentStatus === "Paid" ? "#dcfce7" : "#fef3c7",
-                              color: b.paymentStatus === "Paid" ? "#166534" : "#92400e",
-                              borderRadius: "6px",
-                              fontSize: "11.5px",
-                              fontWeight: 700,
-                            }}
-                          >
-                            {b.paymentStatus === "Paid" ? "Payment Paid" : b.paymentStatus || "Pending"}
-                          </span>
-                        </div>
-
-                        <h4 style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a", margin: "0 0 6px" }}>
-                          {b.trip?.title || "Upcoming Expedition"}
-                        </h4>
-
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "14px", fontSize: "12.5px", color: "#64748b" }}>
-                          {b.trip?.location && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                              <MapPin size={13} color="#164e23" />
-                              <span>{b.trip.location}</span>
-                            </div>
-                          )}
-
-                          {b.date && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                              <Calendar size={13} color="#164e23" />
-                              <span>
-                                {new Date(b.date).toLocaleDateString("en-IN", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                })}
-                              </span>
-                            </div>
-                          )}
-
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                            <Users size={13} color="#164e23" />
-                            <span>{b.travellers} {b.travellers === 1 ? "Traveller" : "Travellers"}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: "right" }}>
-                        <span style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", display: "block" }}>
-                          Total Amount
-                        </span>
-                        <span style={{ fontSize: "18px", fontWeight: 800, color: "#0d2b17" }}>
-                          ₹{Number(b.total || 0).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {/* =========================================================
+            FEATURE HIGHLIGHTS RIBBON BAR
+            Exact pill shape, 5 features, dividers, and right map pin
+           ========================================================= */}
+        <section className="dash-ribbon" aria-label="Dashboard Features">
+          {/* 1. Discover */}
+          <div className="dash-ribbon-item">
+            <Mountain size={22} className="dash-ribbon-icon" />
+            <div className="dash-ribbon-text">
+              <span className="dash-ribbon-label-top">Discover</span>
+              <span className="dash-ribbon-label-bottom">Curated Trips</span>
             </div>
           </div>
-        </div>
+
+          <div className="dash-ribbon-divider" aria-hidden="true" />
+
+          {/* 2. Manage */}
+          <div className="dash-ribbon-item">
+            <CalendarCheck size={22} className="dash-ribbon-icon" />
+            <div className="dash-ribbon-text">
+              <span className="dash-ribbon-label-top">Manage</span>
+              <span className="dash-ribbon-label-bottom">Your Bookings</span>
+            </div>
+          </div>
+
+          <div className="dash-ribbon-divider" aria-hidden="true" />
+
+          {/* 3. Update */}
+          <div className="dash-ribbon-item">
+            <UserCheck size={22} className="dash-ribbon-icon" />
+            <div className="dash-ribbon-text">
+              <span className="dash-ribbon-label-top">Update</span>
+              <span className="dash-ribbon-label-bottom">Your Profile</span>
+            </div>
+          </div>
+
+          <div className="dash-ribbon-divider" aria-hidden="true" />
+
+          {/* 4. Get */}
+          <div className="dash-ribbon-item">
+            <Bell size={22} className="dash-ribbon-icon" />
+            <div className="dash-ribbon-text">
+              <span className="dash-ribbon-label-top">Get</span>
+              <span className="dash-ribbon-label-bottom">Trip Updates</span>
+            </div>
+          </div>
+
+          <div className="dash-ribbon-divider" aria-hidden="true" />
+
+          {/* 5. Exclusive */}
+          <div className="dash-ribbon-item">
+            <Percent size={22} className="dash-ribbon-icon" />
+            <div className="dash-ribbon-text">
+              <span className="dash-ribbon-label-top">Exclusive</span>
+              <span className="dash-ribbon-label-bottom">Traveller Offers</span>
+            </div>
+          </div>
+
+          {/* Far Right Green Destination Pin */}
+          <svg
+            className="dash-ribbon-pin"
+            width="22"
+            height="26"
+            viewBox="0 0 24 28"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 0 C5.37 0 0 5.37 0 12 C0 19.5 10.5 27.2 11.2 27.7 C11.6 28 12.4 28 12.8 27.7 C13.5 27.2 24 19.5 24 12 C24 5.37 18.63 0 12 0 Z"
+              fill="#166534"
+            />
+            <circle cx="12" cy="11" r="4.5" fill="#ffffff" />
+          </svg>
+        </section>
+      </main>
+
+      {/* =========================================================
+          BOTTOM LANDSCAPE DRAWING (EDGE-TO-EDGE)
+          Exact user-provided drawing extending 100% full width
+         ========================================================= */}
+      <div className="dash-bottom-decor-edge-to-edge" aria-hidden="true">
+        <img
+          src={bottomDrawingImg}
+          alt=""
+          className="dash-bottom-decor-img"
+        />
       </div>
+
+      {/* ===========================
+          EDIT PROFILE MODAL
+          =========================== */}
+      {isEditingProfile && (
+        <div
+          className="dash-modal-backdrop"
+          onClick={() => setIsEditingProfile(false)}
+        >
+          <div className="dash-modal-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="dash-modal-close"
+              onClick={() => setIsEditingProfile(false)}
+              aria-label="Close edit profile modal"
+            >
+              <X size={18} />
+            </button>
+
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 800,
+                color: "#162d1c",
+                margin: "0 0 4px",
+              }}
+            >
+              Edit Traveller Profile
+            </h3>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#647568",
+                margin: "0 0 20px",
+              }}
+            >
+              Update your contact details to receive departure &amp; booking
+              updates.
+            </p>
+
+            <form onSubmit={handleSaveProfile}>
+              {/* CHOOSE AVATAR */}
+              <div className="dash-form-group">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <label className="dash-form-label" style={{ margin: 0 }}>
+                    Choose Avatar
+                  </label>
+                  {selectedAvatar && (
+                    <button
+                      type="button"
+                      className="dash-btn-clear-avatar"
+                      onClick={() => setSelectedAvatar("")}
+                    >
+                      Reset to default
+                    </button>
+                  )}
+                </div>
+                <div className="dash-avatar-picker-grid">
+                  {AVATAR_PRESETS.map((av) => {
+                    const isSelected = selectedAvatar === av.url;
+                    return (
+                      <button
+                        type="button"
+                        key={av.id}
+                        className={`dash-avatar-option-btn ${isSelected ? "selected" : ""}`}
+                        onClick={() => setSelectedAvatar(av.url)}
+                        title={av.name}
+                        aria-label={`Select ${av.name} avatar`}
+                      >
+                        <img
+                          src={av.url}
+                          alt={av.name}
+                          className="dash-avatar-option-img"
+                        />
+                        {isSelected && (
+                          <span className="dash-avatar-check-badge">
+                            <Check size={10} strokeWidth={3} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label" htmlFor="edit-name">
+                  Full Name
+                </label>
+                <input
+                  id="edit-name"
+                  type="text"
+                  className="dash-input"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  placeholder="e.g. Shailesh Katharki"
+                  required
+                />
+              </div>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label" htmlFor="edit-email">
+                  Email Address
+                </label>
+                <input
+                  id="edit-email"
+                  type="email"
+                  className="dash-input"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  placeholder="e.g. traveller@example.com"
+                  required
+                />
+              </div>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label" htmlFor="edit-phone">
+                  Phone Number
+                </label>
+                <input
+                  id="edit-phone"
+                  type="tel"
+                  className="dash-input"
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="+91 9876543210"
+                />
+              </div>
+
+              <div className="dash-modal-actions">
+                <button
+                  type="button"
+                  className="dash-btn-cancel"
+                  onClick={() => setIsEditingProfile(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="dash-btn-save"
+                  disabled={profileSaving}
+                >
+                  {profileSaving ? (
+                    <>
+                      <Loader2 size={16} className="spin-animate" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1016,7 +1016,7 @@ app.get("/customer/verify", authMiddleware, async (req, res) => {
     const customer = await User.findOne({
       _id: req.user.id,
       role: "customer",
-    }).select("name email phone");
+    }).select("name email phone photoUrl");
 
     if (!customer) {
       return res.status(404).json({
@@ -1032,6 +1032,7 @@ app.get("/customer/verify", authMiddleware, async (req, res) => {
         name: customer.name,
         email: customer.email || "",
         phone: customer.phone,
+        photoUrl: customer.photoUrl || "",
       },
     });
   } catch (error) {
@@ -1053,7 +1054,7 @@ app.put("/customer/profile", authMiddleware, async (req, res) => {
       });
     }
 
-    const { name, email, phone } = req.body;
+    const { name, email, phone, photoUrl } = req.body;
 
     if (typeof name !== "string" || !name.trim()) {
       return res.status(400).json({
@@ -1103,6 +1104,10 @@ app.put("/customer/profile", authMiddleware, async (req, res) => {
       customer.phone = phone.trim() || undefined;
     }
 
+    if (photoUrl !== undefined) {
+      customer.photoUrl = typeof photoUrl === "string" ? photoUrl.trim() : "";
+    }
+
     await customer.save();
 
     return res.json({
@@ -1113,6 +1118,7 @@ app.put("/customer/profile", authMiddleware, async (req, res) => {
         name: customer.name,
         email: customer.email || "",
         phone: customer.phone,
+        photoUrl: customer.photoUrl || "",
       },
     });
   } catch (error) {

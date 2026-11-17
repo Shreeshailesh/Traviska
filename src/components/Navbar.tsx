@@ -1,7 +1,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Search, ChevronRight, User, LogOut, LayoutDashboard, ChevronDown } from "lucide-react";
+import { Search, ChevronRight, User, LogOut, LayoutDashboard, ChevronDown, Bell } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import logo from "../assets/logo.jpg";
@@ -11,7 +11,7 @@ function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [customer, setCustomer] = useState<{ id?: string; name?: string; phone?: string } | null>(null);
+  const [customer, setCustomer] = useState<{ id?: string; name?: string; phone?: string; photoUrl?: string } | null>(null);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -88,10 +88,10 @@ function Navbar() {
     }
   };
 
-  const isHome = location.pathname === "/";
+  const isTransparent = location.pathname === "/" || location.pathname === "/customer/dashboard";
 
   return (
-    <nav className={`navbar ${scrolled ? "scrolled" : ""} ${isHome && !scrolled ? "navbar-transparent" : ""}`}>
+    <nav className={`navbar ${scrolled ? "scrolled" : ""} ${isTransparent && !scrolled ? "navbar-transparent" : ""}`}>
       {/* LOGO */}
       <Link to="/" className="logo-section">
         <img src={logo} alt="Traviska" className="logo-img" />
@@ -119,17 +119,39 @@ function Navbar() {
         </button>
       </div>
 
-      {/* HAMBURGER */}
-      <button
-        type="button"
-        className="menu-toggle"
-        aria-label={menuOpen ? "Close menu" : "Open menu"}
-        aria-expanded={menuOpen}
-        aria-controls="traviska-nav-links"
-        onClick={() => setMenuOpen(!menuOpen)}
-      >
-        {menuOpen ? "✕" : "☰"}
-      </button>
+      {/* MOBILE ACTIONS & HAMBURGER */}
+      <div className="nav-mobile-right-actions">
+        {customer && (
+          <div className="nav-mobile-bell-wrap" title="Notifications">
+            <Bell size={21} color="#ffffff" strokeWidth={2} />
+            <span className="nav-bell-dot">1</span>
+          </div>
+        )}
+        <button
+          type="button"
+          className={`menu-toggle ${customer && !menuOpen ? "menu-toggle-avatar" : ""}`}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          aria-controls="traviska-nav-links"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          {menuOpen ? (
+            "✕"
+          ) : customer ? (
+            customer.photoUrl ? (
+              <img
+                src={customer.photoUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+              />
+            ) : (
+              <User size={19} color="#ffffff" />
+            )
+          ) : (
+            "☰"
+          )}
+        </button>
+      </div>
 
       {/* NAV LINKS */}
       <div
@@ -179,7 +201,15 @@ function Navbar() {
                 aria-expanded={userDropdownOpen}
               >
                 <div className="nav-customer-avatar">
-                  <User size={15} />
+                  {customer.photoUrl ? (
+                    <img
+                      src={customer.photoUrl}
+                      alt=""
+                      style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <User size={15} />
+                  )}
                 </div>
                 <span className="nav-customer-name">
                   {customer.name && customer.name !== "Customer"
