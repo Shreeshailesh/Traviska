@@ -177,12 +177,39 @@ export default function CustomerLogin() {
       navigate(redirectUrl, { replace: true });
     } catch (err: any) {
       console.error("Email sign in error:", err);
+
+      // Seamless Admin Login Fallback:
+      // If user typed admin credentials on the traveller login page, authenticate via Admin backend
+      try {
+        const adminRes = await fetch(`${API_BASE_URL}/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password: password.trim(),
+          }),
+        });
+        const adminData = await adminRes.json();
+        if (adminRes.ok && adminData.success && adminData.user?.role === "admin" && adminData.token) {
+          localStorage.setItem("token", adminData.token);
+          localStorage.setItem("isAdmin", "true");
+          navigate("/admin", { replace: true });
+          return;
+        }
+      } catch (adminFallbackErr) {
+        // Continue to display standard error if backend admin check also fails
+      }
+
       if (
         err?.code === "auth/invalid-credential" ||
         err?.code === "auth/wrong-password" ||
         err?.code === "auth/user-not-found"
       ) {
-        setError("Invalid email or password. Please verify your credentials.");
+        if (cleanEmail.includes("admin")) {
+          setError("Invalid admin credentials. Please verify your password or visit the Admin Portal at /admin/login.");
+        } else {
+          setError("Invalid email or password. Please verify your credentials.");
+        }
       } else if (err?.code === "auth/too-many-requests") {
         setError("Too many failed attempts. Please wait a moment or reset your password.");
       } else {
@@ -589,6 +616,31 @@ export default function CustomerLogin() {
             <Compass size={14} color="#164e23" />
             <span>Official Traviska Portal</span>
           </div>
+        </div>
+
+        {/* Quick Link to Admin Login */}
+        <div
+          style={{
+            marginTop: "16px",
+            paddingTop: "14px",
+            borderTop: "1px dashed #e2e8f0",
+            textAlign: "center",
+          }}
+        >
+          <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+            Admin or Operations Team?{" "}
+          </span>
+          <Link
+            to="/admin/login"
+            style={{
+              fontSize: "12.5px",
+              fontWeight: 600,
+              color: "#164e23",
+              textDecoration: "none",
+            }}
+          >
+            Admin Login &rarr;
+          </Link>
         </div>
       </div>
 
