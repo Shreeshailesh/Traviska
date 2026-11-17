@@ -169,62 +169,64 @@ function Navbar() {
         </Link>
 
         {/* CUSTOMER AUTHENTICATION (Desktop) */}
-        {customer ? (
-          <div className="nav-customer-menu-wrap" ref={userDropdownRef}>
-            <button
-              type="button"
-              className="nav-customer-pill"
-              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-              aria-expanded={userDropdownOpen}
-            >
-              <div className="nav-customer-avatar">
-                <User size={15} />
-              </div>
-              <span className="nav-customer-name">
-                {customer.name && customer.name !== "Customer"
-                  ? customer.name.split(" ")[0]
-                  : customer.phone || "Account"}
-              </span>
-              <ChevronDown size={14} className={`nav-customer-arrow ${userDropdownOpen ? "open" : ""}`} />
-            </button>
-
-            {userDropdownOpen && (
-              <div className="nav-customer-dropdown">
-                <div className="nav-dropdown-profile-header">
-                  <span className="nav-dropdown-title">
-                    {customer.name && customer.name !== "Customer" ? customer.name : "Traveller"}
-                  </span>
-                  <span className="nav-dropdown-phone">{customer.phone}</span>
+        <div className="nav-desktop-auth">
+          {customer ? (
+            <div className="nav-customer-menu-wrap" ref={userDropdownRef}>
+              <button
+                type="button"
+                className="nav-customer-pill"
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                aria-expanded={userDropdownOpen}
+              >
+                <div className="nav-customer-avatar">
+                  <User size={15} />
                 </div>
-                <Link
-                  to="/customer/dashboard"
-                  className="nav-dropdown-link"
-                  onClick={() => setUserDropdownOpen(false)}
-                >
-                  <LayoutDashboard size={15} />
-                  <span>Dashboard &amp; Bookings</span>
-                </Link>
-                <button
-                  type="button"
-                  className="nav-dropdown-link nav-dropdown-logout"
-                  onClick={handleLogout}
-                >
-                  <LogOut size={15} />
-                  <span>Logout</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <Link
-            to="/login"
-            className="nav-customer-login-btn"
-            onClick={() => setMenuOpen(false)}
-          >
-            <User size={15} />
-            <span>Login</span>
-          </Link>
-        )}
+                <span className="nav-customer-name">
+                  {customer.name && customer.name !== "Customer"
+                    ? customer.name.split(" ")[0]
+                    : customer.phone || "Account"}
+                </span>
+                <ChevronDown size={14} className={`nav-customer-arrow ${userDropdownOpen ? "open" : ""}`} />
+              </button>
+
+              {userDropdownOpen && (
+                <div className="nav-customer-dropdown">
+                  <div className="nav-dropdown-profile-header">
+                    <span className="nav-dropdown-title">
+                      {customer.name && customer.name !== "Customer" ? customer.name : "Traveller"}
+                    </span>
+                    <span className="nav-dropdown-phone">{customer.phone}</span>
+                  </div>
+                  <Link
+                    to="/customer/dashboard"
+                    className="nav-dropdown-link"
+                    onClick={() => setUserDropdownOpen(false)}
+                  >
+                    <LayoutDashboard size={15} />
+                    <span>Dashboard &amp; Bookings</span>
+                  </Link>
+                  <button
+                    type="button"
+                    className="nav-dropdown-link nav-dropdown-logout"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={15} />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className="nav-customer-login-btn"
+              onClick={() => setMenuOpen(false)}
+            >
+              <User size={15} />
+              <span>Login</span>
+            </Link>
+          )}
+        </div>
 
         {/* CUSTOMER SECTION IN MOBILE MENU */}
         {menuOpen && (
@@ -259,7 +261,7 @@ function Navbar() {
                 onClick={() => setMenuOpen(false)}
               >
                 <User size={16} />
-                <span>Customer Login / Register</span>
+                <span>Login</span>
               </Link>
             )}
           </div>

@@ -384,11 +384,20 @@
   display: none;
 }
 
+.nav-desktop-auth {
+  display: flex;
+  align-items: center;
+}
+
 /* ===========================
    MOBILE RESPONSIVE
    =========================== */
 
 @media (max-width: 900px) {
+  .nav-desktop-auth {
+    display: none !important;
+  }
+
   .navbar {
     padding: 12px 20px;
   }
