@@ -3,13 +3,13 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBVjgjccqW_FuQOl0sl_bViFxTqMCkYcP4",
-  authDomain: "traviska-118d4.firebaseapp.com",
-  projectId: "traviska-118d4",
-  storageBucket: "traviska-118d4.firebasestorage.app",
-  messagingSenderId: "171948552359",
-  appId: "1:171948552359:web:7926449799dca3ae90eb82",
-  measurementId: "G-6672F7HJLD",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBVjgjccqW_FuQOl0sl_bViFxTqMCkYcP4",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "auth.traviska.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "traviska-118d4",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "traviska-118d4.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "171948552359",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:171948552359:web:7926449799dca3ae90eb82",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-6672F7HJLD",
 };
 
 // Initialize Firebase only once
