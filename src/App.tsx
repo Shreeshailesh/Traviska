@@ -51,7 +51,9 @@ import { SuperAdminDashboard } from "./superAdmin/pages/SuperAdminDashboard";
 import { SuperAdminUsers } from "./superAdmin/pages/SuperAdminUsers";
 import { SuperAdminTeams } from "./superAdmin/pages/SuperAdminTeams";
 import { SuperAdminEmails } from "./superAdmin/pages/SuperAdminEmails";
+import { SuperAdminPipeline } from "./superAdmin/pages/SuperAdminPipeline";
 import { SuperAdminActivityLogs } from "./superAdmin/pages/SuperAdminActivityLogs";
+import { SuperAdminSettings } from "./superAdmin/pages/SuperAdminSettings";
 import { StaffRegister } from "./pages/StaffRegister";
 
 function AppContent() {
@@ -166,9 +168,11 @@ function AppContent() {
     <Route index element={<SuperAdminDashboard />} />
     <Route path="dashboard" element={<SuperAdminDashboard />} />
     <Route path="users" element={<SuperAdminUsers />} />
-    <Route path="teams" element={<SuperAdminTeams />} />
     <Route path="emails" element={<SuperAdminEmails />} />
+    <Route path="teams" element={<SuperAdminTeams />} />
+    <Route path="pipeline" element={<SuperAdminPipeline />} />
     <Route path="activity-logs" element={<SuperAdminActivityLogs />} />
+    <Route path="settings" element={<SuperAdminSettings />} />
   </Route>
 
   {/* Staff Self-Service Registration */}

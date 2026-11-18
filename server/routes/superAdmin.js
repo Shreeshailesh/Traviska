@@ -105,6 +105,20 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       const effectiveLost = totalEnquiries > 0 ? lostEnquiries : 10;
       const effectiveTotalLeads = effectiveNew + effectiveInProgress + effectiveProposal + effectiveConfirmed + effectiveLost;
 
+      // Calculate real collected revenue from paid bookings
+      const paidBookings = await Booking.find({
+        paymentStatus: "Paid",
+        status: { $ne: "Cancelled" },
+      }).lean();
+
+      let totalCollectedRevenue = 0;
+      for (const b of paidBookings) {
+        const amt = Number.isFinite(Number(b.amountPaid)) && b.amountPaid !== undefined && b.amountPaid !== null
+          ? Number(b.amountPaid)
+          : Number(b.total) || 0;
+        totalCollectedRevenue += amt;
+      }
+
       const emailAccounts = staffMembers + pendingInvites;
 
       const teamOverview = teams.map((t) => ({
@@ -217,6 +231,8 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
           pendingInvites: pendingInvites > 0 ? pendingInvites : 6,
           openLeads: effectiveOpenLeads,
           dealsThisMonth: "₹12,99,000",
+          collectedRevenue: totalCollectedRevenue,
+          collectedRevenueFormatted: `₹${totalCollectedRevenue.toLocaleString("en-IN")}`,
         },
         pipelineOverview: {
           total: effectiveTotalLeads,
@@ -477,11 +493,6 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
           customers: totalCustomerCount,
         },
       });
-    } catch (err) {
-      console.error("Super Admin users fetch error:", err);
-      res.status(500).json({ success: false, message: "Failed to fetch users" });
-    }
-  });
     } catch (err) {
       console.error("Super Admin users fetch error:", err);
       res.status(500).json({ success: false, message: "Failed to fetch users" });

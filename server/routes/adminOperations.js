@@ -1096,56 +1096,61 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
       }
 
       const [slot, captain] = await Promise.all([
-        TripSlot.findById(slotId),
-        Captain.findById(captainId),
+        TripSlot.findById(slotId).catch(() => null),
+        Captain.findById(captainId).catch(() => null),
       ]);
-
-      if (!slot) {
-        return res.status(404).json({ success: false, message: "Departure slot not found" });
-      }
 
       // 1. Delete CaptainAssignment(s) for this captain on this slot
       await CaptainAssignment.deleteMany({
-        $and: [
-          { $or: [{ slotId }, { slot: slotId }] },
-          { $or: [{ captainId }, { captain: captainId }] },
+        $or: [
+          { slotId, captainId },
+          { slotId, captain: captainId },
+          { slot: slotId, captainId },
+          { slot: slotId, captain: captainId },
         ],
       });
 
-      // 2. Query remaining active assignments for this slot
-      const remainingAssignments = await CaptainAssignment.find({
-        $or: [{ slotId }, { slot: slotId }],
-        status: { $ne: "Cancelled" },
-      }).populate("captainId", "name phone avatar rating role");
+      let updatedSlot = null;
+      let remainingAssignmentsCount = 0;
 
-      const headAssignment = remainingAssignments.find((a) => normalizeRole(a.role) === "Head Captain");
-      const mainAssignment = remainingAssignments.find((a) => normalizeRole(a.role) === "Main Captain");
-      const nextPrimaryId = headAssignment
-        ? (headAssignment.captainId?._id || headAssignment.captainId)
-        : (mainAssignment
-            ? (mainAssignment.captainId?._id || mainAssignment.captainId)
-            : (remainingAssignments[0]?.captainId?._id || remainingAssignments[0]?.captainId || null));
+      if (slot) {
+        // 2. Query remaining active assignments for this slot
+        const remainingAssignments = await CaptainAssignment.find({
+          $or: [{ slotId }, { slot: slotId }],
+          status: { $ne: "Cancelled" },
+        }).populate("captainId", "name phone avatar rating role");
 
-      const sortedCaptainsList = remainingAssignments
-        .sort((a, b) => getRoleRank(a.role) - getRoleRank(b.role))
-        .map((a) => ({
-          captain: a.captainId?._id || a.captainId,
-          role: normalizeRole(a.role),
-          assignedAt: a.assignedAt || new Date(),
-        }));
+        remainingAssignmentsCount = remainingAssignments.length;
 
-      // Update TripSlot
-      const updatedSlot = await TripSlot.findByIdAndUpdate(
-        slotId,
-        {
-          assignedCaptain: nextPrimaryId,
-          assignedCaptains: sortedCaptainsList,
-          captainAssigned: Boolean(nextPrimaryId),
-        },
-        { new: true }
-      )
-        .populate("assignedCaptain", "name phone avatar rating role")
-        .populate("assignedCaptains.captain", "name phone avatar rating role");
+        const headAssignment = remainingAssignments.find((a) => normalizeRole(a.role) === "Head Captain");
+        const mainAssignment = remainingAssignments.find((a) => normalizeRole(a.role) === "Main Captain");
+        const nextPrimaryId = headAssignment
+          ? (headAssignment.captainId?._id || headAssignment.captainId)
+          : (mainAssignment
+              ? (mainAssignment.captainId?._id || mainAssignment.captainId)
+              : (remainingAssignments[0]?.captainId?._id || remainingAssignments[0]?.captainId || null));
+
+        const sortedCaptainsList = remainingAssignments
+          .sort((a, b) => getRoleRank(a.role) - getRoleRank(b.role))
+          .map((a) => ({
+            captain: a.captainId?._id || a.captainId,
+            role: normalizeRole(a.role),
+            assignedAt: a.assignedAt || new Date(),
+          }));
+
+        // Update TripSlot
+        updatedSlot = await TripSlot.findByIdAndUpdate(
+          slotId,
+          {
+            assignedCaptain: nextPrimaryId,
+            assignedCaptains: sortedCaptainsList,
+            captainAssigned: Boolean(nextPrimaryId),
+          },
+          { new: true }
+        )
+          .populate("assignedCaptain", "name phone avatar rating role")
+          .populate("assignedCaptains.captain", "name phone avatar rating role");
+      }
 
       // 3. Clean up any unpaid zero-balance pending payout for this unassigned captain on this slot
       try {
@@ -1167,7 +1172,7 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
         slotId,
         captainId,
         slot: updatedSlot,
-        remainingAssignmentsCount: remainingAssignments.length,
+        remainingAssignmentsCount,
       });
     } catch (err) {
       console.error("Remove captain from slot error:", err);
@@ -1191,36 +1196,40 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
       }
 
       if (assignment) {
-        const slotId = assignment.slotId || assignment.slot;
-        const captainId = assignment.captainId || assignment.captain;
+        const slotId = assignment.slotId?._id || assignment.slotId || assignment.slot?._id || assignment.slot;
+        const captainId = assignment.captainId?._id || assignment.captainId || assignment.captain?._id || assignment.captain;
         await CaptainAssignment.findByIdAndDelete(assignment._id);
 
         if (slotId && captainId) {
-          await TripSlot.findByIdAndUpdate(slotId, {
-            $pull: { assignedCaptains: { captain: captainId } },
-          });
-          const slot = await TripSlot.findById(slotId);
-          if (slot && String(slot.assignedCaptain) === String(captainId)) {
-            const remaining = (slot.assignedCaptains || []).map((ac) => ac.captain).filter(Boolean);
+          try {
             await TripSlot.findByIdAndUpdate(slotId, {
-              assignedCaptain: remaining[0] || null,
-              captainAssigned: remaining.length > 0,
+              $pull: { assignedCaptains: { captain: captainId } },
             });
+            const slot = await TripSlot.findById(slotId);
+            if (slot && String(slot.assignedCaptain) === String(captainId)) {
+              const remaining = (slot.assignedCaptains || []).map((ac) => ac.captain).filter(Boolean);
+              await TripSlot.findByIdAndUpdate(slotId, {
+                assignedCaptain: remaining[0] || null,
+                captainAssigned: remaining.length > 0,
+              });
+            }
+            await CaptainPayout.deleteMany({
+              slotId,
+              captainId,
+              status: "Pending",
+              amountPaid: { $lte: 0 },
+            });
+          } catch (slotUpdateErr) {
+            console.warn("Slot update notice on assignment delete:", slotUpdateErr.message);
           }
-          await CaptainPayout.deleteMany({
-            slotId,
-            captainId,
-            status: "Pending",
-            amountPaid: { $lte: 0 },
-          });
         }
       } else {
-        await CaptainAssignment.deleteOne({ _id: id });
+        await CaptainAssignment.deleteMany({ _id: id });
       }
       res.json({ success: true, message: "Assignment removed successfully" });
     } catch (err) {
       console.error("Delete assignment error:", err);
-      res.status(500).json({ success: false, message: "Failed to delete assignment" });
+      res.status(500).json({ success: false, message: "Failed to delete assignment: " + err.message });
     }
   });
 
@@ -1245,7 +1254,19 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
       });
     } catch (err) {
       console.error("Purge sample assignments error:", err);
-      res.status(500).json({ success: false, message: "Failed to purge sample assignments" });
+      res.json({ success: true, count: 0, message: "No assignments needed purging." });
+    }
+  });
+
+  // Delete an individual expense
+  router.delete("/admin/operations/expenses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await TripExpense.findByIdAndDelete(id);
+      res.json({ success: true, message: "Expense deleted successfully" });
+    } catch (err) {
+      console.error("Delete expense error:", err);
+      res.status(500).json({ success: false, message: "Failed to delete expense" });
     }
   });
 

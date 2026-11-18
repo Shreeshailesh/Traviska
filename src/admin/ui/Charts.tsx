@@ -14,9 +14,10 @@ interface TrendPoint {
 interface TrendChartProps {
   data: TrendPoint[];
   height?: number;
+  showRevenue?: boolean;
 }
 
-export const TrendChart: React.FC<TrendChartProps> = ({ data, height = 240 }) => {
+export const TrendChart: React.FC<TrendChartProps> = ({ data, height = 240, showRevenue = true }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   if (!data || data.length === 0) {
@@ -97,16 +98,18 @@ export const TrendChart: React.FC<TrendChartProps> = ({ data, height = 240 }) =>
                 {bVal}
               </text>
               {/* Right Y-axis (Revenue in K) */}
-              <text
-                x={svgWidth - paddingRight + 10}
-                y={y + 3.5}
-                textAnchor="start"
-                fontSize="10"
-                fill="#94a3b8"
-                fontWeight="500"
-              >
-                ₹{rVal > 0 ? `${rVal.toFixed(0)}K` : "0"}
-              </text>
+              {showRevenue && (
+                <text
+                  x={svgWidth - paddingRight + 10}
+                  y={y + 3.5}
+                  textAnchor="start"
+                  fontSize="10"
+                  fill="#94a3b8"
+                  fontWeight="500"
+                >
+                  ₹{rVal > 0 ? `${rVal.toFixed(0)}K` : "0"}
+                </text>
+              )}
             </g>
           );
         })}
@@ -136,36 +139,40 @@ export const TrendChart: React.FC<TrendChartProps> = ({ data, height = 240 }) =>
         })}
 
         {/* Revenue Smooth Line (Dark Green) */}
-        <path
-          d={pathD}
-          fill="none"
-          stroke="#166534"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Line Data Points */}
-        {data.map((d, i) => {
-          const cx = getX(i);
-          const cy = getRevenueY(d.revenue);
-          const isHovered = hoveredIdx === i;
-
-          return (
-            <circle
-              key={`dot-${i}`}
-              cx={cx}
-              cy={cy}
-              r={isHovered ? 6 : 4}
-              fill="#166534"
-              stroke="#ffffff"
-              strokeWidth="2"
-              style={{ transition: "all 0.15s ease", cursor: "pointer" }}
-              onMouseEnter={() => setHoveredIdx(i)}
-              onMouseLeave={() => setHoveredIdx(null)}
+        {showRevenue && (
+          <>
+            <path
+              d={pathD}
+              fill="none"
+              stroke="#166534"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-          );
-        })}
+
+            {/* Line Data Points */}
+            {data.map((d, i) => {
+              const cx = getX(i);
+              const cy = getRevenueY(d.revenue);
+              const isHovered = hoveredIdx === i;
+
+              return (
+                <circle
+                  key={`dot-${i}`}
+                  cx={cx}
+                  cy={cy}
+                  r={isHovered ? 6 : 4}
+                  fill="#166534"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  style={{ transition: "all 0.15s ease", cursor: "pointer" }}
+                  onMouseEnter={() => setHoveredIdx(i)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                />
+              );
+            })}
+          </>
+        )}
 
         {/* X-axis labels (sampled so they don't crowd) */}
         {data.map((d, i) => {
@@ -219,9 +226,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({ data, height = 240 }) =>
           <span style={{ color: "#86efac" }}>
             Bookings: {data[hoveredIdx].bookings}
           </span>
-          <span style={{ color: "#4ade80" }}>
-            Revenue: ₹{data[hoveredIdx].revenue.toLocaleString("en-IN")}
-          </span>
+          {showRevenue && (
+            <span style={{ color: "#4ade80" }}>
+              Revenue: ₹{data[hoveredIdx].revenue.toLocaleString("en-IN")}
+            </span>
+          )}
         </div>
       )}
     </div>

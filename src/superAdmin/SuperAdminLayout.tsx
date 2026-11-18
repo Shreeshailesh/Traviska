@@ -4,11 +4,9 @@ import logo from "../assets/logo.jpg";
 import {
   LayoutDashboard,
   Users,
-  Mail,
   Briefcase,
-  Kanban,
+  Mail,
   History,
-  Settings,
   Bell,
   Menu,
   X,
@@ -36,11 +34,9 @@ export const SuperAdminLayout: React.FC = () => {
   const navItems = [
     { to: "/super-admin", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/super-admin/users", icon: Users, label: "User Management" },
-    { to: "/super-admin/emails", icon: Mail, label: "Email & Accounts" },
     { to: "/super-admin/teams", icon: Briefcase, label: "Staff & Teams" },
-    { to: "/super-admin/pipeline", icon: Kanban, label: "Pipeline (CRM)" },
+    { to: "/super-admin/emails", icon: Mail, label: "Email & Accounts" },
     { to: "/super-admin/activity-logs", icon: History, label: "Activity Logs" },
-    { to: "/super-admin/settings", icon: Settings, label: "Settings" },
   ];
 
   return (

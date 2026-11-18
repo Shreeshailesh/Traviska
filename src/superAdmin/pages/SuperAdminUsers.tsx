@@ -15,7 +15,6 @@ import {
   Shield,
   Users,
   ExternalLink,
-  Layers,
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
 import { Modal } from "../../admin/ui/Modal";
@@ -58,10 +57,10 @@ export const SuperAdminUsers: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Primary Section: All Accounts VS Staff & Admin Logins VS Customer Logins
+  // Primary Section: Staff & Admin Accounts VS Customer Accounts
   const initialSection = searchParams.get("section");
-  const [section, setSection] = useState<"all" | "staff" | "customers">(
-    initialSection === "customers" ? "customers" : initialSection === "staff" ? "staff" : "all"
+  const [section, setSection] = useState<"staff" | "customers">(
+    initialSection === "customers" ? "customers" : "staff"
   );
 
   // Filter Tabs
@@ -113,29 +112,57 @@ export const SuperAdminUsers: React.FC = () => {
       });
 
       if (res.data.success) {
-        if (res.data.users) setStaffUsers(res.data.users);
-        if (res.data.customers) setCustomerUsers(res.data.customers);
+        const STAFF_ROLE_LIST = ["super_admin", "admin", "sales", "sales_lead", "sales_executive", "captain_admin"];
+        const rawUsers: any[] = Array.isArray(res.data.users) ? res.data.users : [];
 
-        if (res.data.counts?.staff) {
-          setStaffCounts(res.data.counts.staff);
-        } else if (res.data.counts) {
-          setStaffCounts(res.data.counts);
+        // 1. Staff & Admin: strictly staff roles only
+        const staffList: StaffUser[] = rawUsers.filter((u) => STAFF_ROLE_LIST.includes(u.role));
+
+        // 2. Customers: server customer list + any customer-role accounts that came in the users array
+        const fromServer: CustomerUser[] = Array.isArray(res.data.customers) ? res.data.customers : [];
+        const customerMap = new Map<string, CustomerUser>();
+        for (const c of fromServer) {
+          const key = (c.email && c.email !== "—" ? c.email.toLowerCase() : "") || String(c._id);
+          customerMap.set(key, c);
         }
-
-        if (res.data.counts?.customers) {
-          setCustomerCounts(res.data.counts.customers);
-        } else if (res.data.customers) {
-          const custs: CustomerUser[] = res.data.customers;
-          setCustomerCounts({
-            total: custs.length,
-            active: custs.filter((c) => c.status === "Active").length,
-            inactive: custs.filter((c) => c.status !== "Active").length,
+        for (const u of rawUsers) {
+          if (STAFF_ROLE_LIST.includes(u.role)) continue;
+          const key = (u.email ? String(u.email).toLowerCase() : "") || String(u._id);
+          if (customerMap.has(key)) continue;
+          customerMap.set(key, {
+            _id: String(u._id),
+            name: u.name || "Customer",
+            email: u.email || "—",
+            phone: u.phone || "—",
+            authProvider: u.authProvider || "Customer Portal",
+            isEmailVerified: Boolean(u.isEmailVerified),
+            status: u.isSuspended || u.status === "Suspended" ? "Suspended" : u.status === "Inactive" ? "Inactive" : "Active",
+            isSuspended: Boolean(u.isSuspended),
+            bookingsCount: u.bookingsCount || 0,
+            createdAt: u.createdAt
+              ? new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+              : "—",
+            lastLogin: u.lastLogin || "—",
           });
         }
+        const customerList = Array.from(customerMap.values());
 
-        if (res.data.sectionCounts) {
-          setSectionCounts(res.data.sectionCounts);
-        }
+        setStaffUsers(staffList);
+        setCustomerUsers(customerList);
+
+        // 3. Counts are always computed from the separated lists so they stay accurate
+        setStaffCounts({
+          total: staffList.length,
+          active: staffList.filter((u) => !u.isSuspended && u.status === "Active").length,
+          invited: staffList.filter((u) => u.status === "Invited" || u.type === "invitation").length,
+          suspended: staffList.filter((u) => u.isSuspended || u.status === "Suspended").length,
+        });
+        setCustomerCounts({
+          total: customerList.length,
+          active: customerList.filter((c) => c.status === "Active").length,
+          inactive: customerList.filter((c) => c.status !== "Active").length,
+        });
+        setSectionCounts({ staff: staffList.length, customers: customerList.length });
       }
     } catch (err) {
       console.error("Fetch users error:", err);
@@ -361,7 +388,10 @@ export const SuperAdminUsers: React.FC = () => {
   };
 
   // Filter displayed data based on active tabs & search
+  const STAFF_ROLES = ["super_admin", "admin", "sales", "sales_lead", "sales_executive", "captain_admin"];
   const displayedStaff = staffUsers.filter((u) => {
+    // Strict guard: only staff/admin roles ever appear in the Staff & Admin section
+    if (!STAFF_ROLES.includes(u.role)) return false;
     if (staffTab === "active") return !u.isSuspended && u.status === "Active";
     if (staffTab === "invited") return u.status === "Invited" || u.type === "invitation";
     if (staffTab === "suspended") return u.isSuspended || u.status === "Suspended";
@@ -376,7 +406,7 @@ export const SuperAdminUsers: React.FC = () => {
 
   return (
     <div>
-      {/* Top Segmented Bar: All Accounts vs Staff Logins vs Customer Logins */}
+      {/* Top Segmented Bar: Staff & Admin Accounts VS Customer Accounts */}
       <div
         style={{
           display: "flex",
@@ -392,43 +422,6 @@ export const SuperAdminUsers: React.FC = () => {
           flexWrap: "wrap",
         }}
       >
-        <button
-          type="button"
-          onClick={() => {
-            setSection("all");
-          }}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "9px 20px",
-            borderRadius: "10px",
-            fontSize: "13px",
-            fontWeight: 700,
-            border: "none",
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-            background: section === "all" ? "#0e3820" : "transparent",
-            color: section === "all" ? "#ffffff" : "#475569",
-            boxShadow: section === "all" ? "0 4px 12px rgba(14, 56, 32, 0.2)" : "none",
-          }}
-        >
-          <Layers size={16} />
-          <span>All Accounts (Staff & Customers)</span>
-          <span
-            style={{
-              fontSize: "11px",
-              padding: "2px 7px",
-              borderRadius: "10px",
-              background: section === "all" ? "rgba(255,255,255,0.2)" : "#f1f5f9",
-              color: section === "all" ? "#ffffff" : "#475569",
-              fontWeight: 700,
-            }}
-          >
-            {sectionCounts.staff + sectionCounts.customers}
-          </span>
-        </button>
-
         <button
           type="button"
           onClick={() => {
@@ -451,7 +444,7 @@ export const SuperAdminUsers: React.FC = () => {
           }}
         >
           <Shield size={16} />
-          <span>Staff & Admin Logins</span>
+          <span>Staff & Admin Accounts</span>
           <span
             style={{
               fontSize: "11px",
@@ -488,7 +481,7 @@ export const SuperAdminUsers: React.FC = () => {
           }}
         >
           <Users size={16} />
-          <span>Customer Logins</span>
+          <span>Customer Accounts</span>
           <span
             style={{
               fontSize: "11px",
@@ -504,138 +497,118 @@ export const SuperAdminUsers: React.FC = () => {
         </button>
       </div>
 
-      {/* Header with Title & Add Authorized Email Button */}
-      <div className="sa-page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-        <div>
-          <h2 style={{ fontSize: "20px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-            {section === "staff" ? "Staff & Admin Accounts" : "Customer Accounts"}
-          </h2>
-          <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0" }}>
-            {section === "staff"
-              ? "Manage CEO, Admin, Sales, Operations and Captain Admin permissions."
-              : "Registered customer logins, contact details, authentication providers, and order activity."}
-          </p>
-        </div>
-
-        {section === "staff" && (
-          <button
-            onClick={() => {
-              setInviteResult(null);
-              setInviteForm({
-                name: "",
-                email: "",
-                department: "Operations",
-                teamId: teams[0]?._id || "",
-                role: "admin",
-                notes: "",
-              });
-              setShowInviteModal(true);
-            }}
-            className="sa-action-btn sa-action-btn-primary"
-          >
-            <Plus size={16} />
-            <span>Add Authorized Email</span>
-          </button>
-        )}
-      </div>
-
-      {/* Tabs & Search Filter */}
-      <div className="sa-card" style={{ padding: "16px 20px 0", marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
-          {section === "staff" ? (
-            <div className="sa-tabs" style={{ margin: 0, border: "none" }}>
-              <button
-                onClick={() => setStaffTab("all")}
-                className={`sa-tab ${staffTab === "all" ? "active" : ""}`}
-              >
-                <span>All Staff</span>
-                <span style={{ fontSize: "11px", background: "#f1f5f9", padding: "1px 6px", borderRadius: "4px" }}>
-                  {staffCounts.total}
+      {/* SECTION 1: STAFF & ADMIN ACCOUNTS */}
+      {section === "staff" && (
+        <div style={{ marginBottom: "36px" }}>
+          <div className="sa-page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Shield size={18} style={{ color: "#166534" }} />
+                <h2 style={{ fontSize: "19px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                  Staff & Admin Accounts
+                </h2>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: "20px",
+                    background: "#dcfce7",
+                    color: "#166534",
+                  }}
+                >
+                  {staffCounts.total} Staff
                 </span>
-              </button>
-              <button
-                onClick={() => setStaffTab("active")}
-                className={`sa-tab ${staffTab === "active" ? "active" : ""}`}
-              >
-                <span>Active</span>
-                <span style={{ fontSize: "11px", background: "#dcfce7", color: "#166534", padding: "1px 6px", borderRadius: "4px" }}>
-                  {staffCounts.active}
-                </span>
-              </button>
-              <button
-                onClick={() => setStaffTab("invited")}
-                className={`sa-tab ${staffTab === "invited" ? "active" : ""}`}
-              >
-                <span>Invited</span>
-                <span style={{ fontSize: "11px", background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px" }}>
-                  {staffCounts.invited}
-                </span>
-              </button>
-              <button
-                onClick={() => setStaffTab("suspended")}
-                className={`sa-tab ${staffTab === "suspended" ? "active" : ""}`}
-              >
-                <span>Suspended</span>
-                <span style={{ fontSize: "11px", background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: "4px" }}>
-                  {staffCounts.suspended}
-                </span>
-              </button>
+              </div>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0" }}>
+                Manage CEO, Admin, Sales, Operations and Captain Admin permissions.
+              </p>
             </div>
-          ) : (
-            <div className="sa-tabs" style={{ margin: 0, border: "none" }}>
-              <button
-                onClick={() => setCustomerTab("all")}
-                className={`sa-tab ${customerTab === "all" ? "active" : ""}`}
-              >
-                <span>All Customers</span>
-                <span style={{ fontSize: "11px", background: "#f1f5f9", padding: "1px 6px", borderRadius: "4px" }}>
-                  {customerCounts.total}
-                </span>
-              </button>
-              <button
-                onClick={() => setCustomerTab("active")}
-                className={`sa-tab ${customerTab === "active" ? "active" : ""}`}
-              >
-                <span>Active</span>
-                <span style={{ fontSize: "11px", background: "#dcfce7", color: "#166534", padding: "1px 6px", borderRadius: "4px" }}>
-                  {customerCounts.active}
-                </span>
-              </button>
-              <button
-                onClick={() => setCustomerTab("inactive")}
-                className={`sa-tab ${customerTab === "inactive" ? "active" : ""}`}
-              >
-                <span>Inactive</span>
-                <span style={{ fontSize: "11px", background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: "4px" }}>
-                  {customerCounts.inactive}
-                </span>
-              </button>
-            </div>
-          )}
 
-          <div style={{ position: "relative", minWidth: "260px" }}>
-            <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-            <input
-              type="text"
-              placeholder={section === "staff" ? "Search staff by name or email..." : "Search customers by name, phone or email..."}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 12px 8px 34px",
-                borderRadius: "10px",
-                border: "1px solid #cbd5e1",
-                fontSize: "13px",
-                outline: "none",
+            <button
+              onClick={() => {
+                setInviteResult(null);
+                setInviteForm({
+                  name: "",
+                  email: "",
+                  department: "Operations",
+                  teamId: teams[0]?._id || "",
+                  role: "admin",
+                  notes: "",
+                });
+                setShowInviteModal(true);
               }}
-            />
+              className="sa-action-btn sa-action-btn-primary"
+            >
+              <Plus size={16} />
+              <span>Add Authorized Email</span>
+            </button>
           </div>
-        </div>
-      </div>
 
-      {/* SECTION 1: STAFF & ADMIN LOGINS TABLE */}
-      {section === "staff" ? (
-        <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
+          {/* Staff Filter Tabs & Search Filter */}
+          <div className="sa-card" style={{ padding: "14px 20px 0", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+              <div className="sa-tabs" style={{ margin: 0, border: "none" }}>
+                <button
+                  onClick={() => setStaffTab("all")}
+                  className={`sa-tab ${staffTab === "all" ? "active" : ""}`}
+                >
+                  <span>All Staff</span>
+                  <span style={{ fontSize: "11px", background: "#f1f5f9", padding: "1px 6px", borderRadius: "4px" }}>
+                    {staffCounts.total}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStaffTab("active")}
+                  className={`sa-tab ${staffTab === "active" ? "active" : ""}`}
+                >
+                  <span>Active</span>
+                  <span style={{ fontSize: "11px", background: "#dcfce7", color: "#166534", padding: "1px 6px", borderRadius: "4px" }}>
+                    {staffCounts.active}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStaffTab("invited")}
+                  className={`sa-tab ${staffTab === "invited" ? "active" : ""}`}
+                >
+                  <span>Invited</span>
+                  <span style={{ fontSize: "11px", background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px" }}>
+                    {staffCounts.invited}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStaffTab("suspended")}
+                  className={`sa-tab ${staffTab === "suspended" ? "active" : ""}`}
+                >
+                  <span>Suspended</span>
+                  <span style={{ fontSize: "11px", background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: "4px" }}>
+                    {staffCounts.suspended}
+                  </span>
+                </button>
+              </div>
+
+              <div style={{ position: "relative", minWidth: "260px" }}>
+                <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input
+                  type="text"
+                  placeholder="Search staff by name or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px 8px 34px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Staff Table Card */}
+          <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
           <div className="sa-table-wrapper">
             <table className="sa-table">
             <thead>
@@ -656,14 +629,14 @@ export const SuperAdminUsers: React.FC = () => {
                     Loading staff directory...
                   </td>
                 </tr>
-              ) : staffUsers.length === 0 ? (
+              ) : displayedStaff.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
                     No staff accounts found matching your filters.
                   </td>
                 </tr>
               ) : (
-                staffUsers.map((u) => (
+                displayedStaff.map((u) => (
                   <tr key={u._id}>
                     <td>
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>{u.name}</div>
@@ -836,38 +809,121 @@ export const SuperAdminUsers: React.FC = () => {
           </table>
           </div>
         </div>
-      ) : (
-        /* SECTION 2: CUSTOMER LOGINS TABLE */
-        <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="sa-table-wrapper">
-            <table className="sa-table">
-            <thead>
-              <tr>
-                <th>Customer Name</th>
-                <th>Email Address</th>
-                <th>Mobile Number</th>
-                <th>Auth Provider</th>
-                <th>Total Bookings</th>
-                <th>Registered Date</th>
-                <th>Status</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
-                    Loading customer accounts...
-                  </td>
-                </tr>
-              ) : customerUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
-                    No customer accounts found matching your filters.
-                  </td>
-                </tr>
-              ) : (
-                customerUsers.map((c) => (
+        </div>
+      )}
+
+      {/* SECTION 2: CUSTOMER ACCOUNTS & TRAVELLERS */}
+      {section === "customers" && (
+        <div style={{ marginBottom: "36px" }}>
+          <div className="sa-page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Users size={18} style={{ color: "#0369a1" }} />
+                <h2 style={{ fontSize: "19px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                  Customer Accounts & Travellers
+                </h2>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: "20px",
+                    background: "#e0f2fe",
+                    color: "#0369a1",
+                  }}
+                >
+                  {customerCounts.total} Registered Customers
+                </span>
+              </div>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0" }}>
+                Registered customer logins, verified email accounts, authentication providers, and order activity.
+              </p>
+            </div>
+          </div>
+
+          {/* Customer Filter Tabs & Search */}
+          <div className="sa-card" style={{ padding: "14px 20px 0", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+              <div className="sa-tabs" style={{ margin: 0, border: "none" }}>
+                <button
+                  onClick={() => setCustomerTab("all")}
+                  className={`sa-tab ${customerTab === "all" ? "active" : ""}`}
+                >
+                  <span>All Customers</span>
+                  <span style={{ fontSize: "11px", background: "#f1f5f9", padding: "1px 6px", borderRadius: "4px" }}>
+                    {customerCounts.total}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setCustomerTab("active")}
+                  className={`sa-tab ${customerTab === "active" ? "active" : ""}`}
+                >
+                  <span>Active</span>
+                  <span style={{ fontSize: "11px", background: "#dcfce7", color: "#166534", padding: "1px 6px", borderRadius: "4px" }}>
+                    {customerCounts.active}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setCustomerTab("inactive")}
+                  className={`sa-tab ${customerTab === "inactive" ? "active" : ""}`}
+                >
+                  <span>Inactive</span>
+                  <span style={{ fontSize: "11px", background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: "4px" }}>
+                    {customerCounts.inactive}
+                  </span>
+                </button>
+              </div>
+
+              <div style={{ position: "relative", minWidth: "260px" }}>
+                <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input
+                  type="text"
+                  placeholder="Search customers by name, phone or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px 8px 34px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="sa-table-wrapper">
+              <table className="sa-table">
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Email Address</th>
+                    <th>Mobile Number</th>
+                    <th>Auth Provider</th>
+                    <th>Total Bookings</th>
+                    <th>Registered Date</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
+                        Loading customer accounts...
+                      </td>
+                    </tr>
+                  ) : displayedCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
+                        No customer accounts found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedCustomers.map((c) => (
                   <tr key={c._id}>
                     <td>
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>{c.name}</div>
@@ -970,6 +1026,7 @@ export const SuperAdminUsers: React.FC = () => {
             </tbody>
           </table>
           </div>
+        </div>
         </div>
       )}
 
