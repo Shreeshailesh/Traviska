@@ -474,6 +474,8 @@ export const CaptainPayouts: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Purge sample / test payouts
+
   const renderRoleBadge = (role: string) => {
     const r = (role || "").toLowerCase();
     if (r.includes("head") || r.includes("lead")) {
@@ -569,6 +571,7 @@ export const CaptainPayouts: React.FC = () => {
             <span>Export CSV</span>
           </button>
 
+
           <Link
             to="/admin/operations/assignments"
             className="admin-btn admin-btn-primary shadow-xs"
@@ -662,7 +665,8 @@ export const CaptainPayouts: React.FC = () => {
       )}
 
       {/* 4. Tab Navigation (SaaS Segmented Control) */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-gray-100/80 rounded-2xl border border-gray-200/70 overflow-x-auto">
+      <div style={{ marginTop: "18px", marginBottom: "16px" }}>
+        <div className="flex items-center gap-1.5 p-1.5 bg-gray-100/90 rounded-2xl border border-gray-200/80 overflow-x-auto">
         <button
           type="button"
           onClick={() => {
@@ -787,6 +791,7 @@ export const CaptainPayouts: React.FC = () => {
             {settlementHistory.length}
           </span>
         </button>
+      </div>
       </div>
 
       {/* 5. Main Content: Master-Detail Drilldown */}
@@ -1139,7 +1144,8 @@ export const CaptainPayouts: React.FC = () => {
         /* MASTER VIEW: PREMIUM CAPTAIN PROFILE CARDS (Grid & Table View) */
         <div className="space-y-4">
           {/* Search, Filter & View Controls Toolbar */}
-          <div className="bg-white rounded-2xl border border-gray-200/90 p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <div style={{ marginBottom: "20px" }}>
+            <div className="bg-white rounded-2xl border border-gray-200/90 p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 flex-1 min-w-[280px]">
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1223,6 +1229,7 @@ export const CaptainPayouts: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
           </div>
 
           {/* Grid or Table View of Captain Accounts */}

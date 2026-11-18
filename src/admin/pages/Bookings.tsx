@@ -27,12 +27,14 @@ import {
   Check,
   Copy,
   Share2,
+  Trash2,
 } from "lucide-react";
 
 import { API_BASE_URL } from "../../api";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Drawer } from "../ui/Drawer";
 import { Modal } from "../ui/Modal";
+import "../admin.css";
 
 // Types
 export interface DepartureSlot {
@@ -203,6 +205,38 @@ export const Bookings: React.FC = () => {
   const [messageCopied, setMessageCopied] = useState<boolean>(false);
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // Delete Modals State
+  const [deletingBooking, setDeletingBooking] = useState<BookingItem | null>(null);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState<boolean>(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState<boolean>(false);
+
+  // Body scroll lock and Escape key listener for Modals
+  useEffect(() => {
+    const isModalOpen = Boolean(
+      rescheduleBooking || cancelBooking || deletingBooking || isBulkDeleteOpen
+    );
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setRescheduleBooking(null);
+        setCancelBooking(null);
+        setDeletingBooking(null);
+        setIsBulkDeleteOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "unset";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [rescheduleBooking, cancelBooking, deletingBooking, isBulkDeleteOpen]);
 
   // Active Selected Trip
   const selectedTrip = useMemo(() => {
@@ -436,6 +470,64 @@ export const Bookings: React.FC = () => {
       setCancelSubmitting(false);
     }
   };
+
+  // Delete single booking
+  const handleDeleteSingleBooking = async () => {
+    if (!deletingBooking) return;
+    setDeleteSubmitting(true);
+    const token = localStorage.getItem("token");
+
+    try {
+      const { data } = await axios.delete(
+        `${API_BASE_URL}/admin/bookings/${deletingBooking._id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (data.success) {
+        setBookings((prev) => prev.filter((b) => b._id !== deletingBooking._id));
+        setSelectedRowIds((prev) => prev.filter((id) => id !== deletingBooking._id));
+        setDeletingBooking(null);
+        fetchOverview();
+        fetchBookingsList();
+      }
+    } catch (err: any) {
+      console.error("Delete booking failed:", err);
+      alert(err.response?.data?.message || "Failed to delete booking");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  // Bulk delete selected bookings
+  const handleBulkDelete = async () => {
+    if (selectedRowIds.length === 0) return;
+    setDeleteSubmitting(true);
+    const token = localStorage.getItem("token");
+
+    try {
+      const { data } = await axios.post(
+        `${API_BASE_URL}/admin/bookings/bulk-delete`,
+        { ids: selectedRowIds },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (data.success) {
+        setBookings((prev) => prev.filter((b) => !selectedRowIds.includes(b._id)));
+        setSelectedRowIds([]);
+        setIsBulkDeleteOpen(false);
+        fetchOverview();
+        fetchBookingsList();
+      }
+    } catch (err: any) {
+      console.error("Bulk delete failed:", err);
+      alert(err.response?.data?.message || "Failed to delete selected bookings");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
 
   // Helper to resolve WhatsApp group link for a booking's specific departure
   const getDepartureWhatsAppLink = (booking: BookingItem): string => {
@@ -832,6 +924,7 @@ export const Bookings: React.FC = () => {
             <RefreshCw size={15} className={isRefreshing ? "spin-icon" : ""} />
             <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
+
 
           <button
             type="button"
@@ -1243,6 +1336,46 @@ export const Bookings: React.FC = () => {
 
           {/* Bookings Table Card */}
           <div className="bookings-table-card">
+            {/* Bulk Selection Actions Bar */}
+            {selectedRowIds.length > 0 && (
+              <div className="bookings-bulk-bar">
+                <div className="bookings-bulk-info">
+                  <CheckCircle size={15} />
+                  <span>{selectedRowIds.length} booking(s) selected</span>
+                </div>
+                <div className="bookings-bulk-actions">
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary"
+                    style={{ padding: "5px 12px", fontSize: "12px" }}
+                    onClick={() => setSelectedRowIds([])}
+                  >
+                    Deselect All
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: "#dc2626",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 14px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setIsBulkDeleteOpen(true)}
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete Selected ({selectedRowIds.length})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -1439,6 +1572,15 @@ export const Bookings: React.FC = () => {
                               >
                                 <Eye size={14} />
                               </button>
+
+                              <button
+                                type="button"
+                                className="booking-action-icon-btn delete"
+                                onClick={() => setDeletingBooking(b)}
+                                title="Delete this booking permanently"
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1501,132 +1643,113 @@ export const Bookings: React.FC = () => {
           MODAL 1: RESCHEDULE BOOKING
           ====================================================================== */}
       {rescheduleBooking && (
-        <div className="admin-modal-overlay" onClick={() => setRescheduleBooking(null)}>
-          <div
-            className="admin-modal-content"
-            style={{ maxWidth: "560px", width: "94%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="admin-modal-header">
-              <div>
-                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
-                  Reschedule Booking — {rescheduleBooking.bookingCode}
-                </h3>
-                <p style={{ margin: "4px 0 0", fontSize: "12.5px", color: "#64748b" }}>
-                  Customer: <strong>{rescheduleBooking.name}</strong> • Travellers:{" "}
-                  <strong>{rescheduleBooking.travellers}</strong>
-                </p>
-              </div>
-              <button
-                type="button"
-                className="admin-modal-close"
-                onClick={() => setRescheduleBooking(null)}
-              >
-                &times;
-              </button>
+        <Modal
+          isOpen={Boolean(rescheduleBooking)}
+          onClose={() => setRescheduleBooking(null)}
+          title={`Reschedule Booking — ${rescheduleBooking.bookingCode}`}
+          subtitle={`Customer: ${rescheduleBooking.name} • Travellers: ${rescheduleBooking.travellers}`}
+          maxWidth="560px"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {/* Current Departure Notice */}
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "#f1f5f9",
+                border: "1px solid #e2e8f0",
+                fontSize: "13px",
+                color: "#334155",
+              }}
+            >
+              <strong>Current Schedule:</strong> {rescheduleBooking.trip.title} on{" "}
+              <strong>{rescheduleBooking.date}</strong>
             </div>
 
-            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Current Departure Notice */}
-              <div
+            {/* Select Target Departure Slot */}
+            <div>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Select New Departure Date *
+              </label>
+              <select
+                value={targetRescheduleSlotId}
+                onChange={(e) => setTargetRescheduleSlotId(e.target.value)}
                 style={{
-                  padding: "12px 14px",
+                  width: "100%",
+                  padding: "10px 12px",
                   borderRadius: "8px",
-                  background: "#f1f5f9",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "13.5px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">-- Choose target departure date --</option>
+                {allAvailableDepartureSlots.map(({ tripTitle, slot }) => {
+                  const isSame = String(rescheduleBooking.slotId) === String(slot._id);
+                  const remaining = Math.max(0, slot.totalSlots - slot.bookedSlots);
+                  const hasEnoughSeats = remaining >= rescheduleBooking.travellers;
+
+                  return (
+                    <option
+                      key={slot._id}
+                      value={slot._id}
+                      disabled={isSame || !hasEnoughSeats}
+                    >
+                      {tripTitle} — {slot.formattedDate} ({remaining} seats available
+                      {isSame ? " • Current Slot" : !hasEnoughSeats ? " • Full" : ""})
+                    </option>
+                  );
+                })}
+              </select>
+              <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
+                Only open departure slots with sufficient available seats ({rescheduleBooking.travellers} seats) are enabled.
+              </span>
+            </div>
+
+            {/* Reason input */}
+            <div>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Reschedule Reason (Internal Record)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Customer requested date change due to personal emergency"
+                value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
                   fontSize: "13px",
-                  color: "#334155",
+                  outline: "none",
+                  boxSizing: "border-box",
                 }}
-              >
-                <strong>Current Schedule:</strong> {rescheduleBooking.trip.title} on{" "}
-                <strong>{rescheduleBooking.date}</strong>
-              </div>
-
-              {/* Select Target Departure Slot */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
-                  Select New Departure Date *
-                </label>
-                <select
-                  value={targetRescheduleSlotId}
-                  onChange={(e) => setTargetRescheduleSlotId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "13.5px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <option value="">-- Choose target departure date --</option>
-                  {allAvailableDepartureSlots.map(({ tripTitle, slot }) => {
-                    const isSame = String(rescheduleBooking.slotId) === String(slot._id);
-                    const remaining = Math.max(0, slot.totalSlots - slot.bookedSlots);
-                    const hasEnoughSeats = remaining >= rescheduleBooking.travellers;
-
-                    return (
-                      <option
-                        key={slot._id}
-                        value={slot._id}
-                        disabled={isSame || !hasEnoughSeats}
-                      >
-                        {tripTitle} — {slot.formattedDate} ({remaining} seats available
-                        {isSame ? " • Current Slot" : !hasEnoughSeats ? " • Full" : ""})
-                      </option>
-                    );
-                  })}
-                </select>
-                <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
-                  Only open departure slots with sufficient available seats ({rescheduleBooking.travellers} seats) are enabled.
-                </span>
-              </div>
-
-              {/* Reason input */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
-                  Reschedule Reason (Internal Record)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Customer requested date change due to personal emergency"
-                  value={rescheduleReason}
-                  onChange={(e) => setRescheduleReason(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "13px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-
-              {/* Capacity change preview */}
-              <div
-                style={{
-                  background: "#eef7ed",
-                  border: "1px solid #b9deb4",
-                  borderRadius: "8px",
-                  padding: "12px 14px",
-                  fontSize: "12.5px",
-                  color: "#164e23",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
-                  <CheckCircle size={15} />
-                  <span>Automatic Capacity & Website Sync</span>
-                </div>
-                <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#2d6a4f" }}>
-                  Submitting will automatically release {rescheduleBooking.travellers} seat(s) from the current departure and reserve {rescheduleBooking.travellers} seat(s) in the new departure. The customer's booking view on the website will update immediately.
-                </p>
-              </div>
+              />
             </div>
 
-            <div className="admin-modal-footer">
+            {/* Capacity change preview */}
+            <div
+              style={{
+                background: "#eef7ed",
+                border: "1px solid #b9deb4",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                fontSize: "12.5px",
+                color: "#164e23",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+                <CheckCircle size={15} />
+                <span>Automatic Capacity & Website Sync</span>
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#2d6a4f" }}>
+                Submitting will automatically release {rescheduleBooking.travellers} seat(s) from the current departure and reserve {rescheduleBooking.travellers} seat(s) in the new departure. The customer's booking view on the website will update immediately.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
               <button
                 type="button"
                 className="admin-btn admin-btn-secondary"
@@ -1645,107 +1768,88 @@ export const Bookings: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ======================================================================
           MODAL 2: CANCEL BOOKING
           ====================================================================== */}
       {cancelBooking && (
-        <div className="admin-modal-overlay" onClick={() => setCancelBooking(null)}>
-          <div
-            className="admin-modal-content"
-            style={{ maxWidth: "520px", width: "94%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="admin-modal-header">
-              <div>
-                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#b91c1c" }}>
-                  Cancel Booking — {cancelBooking.bookingCode}
-                </h3>
-                <p style={{ margin: "4px 0 0", fontSize: "12.5px", color: "#64748b" }}>
-                  Customer: <strong>{cancelBooking.name}</strong> • Amount:{" "}
-                  <strong>₹{cancelBooking.amount.toLocaleString("en-IN")}</strong>
-                </p>
+        <Modal
+          isOpen={Boolean(cancelBooking)}
+          onClose={() => setCancelBooking(null)}
+          title={`Cancel Booking — ${cancelBooking.bookingCode}`}
+          subtitle={`Customer: ${cancelBooking.name} • Amount: ₹${cancelBooking.amount.toLocaleString("en-IN")}`}
+          maxWidth="520px"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                fontSize: "12.5px",
+                color: "#991b1b",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
+                <AlertCircle size={15} />
+                <span>Seat Release Notice</span>
               </div>
-              <button
-                type="button"
-                className="admin-modal-close"
-                onClick={() => setCancelBooking(null)}
-              >
-                &times;
-              </button>
+              <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#b91c1c" }}>
+                Cancelling will immediately release <strong>{cancelBooking.travellers} seat(s)</strong> back to the departure slot so other travellers can book online.
+              </p>
             </div>
 
-            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div
+            <div>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Cancellation Reason *
+              </label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
                 style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
+                  width: "100%",
+                  padding: "9px 12px",
                   borderRadius: "8px",
-                  padding: "12px 14px",
-                  fontSize: "12.5px",
-                  color: "#991b1b",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "13.5px",
+                  outline: "none",
+                  boxSizing: "border-box",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
-                  <AlertCircle size={15} />
-                  <span>Seat Release Notice</span>
-                </div>
-                <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#b91c1c" }}>
-                  Cancelling will immediately release <strong>{cancelBooking.travellers} seat(s)</strong> back to the departure slot so other travellers can book online.
-                </p>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
-                  Cancellation Reason *
-                </label>
-                <select
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "13px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <option value="Customer Request">Customer Request (Personal / Change of plans)</option>
-                  <option value="Medical Emergency">Medical Emergency</option>
-                  <option value="Weather / Natural Disaster">Weather / Natural Constraints</option>
-                  <option value="Payment Issue">Payment Issue / Unverified Payment</option>
-                  <option value="Operational Cancellation">Operational / Route Cancellation</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
-                  Internal Notes & Refund Remarks
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="e.g. Customer informed via WhatsApp, refund processed via UPI transaction #..."
-                  value={cancelNotes}
-                  onChange={(e) => setCancelNotes(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "13px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
+                <option value="Customer Request">Customer Request (Personal / Change of plans)</option>
+                <option value="Medical Emergency">Medical Emergency</option>
+                <option value="Weather / Natural Disaster">Weather / Natural Constraints</option>
+                <option value="Payment Issue">Payment Issue / Unverified Payment</option>
+                <option value="Operational Cancellation">Operational / Route Cancellation</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
-            <div className="admin-modal-footer">
+            <div>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Internal Notes & Refund Remarks
+              </label>
+              <textarea
+                rows={3}
+                placeholder="e.g. Customer informed via WhatsApp, refund processed via UPI transaction #..."
+                value={cancelNotes}
+                onChange={(e) => setCancelNotes(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "13px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
               <button
                 type="button"
                 className="admin-btn admin-btn-secondary"
@@ -1765,8 +1869,123 @@ export const Bookings: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
+
+      {/* ======================================================================
+          MODAL 3: DELETE SINGLE BOOKING
+          ====================================================================== */}
+      {deletingBooking && (
+        <Modal
+          isOpen={Boolean(deletingBooking)}
+          onClose={() => setDeletingBooking(null)}
+          title={`Delete Booking — ${deletingBooking.bookingCode}`}
+          subtitle={`Customer: ${deletingBooking.name} • Amount: ₹${deletingBooking.amount.toLocaleString("en-IN")}`}
+          maxWidth="480px"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                fontSize: "12.5px",
+                color: "#991b1b",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
+                <AlertCircle size={15} />
+                <span>Permanent Deletion</span>
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#b91c1c", lineHeight: 1.5 }}>
+                Are you sure you want to permanently delete this booking record? If this is an active booking, its reserved seat(s) will be returned to the departure slot.
+              </p>
+            </div>
+
+            <div style={{ fontSize: "12.5px", color: "#475569", lineHeight: 1.6 }}>
+              <div><strong>Trip:</strong> {deletingBooking.trip?.title || "Trip"}</div>
+              <div><strong>Departure Date:</strong> {deletingBooking.date}</div>
+              <div><strong>Status:</strong> {deletingBooking.status} {deletingBooking.isRescheduled ? "(Rescheduled)" : ""}</div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
+              <button
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                onClick={() => setDeletingBooking(null)}
+                disabled={deleteSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="admin-btn"
+                style={{ background: "#dc2626", color: "#ffffff", borderColor: "#dc2626" }}
+                onClick={handleDeleteSingleBooking}
+                disabled={deleteSubmitting}
+              >
+                {deleteSubmitting ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ======================================================================
+          MODAL 4: BULK DELETE SELECTED BOOKINGS
+          ====================================================================== */}
+      {isBulkDeleteOpen && (
+        <Modal
+          isOpen={isBulkDeleteOpen}
+          onClose={() => setIsBulkDeleteOpen(false)}
+          title="Delete Selected Bookings"
+          subtitle={`${selectedRowIds.length} booking(s) selected`}
+          maxWidth="480px"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                fontSize: "12.5px",
+                color: "#991b1b",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
+                <AlertCircle size={15} />
+                <span>Warning: Irreversible Action</span>
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#b91c1c", lineHeight: 1.5 }}>
+                This will permanently delete all <strong>{selectedRowIds.length}</strong> selected booking records from the database. Any reserved seats for confirmed bookings will be released back to their departure slots.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
+              <button
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                onClick={() => setIsBulkDeleteOpen(false)}
+                disabled={deleteSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="admin-btn"
+                style={{ background: "#dc2626", color: "#ffffff", borderColor: "#dc2626" }}
+                onClick={handleBulkDelete}
+                disabled={deleteSubmitting}
+              >
+                {deleteSubmitting ? "Deleting..." : `Delete ${selectedRowIds.length} Booking(s)`}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
 
       {/* ======================================================================
           DRAWER: VIEW FULL BOOKING DETAILS

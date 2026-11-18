@@ -46,11 +46,21 @@ import SalesFollowUps from "./sales/SalesFollowUps";
 import SalesManualBooking from "./sales/SalesManualBooking";
 import OdooSyncCenter from "./sales/OdooSyncCenter";
 
+import { ProtectedSuperAdmin } from "./superAdmin/ProtectedSuperAdmin";
+import { SuperAdminDashboard } from "./superAdmin/pages/SuperAdminDashboard";
+import { SuperAdminUsers } from "./superAdmin/pages/SuperAdminUsers";
+import { SuperAdminTeams } from "./superAdmin/pages/SuperAdminTeams";
+import { SuperAdminEmails } from "./superAdmin/pages/SuperAdminEmails";
+import { SuperAdminActivityLogs } from "./superAdmin/pages/SuperAdminActivityLogs";
+import { StaffRegister } from "./pages/StaffRegister";
+
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith("/admin");
   const isCaptain = location.pathname.startsWith("/captain");
   const isSales = location.pathname.startsWith("/sales");
+  const isSuperAdmin = location.pathname.startsWith("/super-admin");
+  const isStaffRegister = location.pathname.startsWith("/staff/register");
   const isLogin =
     location.pathname === "/login" ||
     location.pathname === "/admin/login" ||
@@ -58,9 +68,11 @@ function AppContent() {
     location.pathname === "/captain/login" ||
     location.pathname === "/sales/login";
 
+  const hidePublicChrome = isAdmin || isCaptain || isSales || isSuperAdmin || isStaffRegister || isLogin;
+
   return (
     <>
-      {!isAdmin && !isCaptain && !isSales && !isLogin && <Navbar />}
+      {!hidePublicChrome && <Navbar />}
 
      <Routes>
   <Route path="/" element={<Home />} />
@@ -149,10 +161,23 @@ function AppContent() {
     <Route path="attendance" element={<Navigate to="/captain/trips" replace />} />
   </Route>
 
+  {/* Super Admin Portal Routes (CEO) */}
+  <Route path="/super-admin" element={<ProtectedSuperAdmin />}>
+    <Route index element={<SuperAdminDashboard />} />
+    <Route path="dashboard" element={<SuperAdminDashboard />} />
+    <Route path="users" element={<SuperAdminUsers />} />
+    <Route path="teams" element={<SuperAdminTeams />} />
+    <Route path="emails" element={<SuperAdminEmails />} />
+    <Route path="activity-logs" element={<SuperAdminActivityLogs />} />
+  </Route>
+
+  {/* Staff Self-Service Registration */}
+  <Route path="/staff/register" element={<StaffRegister />} />
+
   <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
 </Routes>
 
-      {!isAdmin && !isCaptain && !isSales && !isLogin && <Footer />}
+      {!hidePublicChrome && <Footer />}
 
     </>
   );

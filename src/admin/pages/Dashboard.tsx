@@ -169,6 +169,36 @@ export const Dashboard: React.FC = () => {
   const [reviewActionLoading, setReviewActionLoading] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  // Reset Sample Data State
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetSampleData = async () => {
+    setIsResetting(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${API_BASE_URL}/admin/system/reset-sample-data`,
+        {},
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      if (res.data && res.data.success) {
+        alert("All sample data has been reset successfully! Your dashboard is now clean and ready for real data.");
+        setShowResetModal(false);
+        await fetchDashboard(true);
+      } else {
+        alert(res.data?.message || "Failed to reset sample data.");
+      }
+    } catch (err: any) {
+      console.error("Reset sample data error:", err);
+      alert(err.response?.data?.message || "Failed to reset sample data. Please check connection.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   // Reference for request cancellation to prevent race conditions
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -441,6 +471,30 @@ export const Dashboard: React.FC = () => {
               <RotateCw size={13} className={refreshing ? "animate-spin" : ""} />
             </button>
           </div>
+
+          {/* Reset Sample Data Button */}
+          <button
+            type="button"
+            onClick={() => setShowResetModal(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "#fff1f2",
+              color: "#be123c",
+              border: "1px solid #fecdd3",
+              borderRadius: "10px",
+              padding: "6px 14px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            title="Reset all sample bookings, expenses, payouts, and dummy departures"
+          >
+            <RotateCw size={12} />
+            <span>Reset Sample Data</span>
+          </button>
         </div>
       </div>
 
@@ -1008,6 +1062,17 @@ export const Dashboard: React.FC = () => {
                 <Wallet size={16} color="#15803d" />
                 <span style={{ fontWeight: 600 }}>Settle Payout</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setShowResetModal(true)}
+                className="admin-quick-btn"
+                style={{ padding: "12px 14px", border: "1px dashed #fca5a5", background: "#fff5f5" }}
+                title="Wipe sample/test records for production launch"
+              >
+                <RotateCw size={16} color="#dc2626" />
+                <span style={{ fontWeight: 600, color: "#dc2626" }}>Reset Sample Data</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1158,6 +1223,73 @@ export const Dashboard: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Reset Sample Data Confirmation Modal */}
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => !isResetting && setShowResetModal(false)}
+        title="Reset All Sample Data for Launch"
+      >
+        <div style={{ padding: "8px 0" }}>
+          <p style={{ fontSize: "14px", color: "#334155", lineHeight: "1.6", marginBottom: "14px" }}>
+            Ready to launch your website? This will permanently wipe all test data created during development so you can feed real data:
+          </p>
+          <ul style={{ fontSize: "13px", color: "#475569", lineHeight: "1.8", paddingLeft: "20px", marginBottom: "18px" }}>
+            <li>All dummy <strong>Captain Payouts & Settlements</strong></li>
+            <li>All dummy <strong>Captain Expense Claims</strong> (fg, er, vb, 70, etc.)</li>
+            <li>All test <strong>Bookings & Revenue Metrics</strong></li>
+            <li>All test <strong>Captain Assignments & Attendances</strong></li>
+            <li>All dummy / sample <strong>Captains</strong></li>
+            <li>All sample / orphan <strong>Departure Slots</strong> ("Trip Package" without real trips)</li>
+          </ul>
+
+          <div
+            style={{
+              background: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              borderRadius: "8px",
+              padding: "12px",
+              marginBottom: "20px",
+              fontSize: "12.5px",
+              color: "#166534",
+            }}
+          >
+            <strong>Safe & Protected:</strong> Your real configured Trips (packages) and Admin / Staff login accounts will <strong>NOT</strong> be deleted.
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => setShowResetModal(false)}
+              disabled={isResetting}
+              className="admin-btn admin-btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleResetSampleData}
+              disabled={isResetting}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#dc2626",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "8px 18px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: isResetting ? "not-allowed" : "pointer",
+                opacity: isResetting ? 0.7 : 1,
+              }}
+            >
+              {isResetting ? "Resetting Database..." : "Confirm & Reset All Sample Data"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

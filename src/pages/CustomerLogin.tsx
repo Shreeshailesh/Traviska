@@ -642,31 +642,6 @@ export default function CustomerLogin() {
             <span>Official Traviska Portal</span>
           </div>
         </div>
-
-        {/* Quick Link to Admin Login */}
-        <div
-          style={{
-            marginTop: "16px",
-            paddingTop: "14px",
-            borderTop: "1px dashed #e2e8f0",
-            textAlign: "center",
-          }}
-        >
-          <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-            Admin or Operations Team?{" "}
-          </span>
-          <Link
-            to="/admin/login"
-            style={{
-              fontSize: "12.5px",
-              fontWeight: 600,
-              color: "#164e23",
-              textDecoration: "none",
-            }}
-          >
-            Admin Login &rarr;
-          </Link>
-        </div>
       </div>
 
       {/* Forgot Password Modal */}

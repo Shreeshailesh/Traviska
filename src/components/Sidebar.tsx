@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import logo from "../assets/logo.jpg";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -39,7 +40,10 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       <aside className={`admin-sidebar ${isOpen ? "open" : ""}`}>
         <div className="admin-sidebar-header">
-          <h2 className="admin-sidebar-title">Traviska</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <img src={logo} alt="Traviska Logo" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
+            <h2 className="admin-sidebar-title">Traviska</h2>
+          </div>
           <button
             type="button"
             className="admin-sidebar-close-btn"

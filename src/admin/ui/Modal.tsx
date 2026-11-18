@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 interface ModalProps {
@@ -34,7 +35,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const modalElement = (
     <div
       style={{
         position: "fixed",
@@ -42,29 +43,35 @@ export const Modal: React.FC<ModalProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(3px)",
-        zIndex: 1100,
+        width: "100vw",
+        height: "100vh",
+        background: "rgba(15, 23, 42, 0.65)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        zIndex: 999999,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "20px",
         overflowY: "auto",
+        boxSizing: "border-box",
       }}
       onClick={onClose}
     >
       <div
         style={{
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "16px",
           width: "100%",
           maxWidth,
           maxHeight: "min(90vh, 880px)",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+          boxShadow: "0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.06)",
           overflow: "hidden",
-          animation: "fadeIn 0.15s ease",
+          animation: "adminModalSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+          boxSizing: "border-box",
+          position: "relative",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -136,6 +143,10 @@ export const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modalElement, document.body)
+    : modalElement;
 };
 
 export default Modal;

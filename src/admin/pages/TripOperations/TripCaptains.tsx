@@ -163,10 +163,12 @@ export const TripCaptains: React.FC = () => {
           <p>Add, manage, and view trip leaders, guide credentials and ratings.</p>
         </div>
 
-        <button onClick={handleOpenAdd} className="admin-btn admin-btn-primary">
-          <Plus size={16} />
-          <span>Add Captain</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button onClick={handleOpenAdd} className="admin-btn admin-btn-primary">
+            <Plus size={16} />
+            <span>Add Captain</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter / Search Bar */}

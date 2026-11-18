@@ -51,7 +51,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
         type="button"
         className="admin-topbar-icon-btn mobile-toggle-btn"
         onClick={onToggleSidebar}
-        style={{ display: "none" }}
         aria-label="Toggle Navigation"
       >
         <Menu size={20} />

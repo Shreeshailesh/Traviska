@@ -10,6 +10,7 @@ const Captain = require("../models/Captain");
 const TripExpense = require("../models/TripExpense");
 const CaptainPayout = require("../models/CaptainPayout");
 const CaptainAssignment = require("../models/CaptainAssignment");
+const { resetAllSampleData } = require("../utils/resetSampleData");
 
 const TZ = "Asia/Kolkata";
 
@@ -496,6 +497,20 @@ module.exports = function adminDashboardRoutes({ authMiddleware, adminMiddleware
     } catch (err) {
       console.error("Dashboard aggregate failed:", err);
       return res.status(500).json({ success: false, message: "Failed to load dashboard data" });
+    }
+  });
+
+  router.post("/admin/system/reset-sample-data", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const results = await resetAllSampleData();
+      res.json({
+        success: true,
+        message: "All sample data has been reset successfully. Dashboard is clean and ready for real data.",
+        results,
+      });
+    } catch (err) {
+      console.error("Reset sample data error:", err);
+      res.status(500).json({ success: false, message: "Failed to reset sample data: " + err.message });
     }
   });
 

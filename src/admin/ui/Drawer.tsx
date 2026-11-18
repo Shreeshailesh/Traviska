@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 interface DrawerProps {
@@ -36,7 +37,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const drawerElement = (
     <div className="admin-drawer-overlay" onClick={onClose}>
       <div
         className="admin-drawer-content"
@@ -100,6 +101,10 @@ export const Drawer: React.FC<DrawerProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(drawerElement, document.body)
+    : drawerElement;
 };
 
 export default Drawer;

@@ -58,106 +58,6 @@ interface CaptainItem {
   avatar?: string;
 }
 
-const DEFAULT_SLOTS: SlotItem[] = [
-  {
-    _id: "slot-wayanad",
-    tripTitle: "Wayanad Explorer",
-    destination: "Wayanad, Kerala",
-    dates: "19 Dec – 21 Dec 2026",
-    duration: "3 Days / 2 Nights",
-    bookedSlots: 18,
-    totalSlots: 24,
-    image: "https://images.unsplash.com/photo-1596401057633-54a8fe8ef647?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    _id: "slot-coorg",
-    tripTitle: "Coorg Weekend Trip",
-    destination: "Coorg, Karnataka",
-    dates: "21 Nov – 22 Nov 2026",
-    duration: "2 Days / 1 Night",
-    bookedSlots: 24,
-    totalSlots: 24,
-    image: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    _id: "slot-ooty",
-    tripTitle: "Ooty – Coonoor Trip",
-    destination: "Ooty, Tamil Nadu",
-    dates: "28 Nov – 30 Nov 2026",
-    duration: "3 Days / 2 Nights",
-    bookedSlots: 20,
-    totalSlots: 24,
-    image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    _id: "slot-chikmagalur",
-    tripTitle: "Chikmagalur Coffee Trail",
-    destination: "Chikmagalur, Karnataka",
-    dates: "05 Dec – 07 Dec 2026",
-    duration: "3 Days / 2 Nights",
-    bookedSlots: 16,
-    totalSlots: 20,
-    image: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    _id: "slot-gokarna",
-    tripTitle: "Gokarna Beach Trek",
-    destination: "Gokarna, Karnataka",
-    dates: "12 Dec – 14 Dec 2026",
-    duration: "3 Days / 2 Nights",
-    bookedSlots: 14,
-    totalSlots: 20,
-    image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&auto=format&fit=crop&q=80",
-  },
-];
-
-const DEFAULT_CAPTAINS: CaptainItem[] = [
-  {
-    _id: "cap-naveen",
-    name: "Naveen R.",
-    phone: "+91 98765 43210",
-    role: "Head Captain",
-    rating: 4.9,
-    tripsCount: 38,
-    defaultFee: 6000,
-  },
-  {
-    _id: "cap-arjun",
-    name: "Arjun K.",
-    phone: "+91 99876 54321",
-    role: "Head Captain",
-    rating: 4.8,
-    tripsCount: 29,
-    defaultFee: 6000,
-  },
-  {
-    _id: "cap-divya",
-    name: "Divya S.",
-    phone: "+91 91234 56789",
-    role: "Main Captain",
-    rating: 4.9,
-    tripsCount: 24,
-    defaultFee: 4500,
-  },
-  {
-    _id: "cap-kavya",
-    name: "Kavya M.",
-    phone: "+91 97890 12345",
-    role: "Main Captain",
-    rating: 4.8,
-    tripsCount: 18,
-    defaultFee: 4500,
-  },
-  {
-    _id: "cap-shailesh",
-    name: "Shailesh N.",
-    phone: "+91 90123 45678",
-    role: "Trainee Captain",
-    rating: 4.7,
-    tripsCount: 9,
-    defaultFee: 3000,
-  },
-];
 
 const getRoleBadge = (role: string) => {
   const r = (role || "Head Captain").toLowerCase();
@@ -189,75 +89,9 @@ const getRoleBadge = (role: string) => {
 };
 
 export const CaptainAssignments: React.FC = () => {
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    {
-      _id: "as-1",
-      slotId: "slot-coorg",
-      captainId: "cap-naveen",
-      tripTitle: "Coorg Weekend Trip",
-      destination: "Coorg, Karnataka",
-      dates: "21 Nov – 22 Nov 2026",
-      captainName: "Naveen R.",
-      captainPhone: "+91 98765 43210",
-      role: "Head Captain",
-      travellers: 24,
-      capacity: 24,
-      captainFee: 5000,
-      advancePaid: 2000,
-      status: "Assigned",
-    },
-    {
-      _id: "as-1b",
-      slotId: "slot-coorg",
-      captainId: "cap-divya",
-      tripTitle: "Coorg Weekend Trip",
-      destination: "Coorg, Karnataka",
-      dates: "21 Nov – 22 Nov 2026",
-      captainName: "Divya S.",
-      captainPhone: "+91 91234 56789",
-      role: "Main Captain",
-      travellers: 24,
-      capacity: 24,
-      captainFee: 4000,
-      advancePaid: 1500,
-      status: "Assigned",
-    },
-    {
-      _id: "as-1c",
-      slotId: "slot-coorg",
-      captainId: "cap-shailesh",
-      tripTitle: "Coorg Weekend Trip",
-      destination: "Coorg, Karnataka",
-      dates: "21 Nov – 22 Nov 2026",
-      captainName: "Shailesh N.",
-      captainPhone: "+91 90123 45678",
-      role: "Trainee Captain",
-      travellers: 24,
-      capacity: 24,
-      captainFee: 2500,
-      advancePaid: 1000,
-      status: "Assigned",
-    },
-    {
-      _id: "as-2",
-      slotId: "slot-ooty",
-      captainId: "cap-arjun",
-      tripTitle: "Ooty – Coonoor Trip",
-      destination: "Ooty, Tamil Nadu",
-      dates: "28 Nov – 30 Nov 2026",
-      captainName: "Arjun K.",
-      captainPhone: "+91 99876 54321",
-      role: "Head Captain",
-      travellers: 20,
-      capacity: 24,
-      captainFee: 6000,
-      advancePaid: 2000,
-      status: "Assigned",
-    },
-  ]);
-
-  const [availableSlots, setAvailableSlots] = useState<SlotItem[]>(DEFAULT_SLOTS);
-  const [availableCaptains, setAvailableCaptains] = useState<CaptainItem[]>(DEFAULT_CAPTAINS);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<SlotItem[]>([]);
+  const [availableCaptains, setAvailableCaptains] = useState<CaptainItem[]>([]);
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -265,18 +99,18 @@ export const CaptainAssignments: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
-    slotId: "slot-wayanad",
-    tripTitle: "Wayanad Explorer",
-    destination: "Wayanad, Kerala",
-    dates: "19 Dec – 21 Dec 2026",
-    captainId: "cap-naveen",
-    captainName: "Naveen R.",
-    captainPhone: "+91 98765 43210",
+    slotId: "",
+    tripTitle: "",
+    destination: "",
+    dates: "",
+    captainId: "",
+    captainName: "",
+    captainPhone: "",
     role: "Head Captain" as "Head Captain" | "Main Captain" | "Trainee Captain",
-    travellers: 18,
+    travellers: 0,
     capacity: 24,
-    captainFee: 6000,
-    advancePaid: 2000,
+    captainFee: 5000,
+    advancePaid: 0,
     notes: "",
     status: "Assigned" as "Assigned" | "On Trip" | "Completed" | "Cancelled",
   });
@@ -291,7 +125,7 @@ export const CaptainAssignments: React.FC = () => {
         const data = await res.json();
 
         // Populate slots from backend if available
-        if (Array.isArray(data.slots) && data.slots.length > 0) {
+        if (Array.isArray(data.slots)) {
           const parsedSlots: SlotItem[] = data.slots.map((s: any) => ({
             _id: s._id,
             tripTitle: s.trip?.title || s.customTitle || "Expedition Package",
@@ -308,14 +142,14 @@ export const CaptainAssignments: React.FC = () => {
         }
 
         // Populate captains from backend if available
-        if (Array.isArray(data.captains) && data.captains.length > 0) {
+        if (Array.isArray(data.captains)) {
           const parsedCaps: CaptainItem[] = data.captains.map((c: any) => ({
             _id: c._id,
             name: c.name || "Captain",
             phone: c.phone || "",
             role: (c.role as any) || "Head Captain",
             rating: c.rating || 4.9,
-            tripsCount: c.tripsCompleted || c.tripsCount || 15,
+            tripsCount: c.tripsCompleted || c.tripsCount || 0,
             defaultFee: c.defaultTripFee || 5000,
             avatar: c.avatar,
           }));
@@ -323,7 +157,7 @@ export const CaptainAssignments: React.FC = () => {
         }
 
         // Populate assignments
-        if (Array.isArray(data.assignments) && data.assignments.length > 0) {
+        if (Array.isArray(data.assignments)) {
           const mapped: Assignment[] = data.assignments.map((a: any) => {
             const r = a.role || "Head Captain";
             const normRole: "Head Captain" | "Main Captain" | "Trainee Captain" =
@@ -338,7 +172,7 @@ export const CaptainAssignments: React.FC = () => {
               slotId: a.slotId?._id || a.slotId,
               captainId: a.captainId?._id || a.captainId,
               tripTitle: a.tripId?.title || a.slotId?.trip?.title || "Trip Package",
-              destination: a.tripId?.location || a.slotId?.trip?.location || "Karnataka",
+              destination: a.tripId?.location || a.slotId?.trip?.location || "South India",
               dates: a.slotId?.date
                 ? new Date(a.slotId.date).toLocaleDateString("en-IN", {
                     day: "numeric",
@@ -347,12 +181,12 @@ export const CaptainAssignments: React.FC = () => {
                   })
                 : "Upcoming",
               captainName: a.captainId?.name || "Assigned Captain",
-              captainPhone: a.captainId?.phone || "+91 98765 43210",
+              captainPhone: a.captainId?.phone || "",
               role: normRole,
-              travellers: a.slotId?.bookedSlots || 24,
+              travellers: a.slotId?.bookedSlots || 0,
               capacity: a.slotId?.totalSlots || 24,
               captainFee: a.captainFee || a.captainId?.defaultTripFee || 5000,
-              advancePaid: a.advancePaid || 2000,
+              advancePaid: a.advancePaid || 0,
               notes: a.notes || "",
               status: a.status || "Assigned",
             };
@@ -360,10 +194,13 @@ export const CaptainAssignments: React.FC = () => {
 
           mapped.sort((a, b) => getRoleBadge(a.role).rank - getRoleBadge(b.role).rank);
           setAssignments(mapped);
+        } else {
+          setAssignments([]);
         }
       }
     } catch (e) {
-      console.log("Assignments loaded with local state:", e);
+      console.error("Assignments fetch error:", e);
+      setAssignments([]);
     }
   };
 
@@ -372,10 +209,19 @@ export const CaptainAssignments: React.FC = () => {
   }, []);
 
   const handleOpenAdd = () => {
+    if (availableSlots.length === 0) {
+      alert("No departure slots found. Please ensure at least one trip departure exists before assigning.");
+      return;
+    }
+    if (availableCaptains.length === 0) {
+      alert("No captains found. Please add a captain in Trip Captains first before assigning.");
+      return;
+    }
+
     setEditingId(null);
     setFormError(null);
-    const defaultSlot = availableSlots[0] || DEFAULT_SLOTS[0];
-    const defaultCap = availableCaptains[0] || DEFAULT_CAPTAINS[0];
+    const defaultSlot = availableSlots[0];
+    const defaultCap = availableCaptains[0];
 
     setForm({
       slotId: defaultSlot._id,
@@ -388,8 +234,8 @@ export const CaptainAssignments: React.FC = () => {
       role: defaultCap.role,
       travellers: defaultSlot.bookedSlots,
       capacity: defaultSlot.totalSlots,
-      captainFee: defaultCap.defaultFee || 6000,
-      advancePaid: 2000,
+      captainFee: defaultCap.defaultFee || 5000,
+      advancePaid: 0,
       notes: "",
       status: "Assigned",
     });
@@ -400,11 +246,11 @@ export const CaptainAssignments: React.FC = () => {
     setEditingId(row._id);
     setFormError(null);
     setForm({
-      slotId: row.slotId || availableSlots[0]?._id || "slot-wayanad",
+      slotId: row.slotId || availableSlots[0]?._id || "",
       tripTitle: row.tripTitle,
       destination: row.destination,
       dates: row.dates,
-      captainId: row.captainId || availableCaptains[0]?._id || "cap-naveen",
+      captainId: row.captainId || availableCaptains[0]?._id || "",
       captainName: row.captainName,
       captainPhone: row.captainPhone,
       role: row.role,
@@ -514,9 +360,28 @@ export const CaptainAssignments: React.FC = () => {
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Remove this captain assignment?")) {
-      setAssignments((prev) => prev.filter((a) => a._id !== id));
+  const handleDelete = async (row: Assignment) => {
+    if (!window.confirm(`Are you sure you want to remove assignment for "${row.captainName}"?`)) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      let res = await fetch(`${API_BASE_URL}/admin/operations/assignments/${row._id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok && row.slotId && row.captainId) {
+        res = await fetch(`${API_BASE_URL}/admin/operations/assignments/${row.slotId}/${row.captainId}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      }
+
+      setAssignments((prev) => prev.filter((a) => a._id !== row._id));
+      await fetchAssignments();
+    } catch (err) {
+      console.error("Delete assignment error:", err);
+      alert("Network error while removing assignment.");
     }
   };
 
@@ -562,7 +427,19 @@ export const CaptainAssignments: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {assignments.map((row) => (
+              {assignments.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px" }}>
+                    <div style={{ color: "#64748b", fontSize: "14px", fontWeight: 600 }}>
+                      No captain assignments found.
+                    </div>
+                    <div style={{ color: "#94a3b8", fontSize: "12.5px", marginTop: "4px" }}>
+                      Click "New Assignment" above to assign a captain to an upcoming departure slot.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                assignments.map((row) => (
                 <tr key={row._id}>
                   <td>
                     <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "13.5px" }}>
@@ -700,7 +577,7 @@ export const CaptainAssignments: React.FC = () => {
                         <Edit2 size={15} />
                       </button>
                       <button
-                        onClick={() => handleDelete(row._id)}
+                        onClick={() => handleDelete(row)}
                         style={{
                           border: "none",
                           background: "transparent",
@@ -716,7 +593,7 @@ export const CaptainAssignments: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

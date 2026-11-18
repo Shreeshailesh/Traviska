@@ -33,16 +33,51 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
-    enum: ["admin", "customer", "sales", "sales_lead"],
+    enum: [
+      "super_admin",
+      "admin",
+      "customer",
+      "sales",
+      "sales_lead",
+      "sales_executive",
+      "captain_admin",
+    ],
     default: "customer",
   },
   department: {
     type: String,
     default: "Operations",
   },
+  team: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Team",
+  },
+  teamName: {
+    type: String,
+  },
   isActive: {
     type: Boolean,
     default: true,
+  },
+  isSuspended: {
+    type: Boolean,
+    default: false,
+  },
+  suspendedAt: {
+    type: Date,
+  },
+  suspensionReason: {
+    type: String,
+  },
+  sessionsRevokedAt: {
+    type: Date,
+  },
+  lastLogin: {
+    type: Date,
+  },
+  invitedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
   },
   isEmailVerified: {
     type: Boolean,

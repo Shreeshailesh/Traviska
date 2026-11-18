@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   CheckSquare,
   Square,
@@ -33,100 +33,175 @@ interface PickupGroup {
   bookings: BookingGroup[];
 }
 
-export const TripAttendance: React.FC = () => {
-  const [selectedSlot, setSelectedSlot] = useState("coorg-21-nov");
-  const [saveSuccess, setSaveSuccess] = useState(false);
+interface AssignedCaptainView {
+  name: string;
+  phone: string;
+  role: string;
+  rank: number;
+}
 
-  const [pickupData, setPickupData] = useState<PickupGroup[]>([
-    {
-      pickupName: "Pickup: Majestic (10 Travellers)",
-      totalTravellers: 10,
-      bookings: [
-        {
-          bookingCode: "TVK1248",
-          customerName: "Rahul Sharma",
-          customerPhone: "+91 98765 43210",
-          travellers: [
-            {
-              id: "t1",
-              name: "Rahul Sharma",
-              age: 26,
-              gender: "M",
-              isPrimary: true,
-              phone: "+91 98765 43210",
-              isPresent: true,
-            },
-            {
-              id: "t2",
-              name: "Priya Sharma",
-              age: 26,
-              gender: "F",
-              isPresent: true,
-            },
-          ],
-        },
-        {
-          bookingCode: "TVK1249",
-          customerName: "Kiran Kumar",
-          customerPhone: "+91 91234 56789",
-          travellers: [
-            {
-              id: "t3",
-              name: "Kiran Kumar",
-              age: 27,
-              gender: "M",
-              isPrimary: true,
-              phone: "+91 91234 56789",
-              isPresent: true,
-            },
-            {
-              id: "t4",
-              name: "Suhana K.",
-              age: 25,
-              gender: "F",
-              isPresent: false,
-            },
-            {
-              id: "t5",
-              name: "Rohit K.",
-              age: 24,
-              gender: "M",
-              isPresent: false,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      pickupName: "Pickup: Silk Board Junction (8 Travellers)",
-      totalTravellers: 8,
-      bookings: [
-        {
-          bookingCode: "TVK1250",
-          customerName: "Arjun M.",
-          customerPhone: "+91 90987 65432",
-          travellers: [
-            {
-              id: "t6",
-              name: "Arjun M.",
-              age: 28,
-              gender: "M",
-              isPrimary: true,
-              phone: "+91 90987 65432",
-              isPresent: true,
-            },
-            {
-              id: "t7",
-              name: "Sneha R.",
-              age: 26,
-              gender: "F",
-              isPresent: true,
-            },
-          ],
-        },
-      ],
-    },
-  ]);
+interface SlotOption {
+  _id: string;
+  tripTitle: string;
+  dates: string;
+  assignedCaptains: AssignedCaptainView[];
+}
+
+export const TripAttendance: React.FC = () => {
+  const [slots, setSlots] = useState<SlotOption[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [pickupData, setPickupData] = useState<PickupGroup[]>([]);
+
+  // Fetch real available slots
+  useEffect(() => {
+    const fetchSlots = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE_URL}/admin/operations/assignments`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.slots) && data.slots.length > 0) {
+            const mappedSlots: SlotOption[] = data.slots.map((s: any) => {
+              const caps: AssignedCaptainView[] = [];
+              if (s.assignedCaptain && s.assignedCaptain.name) {
+                caps.push({
+                  name: s.assignedCaptain.name,
+                  phone: s.assignedCaptain.phone || "",
+                  role: s.assignedCaptain.role || "Head Captain",
+                  rank: 1,
+                });
+              }
+              if (Array.isArray(s.assignedCaptains)) {
+                s.assignedCaptains.forEach((ac: any, idx: number) => {
+                  const cap = ac.captain || ac;
+                  if (cap && cap.name && !caps.some((c) => c.name === cap.name)) {
+                    caps.push({
+                      name: cap.name,
+                      phone: cap.phone || "",
+                      role: ac.role || cap.role || "Main Captain",
+                      rank: idx + 2,
+                    });
+                  }
+                });
+              }
+              return {
+                _id: s._id,
+                tripTitle: s.trip?.title || s.customTitle || "Expedition Package",
+                dates: s.date
+                  ? new Date(s.date).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : s.startDate || "Upcoming",
+                assignedCaptains: caps,
+              };
+            });
+            setSlots(mappedSlots);
+            setSelectedSlot(mappedSlots[0]._id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch slots for attendance:", err);
+      }
+    };
+    fetchSlots();
+  }, []);
+
+  // Fetch attendance and bookings for selected slot
+  useEffect(() => {
+    if (!selectedSlot) return;
+
+    const fetchAttendance = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE_URL}/admin/operations/attendance/${selectedSlot}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const bookings = data.bookings || [];
+          const attendance = data.attendance || [];
+
+          // Group by pickupLocation
+          const pickupMap = new Map<string, BookingGroup[]>();
+          bookings.forEach((b: any) => {
+            if (b.status === "Cancelled") return;
+            const pName = b.pickupLocation || "Standard Pickup";
+            const travellersList: TravellerAttendance[] = [];
+
+            if (Array.isArray(b.travellersDetails) && b.travellersDetails.length > 0) {
+              b.travellersDetails.forEach((td: any, idx: number) => {
+                const attRec = attendance.find(
+                  (a: any) => a.bookingId === (b.bookingCode || b._id) && a.travellerIndex === idx
+                );
+                travellersList.push({
+                  id: td._id || `tr-${b._id}-${idx}`,
+                  name: td.name || td.fullName || b.name || "Traveller",
+                  age: td.age || 25,
+                  gender: td.gender || "M",
+                  isPrimary: idx === 0,
+                  phone: idx === 0 ? b.phone : undefined,
+                  isPresent: attRec ? attRec.status === "Boarded" || attRec.status === "Present" : true,
+                });
+              });
+            } else {
+              const count = Number(b.travellers) || 1;
+              for (let i = 0; i < count; i++) {
+                const attRec = attendance.find(
+                  (a: any) => a.bookingId === (b.bookingCode || b._id) && a.travellerIndex === i
+                );
+                travellersList.push({
+                  id: `tr-${b._id}-${i}`,
+                  name: i === 0 ? b.name || "Traveller" : `Guest of ${b.name || "Traveller"}`,
+                  age: 25,
+                  gender: "M",
+                  isPrimary: i === 0,
+                  phone: i === 0 ? b.phone : undefined,
+                  isPresent: attRec ? attRec.status === "Boarded" || attRec.status === "Present" : true,
+                });
+              }
+            }
+
+            const bg: BookingGroup = {
+              bookingCode: b.bookingCode || b._id?.slice(-6) || "TVK",
+              customerName: b.name || "Customer",
+              customerPhone: b.phone || "",
+              travellers: travellersList,
+            };
+
+            if (!pickupMap.has(pName)) {
+              pickupMap.set(pName, []);
+            }
+            pickupMap.get(pName)!.push(bg);
+          });
+
+          const groups: PickupGroup[] = [];
+          pickupMap.forEach((bList, pName) => {
+            const tot = bList.reduce((acc, curr) => acc + curr.travellers.length, 0);
+            groups.push({
+              pickupName: `Pickup: ${pName} (${tot} Travellers)`,
+              totalTravellers: tot,
+              bookings: bList,
+            });
+          });
+
+          setPickupData(groups);
+        }
+      } catch (err) {
+        console.error("Attendance fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttendance();
+  }, [selectedSlot]);
 
   const toggleTraveller = (pickupIdx: number, bookingIdx: number, travellerId: string) => {
     setPickupData((prev) => {
@@ -196,6 +271,10 @@ export const TripAttendance: React.FC = () => {
     });
   });
 
+  // Active slot object
+  const currentSlotObj = slots.find((s) => s._id === selectedSlot);
+  const currentCaptains = currentSlotObj?.assignedCaptains || [];
+
   return (
     <div style={{ width: "100%" }} className="space-y-6">
       {/* Top Header */}
@@ -203,14 +282,15 @@ export const TripAttendance: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Trip Attendance</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Coorg Weekend Trip — 21 Nov 2026 • Real-time passenger boarding check.
+            {currentSlotObj ? `${currentSlotObj.tripTitle} — ${currentSlotObj.dates} • ` : ""}Real-time passenger boarding check.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={markAllPresent}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 shadow-sm transition-colors"
+            disabled={pickupData.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors"
           >
             <CheckCircle2 className="w-4 h-4" />
             Mark All Present
@@ -218,7 +298,8 @@ export const TripAttendance: React.FC = () => {
 
           <button
             onClick={handleSave}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0d2b17] text-white text-xs font-semibold hover:bg-[#143e22] shadow-sm transition-colors"
+            disabled={pickupData.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0d2b17] text-white text-xs font-semibold hover:bg-[#143e22] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors"
           >
             <Save className="w-4 h-4" />
             Save Attendance
@@ -245,9 +326,15 @@ export const TripAttendance: React.FC = () => {
             onChange={(e) => setSelectedSlot(e.target.value)}
             className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-[#0d2b17]"
           >
-            <option value="coorg-21-nov">Coorg Weekend Trip (21 Nov – 22 Nov 2026)</option>
-            <option value="ooty-28-nov">Ooty – Coonoor Trip (28 Nov – 30 Nov 2026)</option>
-            <option value="gokarna-05-dec">Gokarna – Murdeshwar (05 Dec – 07 Dec 2026)</option>
+            {slots.length === 0 ? (
+              <option value="">No departures available</option>
+            ) : (
+              slots.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.tripTitle} ({s.dates})
+                </option>
+              ))
+            )}
           </select>
         </div>
 
@@ -270,48 +357,62 @@ export const TripAttendance: React.FC = () => {
           <span>Assigned Captains Hierarchy (Departure Team)</span>
           <span className="text-[11px] text-gray-400 font-normal">Head Captain has final roll-call authority</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 flex items-start gap-2.5">
-            <div className="text-lg">👑</div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-emerald-900">Head Captain</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-700 text-white">Rank 1</span>
-              </div>
-              <div className="font-semibold text-xs text-gray-900 mt-0.5">Naveen R.</div>
-              <div className="text-[11px] text-gray-500">+91 98765 43210 • Final Sign-Off Authority</div>
-            </div>
+        {currentCaptains.length === 0 ? (
+          <div className="text-xs text-gray-500 py-3 text-center">
+            No captains assigned to this departure slot yet. Assign captains under Trip Operations &gt; Assignments.
           </div>
-
-          <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/50 flex items-start gap-2.5">
-            <div className="text-lg">⭐</div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-blue-900">Main Captain</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-700 text-white">Rank 2</span>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {currentCaptains.map((cap, cIdx) => (
+              <div
+                key={cIdx}
+                className={`p-3 rounded-lg border flex items-start gap-2.5 ${
+                  cap.rank === 1
+                    ? "border-emerald-200 bg-emerald-50/50"
+                    : cap.rank === 2
+                    ? "border-blue-200 bg-blue-50/50"
+                    : "border-gray-200 bg-gray-50/60"
+                }`}
+              >
+                <div className="text-lg">{cap.rank === 1 ? "👑" : cap.rank === 2 ? "⭐" : "🌱"}</div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-xs font-bold ${
+                        cap.rank === 1 ? "text-emerald-900" : cap.rank === 2 ? "text-blue-900" : "text-gray-800"
+                      }`}
+                    >
+                      {cap.role}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded text-white ${
+                        cap.rank === 1 ? "bg-emerald-700" : cap.rank === 2 ? "bg-blue-700" : "bg-gray-600"
+                      }`}
+                    >
+                      Rank {cap.rank}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-xs text-gray-900 mt-0.5">{cap.name}</div>
+                  <div className="text-[11px] text-gray-500">{cap.phone || "No phone"}</div>
+                </div>
               </div>
-              <div className="font-semibold text-xs text-gray-900 mt-0.5">Arjun K.</div>
-              <div className="text-[11px] text-gray-500">+91 99876 54321 • Boarding Assistant</div>
-            </div>
+            ))}
           </div>
-
-          <div className="p-3 rounded-lg border border-gray-200 bg-gray-50/60 flex items-start gap-2.5">
-            <div className="text-lg">🌱</div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-gray-800">Trainee Captain</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-gray-600 text-white">Rank 3</span>
-              </div>
-              <div className="font-semibold text-xs text-gray-900 mt-0.5">Shailesh N.</div>
-              <div className="text-[11px] text-gray-500">+91 90123 45678 • In-Field Observer</div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Pickup Groups */}
       <div className="space-y-4">
-        {pickupData.map((pickupGroup, pIdx) => (
+        {loading ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500 shadow-sm">
+            Loading attendance records...
+          </div>
+        ) : pickupData.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500 shadow-sm">
+            No passenger bookings found for this departure slot.
+          </div>
+        ) : (
+          pickupData.map((pickupGroup, pIdx) => (
           <div
             key={pIdx}
             className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
@@ -404,7 +505,7 @@ export const TripAttendance: React.FC = () => {
               ))}
             </div>
           </div>
-        ))}
+        )))}
       </div>
     </div>
   );

@@ -80,7 +80,6 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   display: flex;
   position: relative;
-  overflow-x: hidden;
 }
 
 .admin-scope * {
@@ -101,8 +100,10 @@
   color: var(--admin-sidebar-text);
   display: flex;
   flex-direction: column;
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  bottom: 0;
   height: 100vh;
   z-index: 100;
   border-right: 1px solid var(--admin-sidebar-border);
@@ -110,6 +111,20 @@
   overflow-x: hidden;
   transition: transform 0.25s ease;
   box-sizing: border-box;
+}
+
+.admin-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.admin-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.admin-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .admin-sidebar-header {
@@ -137,6 +152,16 @@
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.admin-sidebar-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 .admin-sidebar-brand-text {
@@ -280,8 +305,8 @@
    ========================================================================== */
 .admin-scope .admin-main-container,
 .admin-main-container {
-  margin-left: 0;
-  width: 100%;
+  margin-left: var(--admin-sidebar-width);
+  width: calc(100% - var(--admin-sidebar-width));
   min-width: 0;
   flex: 1;
   display: flex;
@@ -954,12 +979,31 @@
   display: none;
 }
 
+.admin-sidebar-mobile-close {
+  display: none;
+  background: none;
+  border: none;
+  color: #a7cca9;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  transition: all 0.15s ease;
+}
+
+.admin-sidebar-mobile-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
 @media (max-width: 1024px) {
   .admin-mobile-backdrop {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(13, 43, 23, 0.5);
+    background: rgba(13, 43, 23, 0.55);
     backdrop-filter: blur(2px);
     z-index: 999;
     animation: fadeIn 0.15s ease;
@@ -971,16 +1015,23 @@
     top: 0;
     bottom: 0;
     left: 0;
+    width: 270px;
+    max-width: 85vw;
     height: 100vh;
     z-index: 1000;
     transform: translateX(-100%);
     box-shadow: none;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .admin-scope .admin-sidebar.open,
   .admin-sidebar.open {
     transform: translateX(0);
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+    box-shadow: 4px 0 25px rgba(0, 0, 0, 0.45);
+  }
+
+  .admin-sidebar-mobile-close {
+    display: flex;
   }
 
   .admin-scope .admin-main-container,
@@ -1517,6 +1568,44 @@
   color: var(--admin-text-main);
 }
 
+.booking-action-icon-btn.delete {
+  color: #dc2626;
+  border-color: #fee2e2;
+}
+
+.booking-action-icon-btn.delete:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.bookings-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  animation: adminModalFadeIn 0.2s ease;
+}
+
+.bookings-bulk-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.bookings-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .bookings-table-footer {
   display: flex;
   align-items: center;
@@ -1566,5 +1655,368 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ==========================================================================
+   ADMIN MODAL POPUP DIALOGS (Reschedule, Cancel, Confirmations)
+   ========================================================================== */
+
+.admin-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  animation: adminModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow-y: auto;
+}
+
+@keyframes adminModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.admin-modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  max-height: 90vh;
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: adminModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes adminModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.admin-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--admin-border-subtle, #e2e8f0);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.admin-modal-close {
+  background: none;
+  border: none;
+  color: var(--admin-text-muted, #64748b);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.admin-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.admin-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--admin-border-subtle, #e2e8f0);
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   COMPREHENSIVE MOBILE VIEW OPTIMIZATIONS (Smartphones <= 768px & Small <= 480px)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* Content Area */
+  .admin-content-area {
+    padding: 14px 12px 32px 12px;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  /* Topbar */
+  .admin-topbar {
+    padding: 0 12px;
+    height: 56px;
+    gap: 8px;
+  }
+
+  .admin-search-wrapper {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+
+  .admin-search-input {
+    padding: 8px 10px 8px 30px;
+    font-size: 12px;
+  }
+
+  .admin-search-icon {
+    left: 10px;
+    width: 14px;
+    height: 14px;
+  }
+
+  .admin-search-shortcut {
+    display: none;
+  }
+
+  .admin-user-profile-pill {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .admin-user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .admin-user-info {
+    display: none;
+  }
+
+  /* Page Headers & Actions */
+  .admin-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .admin-page-title {
+    font-size: 20px;
+  }
+
+  .admin-page-subtitle {
+    font-size: 12px;
+  }
+
+  .admin-page-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .admin-page-actions .admin-btn {
+    flex: 1;
+    min-width: 130px;
+    justify-content: center;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  /* Grids */
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-charts-grid,
+  .admin-two-col-grid,
+  .admin-three-col-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .admin-quick-actions-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* Bookings Redesign Mobile Adaptations */
+  .bookings-hero-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .bookings-hero-left {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .bookings-hero-img {
+    width: 56px;
+    height: 56px;
+  }
+
+  .bookings-hero-title {
+    font-size: 17px;
+  }
+
+  .bookings-hero-badge {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 8px 14px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .bookings-hero-badge-count {
+    font-size: 16px;
+  }
+
+  .bookings-filters-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .bookings-search-input-box {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .bookings-filter-dropdowns {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .bookings-filter-select {
+    flex: 1;
+    min-width: 130px;
+    font-size: 12px;
+  }
+
+  .bookings-tabs-row {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .bookings-tab-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  /* Tables container */
+  .admin-table-container,
+  .bookings-table-card,
+  .admin-panel-body table {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+  }
+
+  .bookings-table-card {
+    overflow-x: auto;
+  }
+
+  .bookings-table-card table {
+    min-width: 720px;
+  }
+
+  .bookings-table-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .bookings-pagination {
+    justify-content: center;
+  }
+
+  /* Modals Mobile Fit */
+  .admin-modal-overlay {
+    padding: 10px;
+  }
+
+  .admin-modal-content {
+    width: 100% !important;
+    max-width: 96vw !important;
+    max-height: 92vh !important;
+    border-radius: 14px;
+  }
+
+  .admin-modal-header {
+    padding: 14px 18px 12px;
+  }
+
+  .admin-modal-body {
+    padding: 14px 18px;
+    max-height: calc(92vh - 110px);
+    overflow-y: auto;
+  }
+
+  .admin-modal-footer {
+    padding: 12px 18px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .admin-modal-footer button {
+    flex: 1;
+    min-width: 110px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-topbar {
+    padding: 0 8px;
+  }
+
+  .admin-search-wrapper {
+    display: none;
+  }
+
+  .admin-page-title {
+    font-size: 18px;
+  }
+
+  .bookings-hero-left {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bookings-hero-img {
+    width: 100%;
+    height: 120px;
+    border-radius: 8px;
+  }
+}
+
 
 

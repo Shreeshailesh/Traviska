@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import logo from "../assets/logo.jpg";
 import {
   LayoutDashboard,
   Users,
@@ -35,26 +36,7 @@ export const SalesSidebar: React.FC<SalesSidebarProps> = ({
       <div className="admin-sidebar-header">
         <Link to="/sales" className="admin-sidebar-brand" onClick={onClose}>
           <div className="admin-brand-icon-wrapper">
-            <svg
-              width="24"
-              height="20"
-              viewBox="0 0 34 28"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M3 24 L13 6 L19 16 L23 10 L31 24 Z"
-                stroke="#d9eec7"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M10 18 L13 14 L17 20"
-                stroke="#d9eec7"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <img src={logo} alt="Traviska Logo" className="admin-sidebar-logo" />
           </div>
           <div className="admin-sidebar-brand-text">
             <span className="admin-sidebar-title">Traviska</span>

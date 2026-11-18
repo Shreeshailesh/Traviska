@@ -4,78 +4,11 @@ const Coupon = require("../models/Coupon");
 const Booking = require("../models/Booking");
 const Trip = require("../models/Trip");
 
-// Seed initial coupons from existing Marketing & Campaigns section if not yet created
-async function seedDefaultCoupons() {
-  try {
-    const existingCount = await Coupon.countDocuments();
-    if (existingCount > 0) return;
-
-    const defaultCoupons = [
-      {
-        code: "EXPLORE500",
-        discountType: "flat",
-        value: 500,
-        minBookingAmount: 4000,
-        validUntil: "31 Dec 2026",
-        expiryDate: new Date("2026-12-31T23:59:59.999Z"),
-        usageLimit: 500,
-        isActive: true,
-        applicableTrips: "All Trips",
-        perCustomerLimit: 2,
-      },
-      {
-        code: "COORG10",
-        discountType: "percentage",
-        value: 10,
-        minBookingAmount: 5000,
-        validUntil: "30 Nov 2026",
-        expiryDate: new Date("2026-11-30T23:59:59.999Z"),
-        usageLimit: 200,
-        isActive: true,
-        applicableTrips: "Coorg Weekend Trip",
-        perCustomerLimit: 1,
-      },
-      {
-        code: "NEWYEAR2027",
-        discountType: "flat",
-        value: 1000,
-        minBookingAmount: 8000,
-        validUntil: "05 Jan 2027",
-        expiryDate: new Date("2027-01-05T23:59:59.999Z"),
-        usageLimit: 100,
-        isActive: true,
-        applicableTrips: "All Trips",
-        perCustomerLimit: 1,
-      },
-      {
-        code: "EARLYBIRD",
-        discountType: "percentage",
-        value: 15,
-        minBookingAmount: 6000,
-        validUntil: "15 Nov 2026",
-        expiryDate: new Date("2026-11-15T23:59:59.999Z"),
-        usageLimit: 150,
-        isActive: false,
-        applicableTrips: "Gokarna & Ooty",
-        perCustomerLimit: 1,
-      },
-    ];
-
-    await Coupon.insertMany(defaultCoupons);
-    console.log("Seeded initial Marketing & Campaigns coupons into MongoDB.");
-  } catch (err) {
-    console.error("Coupon seeding check error:", err.message);
-  }
-}
-
 // Helper to construct phone regex matching arbitrary spaces and formatting on the last 10 digits
 function buildPhoneRegex(last10Digits) {
   const pattern = last10Digits.split("").join("[\\s\\-]*");
   return new RegExp(pattern + "$");
 }
-
-// Ensure seeding check runs on load
-seedDefaultCoupons();
 
 // Helper to check trip applicability
 function isTripApplicable(coupon, trip) {
@@ -587,6 +520,27 @@ module.exports = function couponRoutes({ authMiddleware, adminMiddleware } = {})
       } catch (err) {
         console.error("Delete coupon error:", err);
         res.status(500).json({ success: false, message: "Failed to delete coupon" });
+      }
+    });
+
+    // POST /admin/coupons/purge-sample - purge sample coupons
+    router.post("/admin/coupons/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
+      try {
+        const sampleCodes = ["COORG10", "NEWYEAR2027", "EARLYBIRD", "EXPLORE500"];
+        const deleteResult = await Coupon.deleteMany({
+          $or: [
+            { code: { $in: sampleCodes } },
+            { code: { $regex: /test|sample/i } },
+          ],
+        });
+        res.json({
+          success: true,
+          count: deleteResult.deletedCount,
+          message: `Successfully purged ${deleteResult.deletedCount} sample coupon(s).`,
+        });
+      } catch (err) {
+        console.error("Purge sample coupons error:", err);
+        res.status(500).json({ success: false, message: "Failed to purge sample coupons" });
       }
     });
   }

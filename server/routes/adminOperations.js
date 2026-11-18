@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Captain = require("../models/Captain");
 const CaptainAssignment = require("../models/CaptainAssignment");
 const PickupLocation = require("../models/PickupLocation");
@@ -243,16 +244,7 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
   // Captains CRUD
   router.get("/admin/operations/captains", authMiddleware, adminMiddleware, async (req, res) => {
     try {
-      let captains = await Captain.find();
-      // If empty, seed initial sample captains
-      if (captains.length === 0) {
-        captains = await Captain.insertMany([
-          { name: "Naveen R.", phone: "+91 98765 43210", email: "naveen.r@traviska.com", status: "Active", role: "Head Captain", rating: 4.9, defaultTripFee: 5000, specialities: ["Trekking", "Wildlife", "First Aid"] },
-          { name: "Arjun K.", phone: "+91 99016 54321", email: "arjun.k@traviska.com", status: "Active", role: "Main Captain", rating: 4.8, defaultTripFee: 4000, specialities: ["High Altitude", "Photography"] },
-          { name: "Divya S.", phone: "+91 87654 32109", email: "divya.s@traviska.com", status: "Active", role: "Main Captain", rating: 4.9, defaultTripFee: 4000, specialities: ["Cultural", "Camping", "Storytelling"] },
-          { name: "Shailesh N.", phone: "+91 90123 45678", email: "shailesh.n@traviska.com", status: "Active", role: "Trainee Captain", rating: 4.7, defaultTripFee: 2500, specialities: ["Offroading", "Water Sports"] },
-        ]);
-      }
+      const captains = await Captain.find();
 
       // Aggregate real trip stats for each captain from CaptainAssignment
       const statsAggregation = await CaptainAssignment.aggregate([
@@ -562,21 +554,99 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
   router.delete("/admin/operations/captains/:id", authMiddleware, adminMiddleware, async (req, res) => {
     try {
       const { id } = req.params;
-      const activeAssignments = await CaptainAssignment.countDocuments({
-        $or: [{ captainId: id }, { captain: id }],
-        status: { $in: ["Assigned", "Confirmed", "On Trip"] },
-      });
-      if (activeAssignments > 0) {
-        return res.status(400).json({
-          success: false,
-          message: `Cannot delete captain. Captain has ${activeAssignments} active trip assignment(s). Please reassign or cancel those trips first, or mark captain as Inactive.`,
-        });
+      const captain = await Captain.findById(id);
+      if (!captain) {
+        return res.status(404).json({ success: false, message: "Captain not found" });
       }
+
+      // 1. Cascade delete all assignments for this captain
+      await CaptainAssignment.deleteMany({
+        $or: [{ captainId: id }, { captain: id }],
+      });
+
+      // 2. Unassign from all TripSlots (both primary and array)
+      await TripSlot.updateMany(
+        { assignedCaptain: id },
+        { $unset: { assignedCaptain: 1 }, $set: { captainAssigned: false } }
+      );
+      await TripSlot.updateMany(
+        { "assignedCaptains.captain": id },
+        { $pull: { assignedCaptains: { captain: id } } }
+      );
+
+      // Re-evaluate primary captain for any slots that had this captain as assignedCaptain
+      const affectedSlots = await TripSlot.find({ "assignedCaptains.0": { $exists: true }, assignedCaptain: null });
+      for (const slot of affectedSlots) {
+        if (slot.assignedCaptains && slot.assignedCaptains.length > 0) {
+          const firstCap = slot.assignedCaptains[0].captain;
+          slot.assignedCaptain = firstCap;
+          slot.captainAssigned = true;
+          await slot.save();
+        }
+      }
+
+      // 3. Remove any pending zero-paid payouts for this captain
+      await CaptainPayout.deleteMany({
+        captainId: id,
+        status: "Pending",
+        amountPaid: { $lte: 0 },
+      });
+
+      // 4. Delete the captain record
       await Captain.findByIdAndDelete(id);
-      res.json({ success: true, message: "Captain removed successfully" });
+
+      res.json({
+        success: true,
+        message: `Captain "${captain.name}" and any active assignments were successfully removed.`,
+      });
     } catch (err) {
       console.error("Delete captain error:", err);
       res.status(500).json({ success: false, message: "Failed to delete captain" });
+    }
+  });
+
+  // Purge sample captains
+  router.post("/admin/operations/captains/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const sampleNames = ["test caption", "test captain", "Shailesh N.", "Divya S.", "Naveen R.", "Arjun K."];
+      const samplePhones = ["+91 99999 00001", "+91 90123 45678", "+91 87654 32109", "+91 98765 43210", "+91 99016 54321"];
+      
+      const sampleCaptains = await Captain.find({
+        $or: [
+          { name: { $in: sampleNames } },
+          { phone: { $in: samplePhones } },
+          { name: { $regex: /test/i } },
+        ],
+      });
+      const sampleIds = sampleCaptains.map((c) => c._id);
+
+      if (sampleIds.length > 0) {
+        await CaptainAssignment.deleteMany({
+          $or: [{ captainId: { $in: sampleIds } }, { captain: { $in: sampleIds } }],
+        });
+        await TripSlot.updateMany(
+          { assignedCaptain: { $in: sampleIds } },
+          { $unset: { assignedCaptain: 1 }, $set: { captainAssigned: false } }
+        );
+        await TripSlot.updateMany(
+          { "assignedCaptains.captain": { $in: sampleIds } },
+          { $pull: { assignedCaptains: { captain: { $in: sampleIds } } } }
+        );
+        await CaptainPayout.deleteMany({
+          captainId: { $in: sampleIds },
+          amountPaid: { $lte: 0 },
+        });
+        await Captain.deleteMany({ _id: { $in: sampleIds } });
+      }
+
+      return res.json({
+        success: true,
+        count: sampleIds.length,
+        message: `Successfully deleted ${sampleIds.length} sample captain(s) and their assignments.`,
+      });
+    } catch (err) {
+      console.error("Purge sample captains error:", err);
+      return res.status(500).json({ success: false, message: "Failed to purge sample captains" });
     }
   });
 
@@ -1034,20 +1104,13 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
         return res.status(404).json({ success: false, message: "Departure slot not found" });
       }
 
-      // 1. Cancel active CaptainAssignment(s) for this captain on this slot
-      await CaptainAssignment.updateMany(
-        {
-          $or: [{ slotId }, { slot: slotId }],
-          $or: [{ captainId }, { captain: captainId }],
-          status: { $ne: "Cancelled" },
-        },
-        {
-          $set: {
-            status: "Cancelled",
-            cancelledAt: new Date(),
-          },
-        }
-      );
+      // 1. Delete CaptainAssignment(s) for this captain on this slot
+      await CaptainAssignment.deleteMany({
+        $and: [
+          { $or: [{ slotId }, { slot: slotId }] },
+          { $or: [{ captainId }, { captain: captainId }] },
+        ],
+      });
 
       // 2. Query remaining active assignments for this slot
       const remainingAssignments = await CaptainAssignment.find({
@@ -1077,6 +1140,7 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
         {
           assignedCaptain: nextPrimaryId,
           assignedCaptains: sortedCaptainsList,
+          captainAssigned: Boolean(nextPrimaryId),
         },
         { new: true }
       )
@@ -1090,7 +1154,6 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
           captainId,
           status: "Pending",
           amountPaid: { $lte: 0 },
-          approvedReimbursements: { $lte: 0 },
         });
       } catch (payoutErr) {
         console.warn("Clean payout warning on unassign:", payoutErr.message);
@@ -1114,6 +1177,77 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
 
   router.delete("/admin/operations/assignments/:slotId/:captainId", authMiddleware, adminMiddleware, handleUnassignCaptain);
   router.post("/admin/operations/assignments/unassign", authMiddleware, adminMiddleware, handleUnassignCaptain);
+
+  // Delete assignment by ID
+  router.delete("/admin/operations/assignments/:id", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      let assignment = null;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        assignment = await CaptainAssignment.findById(id);
+      }
+      if (!assignment) {
+        assignment = await CaptainAssignment.findOne({ _id: id });
+      }
+
+      if (assignment) {
+        const slotId = assignment.slotId || assignment.slot;
+        const captainId = assignment.captainId || assignment.captain;
+        await CaptainAssignment.findByIdAndDelete(assignment._id);
+
+        if (slotId && captainId) {
+          await TripSlot.findByIdAndUpdate(slotId, {
+            $pull: { assignedCaptains: { captain: captainId } },
+          });
+          const slot = await TripSlot.findById(slotId);
+          if (slot && String(slot.assignedCaptain) === String(captainId)) {
+            const remaining = (slot.assignedCaptains || []).map((ac) => ac.captain).filter(Boolean);
+            await TripSlot.findByIdAndUpdate(slotId, {
+              assignedCaptain: remaining[0] || null,
+              captainAssigned: remaining.length > 0,
+            });
+          }
+          await CaptainPayout.deleteMany({
+            slotId,
+            captainId,
+            status: "Pending",
+            amountPaid: { $lte: 0 },
+          });
+        }
+      } else {
+        await CaptainAssignment.deleteOne({ _id: id });
+      }
+      res.json({ success: true, message: "Assignment removed successfully" });
+    } catch (err) {
+      console.error("Delete assignment error:", err);
+      res.status(500).json({ success: false, message: "Failed to delete assignment" });
+    }
+  });
+
+  // Purge sample / orphan assignments
+  router.post("/admin/operations/assignments/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const allAssignments = await CaptainAssignment.find().populate("captainId").populate("slotId");
+      const toDeleteIds = [];
+      const sampleNames = ["test caption", "test captain", "Shailesh N.", "Divya S.", "Naveen R.", "Arjun K."];
+      for (const a of allAssignments) {
+        if (!a.captainId || !a.slotId || sampleNames.includes(a.captainId?.name) || /test/i.test(a.captainId?.name || "")) {
+          toDeleteIds.push(a._id);
+        }
+      }
+      if (toDeleteIds.length > 0) {
+        await CaptainAssignment.deleteMany({ _id: { $in: toDeleteIds } });
+      }
+      res.json({
+        success: true,
+        count: toDeleteIds.length,
+        message: `Successfully purged ${toDeleteIds.length} sample/orphan assignment(s).`,
+      });
+    } catch (err) {
+      console.error("Purge sample assignments error:", err);
+      res.status(500).json({ success: false, message: "Failed to purge sample assignments" });
+    }
+  });
 
   // Update Departure Slot Links (Photo Drive Link, Bill Drive Link, WhatsApp Group)
   router.put("/admin/operations/slots/:slotId/links", authMiddleware, adminMiddleware, async (req, res) => {
@@ -2256,6 +2390,50 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
     } catch (err) {
       console.error("Settle payout error:", err);
       res.status(500).json({ success: false, message: err.message || "Failed to settle payout" });
+    }
+  });
+
+  // Purge sample / test payouts and captain assignments
+  router.post("/admin/operations/payouts/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const sampleCaptains = await Captain.find({
+        $or: [
+          { name: { $in: ["test caption", "test captain", "Shailesh N.", "Divya S.", "Naveen R.", "Arjun K."] } },
+          { phone: { $in: ["+91 99999 00001", "+91 90123 45678", "+91 87654 32109", "+91 98765 43210", "+91 99016 54321"] } },
+          { name: { $regex: /test/i } },
+        ],
+      });
+      const sampleCaptainIds = sampleCaptains.map((c) => c._id);
+
+      const payoutDelete = await CaptainPayout.deleteMany({
+        $or: [
+          { captainId: { $in: sampleCaptainIds } },
+          { captainId: null },
+        ],
+      });
+
+      const assignmentDelete = await CaptainAssignment.deleteMany({
+        $or: [
+          { captainId: { $in: sampleCaptainIds } },
+          { captain: { $in: sampleCaptainIds } },
+        ],
+      });
+
+      const expenseDelete = await TripExpense.deleteMany({
+        captainId: { $in: sampleCaptainIds },
+      });
+
+      const captainDelete = await Captain.deleteMany({
+        _id: { $in: sampleCaptainIds },
+      });
+
+      return res.json({
+        success: true,
+        message: `Purged ${payoutDelete.deletedCount} payout(s), ${assignmentDelete.deletedCount} assignment(s), and ${captainDelete.deletedCount} sample captain profile(s).`,
+      });
+    } catch (err) {
+      console.error("Purge sample payouts error:", err);
+      return res.status(500).json({ success: false, message: "Failed to purge sample payouts" });
     }
   });
 

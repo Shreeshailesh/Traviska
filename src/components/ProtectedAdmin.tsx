@@ -22,7 +22,6 @@ import TripAttendance from "../admin/pages/TripOperations/Attendance";
 import TripExpenses from "../admin/pages/TripOperations/TripExpenses";
 import CaptainPayouts from "../admin/pages/TripOperations/Payouts";
 import CaptainHistory from "../admin/pages/TripOperations/CaptainHistory";
-import Admin from "../pages/Admin";
 
 export default function ProtectedAdmin() {
   const location = useLocation();
@@ -98,7 +97,7 @@ export default function ProtectedAdmin() {
     );
   }
 
-  let content = <Admin embedded />;
+  let content = <Dashboard />;
   const path = location.pathname;
 
   if (path === "/admin") {

@@ -47,15 +47,24 @@ function Login() {
         password: password.trim(),
       });
 
-      if (data.success && data.user?.role === "admin" && data.token) {
+      const staffRoles = ["super_admin", "admin", "sales", "sales_lead", "sales_executive", "captain_admin"];
+      if (data.success && staffRoles.includes(data.user?.role) && data.token) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("isAdmin", "true");
+        localStorage.setItem("isAdmin", data.user.role === "admin" || data.user.role === "super_admin" ? "true" : "false");
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        navigate("/admin", { replace: true });
+        if (data.user.role === "super_admin") {
+          navigate("/super-admin", { replace: true });
+        } else if (data.user.role === "sales" || data.user.role === "sales_lead" || data.user.role === "sales_executive") {
+          navigate("/sales", { replace: true });
+        } else if (data.user.role === "captain_admin") {
+          navigate("/admin/operations", { replace: true });
+        } else {
+          navigate("/admin", { replace: true });
+        }
       } else {
         setError(
-          "Admin access only. This portal is restricted to authorized Traviska team members."
+          "Access denied. This portal is restricted to authorized Traviska team members."
         );
       }
     } catch (err: any) {

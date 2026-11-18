@@ -706,6 +706,158 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
     }
   });
 
+  /**
+   * DELETE /admin/bookings/:id
+   * Permanently deletes a single booking and releases slot capacity if confirmed
+   */
+  router.delete("/admin/bookings/:id", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const booking = await Booking.findById(id);
+
+      if (!booking) {
+        return res.status(404).json({ success: false, message: "Booking not found" });
+      }
+
+      // If active/confirmed booking, release seats from departure slot
+      if (booking.status === "Confirmed" && booking.slotId && booking.travellers) {
+        try {
+          const travellersCount = Number(booking.travellers) || 1;
+          await TripSlot.findByIdAndUpdate(booking.slotId, {
+            $inc: { bookedSlots: -travellersCount },
+          });
+          await TripSlot.updateOne(
+            { _id: booking.slotId, bookedSlots: { $lt: 0 } },
+            { $set: { bookedSlots: 0 } }
+          );
+        } catch (slotErr) {
+          console.warn(`Could not adjust slot ${booking.slotId}:`, slotErr.message);
+        }
+      }
+
+      const bookingCode = formatBookingCode(booking);
+      await Booking.findByIdAndDelete(booking._id);
+
+      return res.json({
+        success: true,
+        message: `Booking ${bookingCode} deleted successfully.`,
+      });
+    } catch (err) {
+      console.error("Delete booking failed:", err);
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to delete booking",
+      });
+    }
+  });
+
+  /**
+   * POST /admin/bookings/bulk-delete
+   * Bulk deletes multiple selected bookings
+   */
+  router.post("/admin/bookings/bulk-delete", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ success: false, message: "No booking IDs provided for deletion" });
+      }
+
+      const bookings = await Booking.find({ _id: { $in: ids } });
+
+      for (const booking of bookings) {
+        if (booking.status === "Confirmed" && booking.slotId && booking.travellers) {
+          try {
+            const travellersCount = Number(booking.travellers) || 1;
+            await TripSlot.findByIdAndUpdate(booking.slotId, {
+              $inc: { bookedSlots: -travellersCount },
+            });
+            await TripSlot.updateOne(
+              { _id: booking.slotId, bookedSlots: { $lt: 0 } },
+              { $set: { bookedSlots: 0 } }
+            );
+          } catch (slotErr) {
+            console.warn(`Could not adjust slot ${booking.slotId}:`, slotErr.message);
+          }
+        }
+      }
+
+      const deleteResult = await Booking.deleteMany({ _id: { $in: ids } });
+
+      return res.json({
+        success: true,
+        count: deleteResult.deletedCount,
+        message: `Successfully deleted ${deleteResult.deletedCount} booking(s).`,
+      });
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to delete selected bookings",
+      });
+    }
+  });
+
+  /**
+   * POST /admin/bookings/purge-test
+   * Deletes all test bookings, cancelled bookings, and rescheduled bookings
+   */
+  router.post("/admin/bookings/purge-test", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const purgeFilter = {
+        $or: [
+          { status: "Cancelled" },
+          { isRescheduled: true },
+          { total: { $lt: 100 } },
+          { name: { $regex: /test|dgsddgz|7777/i } },
+          { email: { $regex: /test|example/i } },
+          { phone: { $regex: /^67890|^99999|^3526346642/ } },
+        ],
+      };
+
+      const matchingBookings = await Booking.find(purgeFilter);
+      if (matchingBookings.length === 0) {
+        return res.json({
+          success: true,
+          count: 0,
+          message: "No test, cancelled, or rescheduled bookings found to purge.",
+        });
+      }
+
+      const matchingIds = matchingBookings.map((b) => b._id);
+
+      for (const booking of matchingBookings) {
+        if (booking.status === "Confirmed" && booking.slotId && booking.travellers) {
+          try {
+            const travellersCount = Number(booking.travellers) || 1;
+            await TripSlot.findByIdAndUpdate(booking.slotId, {
+              $inc: { bookedSlots: -travellersCount },
+            });
+            await TripSlot.updateOne(
+              { _id: booking.slotId, bookedSlots: { $lt: 0 } },
+              { $set: { bookedSlots: 0 } }
+            );
+          } catch (slotErr) {
+            console.warn(`Could not adjust slot ${booking.slotId}:`, slotErr.message);
+          }
+        }
+      }
+
+      const deleteResult = await Booking.deleteMany({ _id: { $in: matchingIds } });
+
+      return res.json({
+        success: true,
+        count: deleteResult.deletedCount,
+        message: `Successfully purged ${deleteResult.deletedCount} test, cancelled, and rescheduled booking(s).`,
+      });
+    } catch (err) {
+      console.error("Purge failed:", err);
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to purge test bookings",
+      });
+    }
+  });
+
   return router;
 };
 

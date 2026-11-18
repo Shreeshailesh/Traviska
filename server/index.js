@@ -125,7 +125,7 @@ const authMiddleware = (req, res, next) => {
 };
 
 const adminMiddleware = (req, res, next) => {
-  if (req.user?.role !== "admin") {
+  if (req.user?.role !== "admin" && req.user?.role !== "super_admin") {
     return res.status(403).json({
       success: false,
       message: "Admin access required",
@@ -133,6 +133,48 @@ const adminMiddleware = (req, res, next) => {
   }
 
   next();
+};
+
+const superAdminMiddleware = async (req, res, next) => {
+  if (req.user?.role !== "super_admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Super Admin (CEO) access required",
+    });
+  }
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized Super Admin access",
+      });
+    }
+
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: "Account suspended",
+      });
+    }
+
+    // Check if token was issued prior to sessionsRevokedAt
+    if (user.sessionsRevokedAt && req.user.iat) {
+      const tokenIatDate = new Date(req.user.iat * 1000);
+      if (tokenIatDate < user.sessionsRevokedAt) {
+        return res.status(401).json({
+          success: false,
+          message: "Session revoked. Please log in again.",
+        });
+      }
+    }
+
+    req.currentUser = user;
+    next();
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Authentication validation error" });
+  }
 };
 
 // Health check endpoint
@@ -153,6 +195,8 @@ app.use(require("./routes/captainPortal")());
 app.use(require("./routes/salesPortal")({ authMiddleware }));
 app.use(require("./routes/coupons")({ authMiddleware, adminMiddleware }));
 app.use(require("./routes/gallery")({ authMiddleware, adminMiddleware }));
+app.use("/api/super-admin", require("./routes/superAdmin")({ authMiddleware, superAdminMiddleware }));
+app.use("/api/staff-invitation", require("./routes/staffInvitation")());
 
 const razorpay =
   process.env.NODE_ENV === "production"
@@ -2114,6 +2158,23 @@ if (!isMatch) {
     message: "Invalid Email or Password",
   });
 }
+
+if (user.isSuspended) {
+  return res.status(403).json({
+    success: false,
+    message: "Your staff account has been suspended. Please contact the CEO.",
+  });
+}
+
+if (user.isActive === false) {
+  return res.status(403).json({
+    success: false,
+    message: "Your staff account is currently inactive. Please contact the CEO.",
+  });
+}
+
+user.lastLogin = new Date();
+await user.save();
 
 const token = jwt.sign(
   {
