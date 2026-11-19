@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
+import { SEO } from "../components/SEO";
 import {
   ArrowLeft,
   MapPin,
@@ -319,6 +320,11 @@ function TripDetails() {
   if (loading) {
     return (
       <div className="trip-loading-view">
+        <SEO
+          title="Loading Journey... | Traviska"
+          description="Curated group trip with Traviska. View itinerary, inclusions, and book your journey."
+          robots="noindex, follow"
+        />
         <div className="trip-spinner" />
         <p>Loading journey details...</p>
       </div>
@@ -328,6 +334,11 @@ function TripDetails() {
   if (loadError || !trip) {
     return (
       <div className="trip-error-view">
+        <SEO
+          title="Trip Not Found | Traviska"
+          description="The requested trip package could not be found or is no longer available. Explore our upcoming weekend trips and getaways from Bangalore."
+          robots="noindex, follow"
+        />
         <h2>{loadError || "Trip not found"}</h2>
         <button onClick={() => navigate("/trips")} className="trip-back-btn">
           Back to Trips
@@ -343,8 +354,50 @@ function TripDetails() {
   // Selected slot details
   const selectedSlotData = slots.find((s) => s._id === selectedSlot);
 
+  // Dynamic SEO metadata based on actual MongoDB trip data
+  const tripTitle = (() => {
+    if (!trip?.title) return "Trip Details | Traviska";
+    const parts: string[] = [trip.title.trim()];
+    if (trip.duration?.trim()) {
+      parts.push(trip.duration.trim());
+    } else if (
+      trip.location?.trim() &&
+      !trip.title.toLowerCase().includes(trip.location.toLowerCase())
+    ) {
+      parts.push(trip.location.trim());
+    }
+    return `${parts.join(" - ")} | Traviska`;
+  })();
+
+  const tripDescription = (() => {
+    if (!trip) {
+      return "Curated group trip with Traviska. Explore destinations, view itineraries, and book your journey.";
+    }
+    if (trip.description && trip.description.trim().length > 30) {
+      const cleanDesc = trip.description.replace(/\s+/g, " ").trim();
+      if (cleanDesc.length <= 155) return cleanDesc;
+      return cleanDesc.slice(0, 152) + "...";
+    }
+    const durationText = trip.duration ? ` ${trip.duration} journey` : " trip";
+    const locText = trip.location ? ` in ${trip.location}` : "";
+    const priceText = trip.price ? ` starting from ₹${Number(trip.price).toLocaleString("en-IN")}` : "";
+    return `Explore ${trip.title}, a curated${durationText}${locText} with Traviska${priceText}. View full itinerary, guidelines, and book your slot.`;
+  })();
+
+  const canonicalUrl = trip?._id ? `https://traviska.com/trip/${trip._id}` : undefined;
+  const ogImage = trip?.image || (allMoments.length > 0 ? allMoments[0] : "https://traviska.com/favicon-512x512.png");
+
   return (
     <div className="trip-details-page-wrap">
+      <SEO
+        title={tripTitle}
+        description={tripDescription}
+        canonical={canonicalUrl}
+        robots="index, follow"
+        ogType="website"
+        ogImage={ogImage}
+        twitterCard="summary_large_image"
+      />
       {/* ============================================================
           1. HERO BANNER WITH BACK BUTTON, TITLE, LOCATION & STARTING PRICE
           ============================================================ */}

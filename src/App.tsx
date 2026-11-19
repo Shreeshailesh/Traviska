@@ -11,6 +11,7 @@ import {
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import { SEO } from "./components/SEO";
 
 // Public website pages stay in the main bundle so they render instantly.
 import Home from "./pages/Home";
@@ -74,17 +75,37 @@ function AppContent() {
   const isSales = location.pathname.startsWith("/sales");
   const isSuperAdmin = location.pathname.startsWith("/super-admin");
   const isStaffRegister = location.pathname.startsWith("/staff/register");
+  const isCustomer = location.pathname.startsWith("/customer");
+  const isBooking = location.pathname === "/booking";
   const isLogin =
     location.pathname === "/login" ||
     location.pathname === "/admin/login" ||
     location.pathname === "/customer/login" ||
     location.pathname === "/captain/login" ||
-    location.pathname === "/sales/login";
+    location.pathname === "/sales/login" ||
+    location.pathname === "/admin-login";
+
+  const isPrivateOrAuth =
+    isAdmin ||
+    isCaptain ||
+    isSales ||
+    isSuperAdmin ||
+    isStaffRegister ||
+    isCustomer ||
+    isBooking ||
+    isLogin;
 
   const hidePublicChrome = isAdmin || isCaptain || isSales || isSuperAdmin || isStaffRegister || isLogin;
 
   return (
     <>
+      {isPrivateOrAuth && (
+        <SEO
+          title="Traviska | Secure Portal"
+          description="Traviska secure user and management portal."
+          robots="noindex, nofollow"
+        />
+      )}
       {!hidePublicChrome && <Navbar />}
 
      <Suspense fallback={null}>

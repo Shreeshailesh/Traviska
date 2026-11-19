@@ -1,6 +1,7 @@
 import "./Trips.css";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { MapPin, Clock3, Compass, ArrowRight, X, Sparkles } from "lucide-react";
+import { SEO } from "../components/SEO";
 import {
   TitleBrush,
   TornPaperEdge,
@@ -33,6 +34,12 @@ function Trips() {
 
   return (
     <div className="trips-page">
+      <SEO
+        title="Weekend Trips & Group Travel Packages from Bangalore | Traviska"
+        description="Explore upcoming weekend trips, road journeys, and trekking expeditions from Bangalore. Verified itineraries, transparent pricing, and unforgettable community travel."
+        canonical="https://traviska.com/trips"
+        robots="index, follow"
+      />
       <div className="trips-header">
         <div className="trips-pill">
           <Sparkles size={14} />
@@ -157,17 +164,17 @@ function Trips() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
+                <Link
+                  to={`/trip/${trip._id}`}
+                  className="trip-info-btn"
+                  style={{ textDecoration: "none" }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/trip/${trip._id}`);
                   }}
-                  className="trip-info-btn"
                 >
                   <span>View Details</span>
                   <ArrowRight size={14} />
-                </button>
+                </Link>
               </div>
             </div>
           ))}

@@ -1,5 +1,6 @@
 import { Compass, Users, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
+import { SEO } from "../components/SEO";
 
 function About() {
   return (
@@ -13,6 +14,12 @@ function About() {
         boxSizing: "border-box",
       }}
     >
+      <SEO
+        title="About Traviska | Group Travel Community in Bengaluru"
+        description="Traviska is Bengaluru's community-first travel company creating immersive, unscripted group journeys. Learn about our story, safety standards, and ethos."
+        canonical="https://traviska.com/about"
+        robots="index, follow"
+      />
       <div style={{ maxWidth: "860px", margin: "0 auto", textAlign: "center" }}>
         <div
           style={{

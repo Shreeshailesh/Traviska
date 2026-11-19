@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../api";
 import { Mail, Phone, MessageCircle, Compass, Send, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { SEO } from "../components/SEO";
 
 const InstagramIcon = ({ size = 22 }: { size?: number }) => (
   <svg
@@ -80,6 +81,12 @@ function Contact() {
         boxSizing: "border-box",
       }}
     >
+      <SEO
+        title="Contact Traviska | Trip Enquiries & Group Bookings"
+        description="Connect with Traviska for upcoming trip queries, custom private groups, and corporate getaways. Call or WhatsApp our Bengaluru team at +91 99027 42004."
+        canonical="https://traviska.com/contact"
+        robots="index, follow"
+      />
       <div style={{ maxWidth: "800px", margin: "0 auto", textAlign: "center" }}>
         <div
           style={{

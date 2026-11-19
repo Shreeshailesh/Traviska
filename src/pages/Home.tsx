@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import heroVideo from "../assets/videos/hero.mp4";
 import { useEffect, useRef } from "react";
+import { SEO } from "../components/SEO";
 import {
   ChevronRight,
   ChevronDown,
@@ -83,6 +84,12 @@ function Home() {
 
   return (
     <div className="home-page-container">
+      <SEO
+        title="Group Trips & Weekend Getaways from Bangalore | Traviska"
+        description="Discover curated group trips, weekend getaways, and trekking expeditions departing from Bangalore with Traviska. Join a verified community of explorers and solo travellers."
+        canonical="https://traviska.com/"
+        robots="index, follow"
+      />
       {/* ============================================================
           HERO SECTION
           ============================================================ */}
@@ -259,17 +266,17 @@ function Home() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
+                      <Link
+                        to={`/trip/${trip._id}`}
                         className="nature-card-btn"
+                        style={{ textDecoration: "none" }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/trip/${trip._id}`);
                         }}
                       >
                         <span>View Trip</span>
                         <ArrowRight size={14} />
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 );
