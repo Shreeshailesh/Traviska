@@ -49,7 +49,19 @@ function TripDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [trip, setTrip] = useState<any>(null);
+  // Seamless zero-flash state initialization from server-rendered initial data
+  const initialTrip = useMemo(() => {
+    if (
+      typeof window !== "undefined" &&
+      (window as any).__INITIAL_TRIP__ &&
+      String((window as any).__INITIAL_TRIP__._id) === String(id)
+    ) {
+      return (window as any).__INITIAL_TRIP__;
+    }
+    return null;
+  }, [id]);
+
+  const [trip, setTrip] = useState<any>(initialTrip);
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [travellers, setTravellers] = useState(1);
@@ -61,7 +73,7 @@ function TripDetails() {
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialTrip);
   const [loadError, setLoadError] = useState("");
   const [globalSections, setGlobalSections] = useState<any>(null);
 
@@ -134,7 +146,9 @@ function TripDetails() {
   useEffect(() => {
     let cancelled = false;
     const fetchTrip = async () => {
-      setLoading(true);
+      if (!initialTrip) {
+        setLoading(true);
+      }
       setLoadError("");
       try {
         const { data } = await axios.get(`${API_BASE_URL}/trips/${id}`);
@@ -147,7 +161,7 @@ function TripDetails() {
         }
       } catch (err) {
         console.error("Failed to load trip:", err);
-        if (!cancelled) {
+        if (!cancelled && !initialTrip) {
           setLoadError("Unable to load trip details.");
         }
       } finally {
@@ -158,7 +172,7 @@ function TripDetails() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, initialTrip]);
 
   // 3. Fetch Trip Slots
   useEffect(() => {
@@ -340,9 +354,9 @@ function TripDetails() {
           robots="noindex, follow"
         />
         <h2>{loadError || "Trip not found"}</h2>
-        <button onClick={() => navigate("/trips")} className="trip-back-btn">
+        <Link to="/trips" className="trip-back-btn" style={{ textDecoration: "none" }}>
           Back to Trips
-        </button>
+        </Link>
       </div>
     );
   }
@@ -387,6 +401,68 @@ function TripDetails() {
   const canonicalUrl = trip?._id ? `https://traviska.com/trip/${trip._id}` : undefined;
   const ogImage = trip?.image || (allMoments.length > 0 ? allMoments[0] : "https://traviska.com/favicon-512x512.png");
 
+  const tripJsonLd = useMemo(() => {
+    if (!trip || !trip._id) return undefined;
+    const canUrl = `https://traviska.com/trip/${trip._id}`;
+    const imgUrl = (trip.image && trip.image.startsWith("https://")) ? trip.image : "https://traviska.com/favicon-512x512.png";
+    return [
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://traviska.com/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Trips",
+            "item": "https://traviska.com/trips"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": trip.title || "Trip",
+            "item": canUrl
+          }
+        ]
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "TouristTrip",
+        "@id": `${canUrl}#trip`,
+        "name": trip.title,
+        "description": tripDescription,
+        "url": canUrl,
+        "image": imgUrl,
+        "touristType": "Group Travel",
+        "provider": {
+          "@type": ["Organization", "TravelAgency"],
+          "@id": "https://traviska.com/#organization",
+          "name": "Traviska",
+          "url": "https://traviska.com"
+        },
+        ...(trip.location ? {
+          "contentLocation": {
+            "@type": "Place",
+            "name": trip.location
+          }
+        } : {}),
+        ...(trip.price ? {
+          "offers": {
+            "@type": "Offer",
+            "price": Number(trip.price),
+            "priceCurrency": "INR",
+            "url": canUrl
+          }
+        } : {})
+      }
+    ];
+  }, [trip, tripDescription]);
+
   return (
     <div className="trip-details-page-wrap">
       <SEO
@@ -397,6 +473,7 @@ function TripDetails() {
         ogType="website"
         ogImage={ogImage}
         twitterCard="summary_large_image"
+        jsonLd={tripJsonLd}
       />
       {/* ============================================================
           1. HERO BANNER WITH BACK BUTTON, TITLE, LOCATION & STARTING PRICE

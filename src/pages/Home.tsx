@@ -285,14 +285,14 @@ function Home() {
 
             {/* VIEW ALL TRIPS BUTTON */}
             <div className="popular-view-all-wrap">
-              <button
-                type="button"
+              <Link
+                to="/trips"
                 className="popular-view-all-btn"
-                onClick={() => navigate("/trips")}
+                style={{ textDecoration: "none" }}
               >
                 <span>View All Trips</span>
                 <ArrowRight size={16} />
-              </button>
+              </Link>
             </div>
           </>
         )}

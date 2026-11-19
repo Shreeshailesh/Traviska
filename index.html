@@ -34,29 +34,44 @@
   <meta name="twitter:description" content="Discover curated group trips, weekend getaways, and trekking expeditions departing from Bangalore with Traviska. Join a verified community of explorers and solo travellers." />
   <meta name="twitter:image" content="https://traviska.com/favicon-512x512.png" />
 
-  <!-- Structured Data: Organization & WebSite (Google Search Rich Results) -->
+  <!-- Structured Data: Organization, TravelAgency & WebSite (Google Search Knowledge Graph) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "Organization",
+        "@type": ["Organization", "TravelAgency"],
         "@id": "https://traviska.com/#organization",
         "name": "Traviska",
         "url": "https://traviska.com",
         "logo": {
           "@type": "ImageObject",
+          "@id": "https://traviska.com/#logo",
           "url": "https://traviska.com/favicon-512x512.png",
           "width": 512,
-          "height": 512
-        }
+          "height": 512,
+          "caption": "Traviska"
+        },
+        "image": "https://traviska.com/favicon-512x512.png",
+        "telephone": "+91 99027 42004",
+        "email": "travelwithtraviska@gmail.com",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Bengaluru",
+          "addressRegion": "Karnataka",
+          "addressCountry": "IN"
+        },
+        "sameAs": [
+          "https://www.instagram.com/travelwithtraviska",
+          "https://wa.me/919902742004"
+        ]
       },
       {
         "@type": "WebSite",
         "@id": "https://traviska.com/#website",
         "url": "https://traviska.com",
         "name": "Traviska",
-        "description": "Curated Group Trips & Expeditions",
+        "description": "Curated Group Trips & Expeditions departing from Bangalore",
         "publisher": {
           "@id": "https://traviska.com/#organization"
         }

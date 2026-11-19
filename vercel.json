@@ -1,8 +1,17 @@
 {
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "api/_template.html"
+    }
+  },
   "rewrites": [
     {
       "source": "/sitemap.xml",
       "destination": "https://traviska-backend.onrender.com/sitemap.xml"
+    },
+    {
+      "source": "/trip/:id",
+      "destination": "/api/trip?id=:id"
     },
     {
       "source": "/(.*)",

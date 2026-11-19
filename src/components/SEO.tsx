@@ -8,6 +8,7 @@ export interface SEOProps {
   ogType?: string;
   ogImage?: string;
   twitterCard?: "summary" | "summary_large_image";
+  jsonLd?: object | object[];
 }
 
 const DEFAULT_OG_IMAGE = "https://traviska.com/favicon-512x512.png";
@@ -24,6 +25,7 @@ export function SEO({
   ogType = "website",
   ogImage = DEFAULT_OG_IMAGE,
   twitterCard = "summary",
+  jsonLd,
 }: SEOProps) {
   useEffect(() => {
     // 1. Document title
@@ -81,10 +83,28 @@ export function SEO({
     updateMeta('meta[name="twitter:title"]', "name", "twitter:title", title);
     updateMeta('meta[name="twitter:description"]', "name", "twitter:description", description);
     updateMeta('meta[name="twitter:image"]', "name", "twitter:image", ogImage);
-  }, [title, description, canonical, robots, ogType, ogImage, twitterCard]);
+
+    // 7. Dynamic JSON-LD Structured Data (Harmonized with SSR id="route-schema")
+    let schemaEl = document.querySelector('script#route-schema') as HTMLScriptElement | null;
+    if (jsonLd) {
+      if (!schemaEl) {
+        schemaEl = document.createElement("script");
+        schemaEl.setAttribute("type", "application/ld+json");
+        schemaEl.setAttribute("id", "route-schema");
+        document.head.appendChild(schemaEl);
+      }
+      schemaEl.textContent = JSON.stringify(jsonLd);
+    } else if (schemaEl) {
+      schemaEl.remove();
+    }
+
+    return () => {
+      const el = document.querySelector('script#route-schema');
+      if (el) el.remove();
+    };
+  }, [title, description, canonical, robots, ogType, ogImage, twitterCard, jsonLd]);
 
   return null;
 }
 
 export default SEO;
-

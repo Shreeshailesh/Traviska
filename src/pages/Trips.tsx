@@ -32,6 +32,25 @@ function Trips() {
     setSearchParams({});
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://traviska.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Trips",
+        "item": "https://traviska.com/trips"
+      }
+    ]
+  };
+
   return (
     <div className="trips-page">
       <SEO
@@ -39,6 +58,7 @@ function Trips() {
         description="Explore upcoming weekend trips, road journeys, and trekking expeditions from Bangalore. Verified itineraries, transparent pricing, and unforgettable community travel."
         canonical="https://traviska.com/trips"
         robots="index, follow"
+        jsonLd={breadcrumbSchema}
       />
       <div className="trips-header">
         <div className="trips-pill">
