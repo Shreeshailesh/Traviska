@@ -40,17 +40,7 @@ export const SalesAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setUser(null);
         }
       } else {
-        // Fallback for admin user logging into sales portal
-        const isAdmin = localStorage.getItem("isAdmin") === "true";
-        if (isAdmin) {
-          setUser({
-            id: "admin-user",
-            name: "Admin User",
-            email: "admin@traviska.com",
-            role: "admin",
-            department: "Executive Management",
-          });
-        }
+        setUser(null);
       }
     }
     setIsLoading(false);

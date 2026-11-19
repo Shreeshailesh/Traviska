@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
+import { getSuperAdminToken } from "../authHelper";
 import { Modal } from "../../admin/ui/Modal";
 
 interface LeadItem {
@@ -71,7 +72,7 @@ export const SuperAdminPipeline: React.FC = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/pipeline`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: { search },
@@ -102,7 +103,7 @@ export const SuperAdminPipeline: React.FC = () => {
   // Handle stage change
   const handleMoveStage = async (leadId: string, nextStage: string) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       await axios.patch(
         `${API_BASE_URL}/api/super-admin/leads/${leadId}/stage`,
         { stage: nextStage },
@@ -120,7 +121,7 @@ export const SuperAdminPipeline: React.FC = () => {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/leads/${lead._id}/convert`,
         {},
@@ -143,7 +144,7 @@ export const SuperAdminPipeline: React.FC = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/leads`,
         addForm,
@@ -175,7 +176,7 @@ export const SuperAdminPipeline: React.FC = () => {
   const handleDeleteLead = async (id: string) => {
     if (!window.confirm("Are you sure you want to remove this lead from the pipeline?")) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       await axios.delete(`${API_BASE_URL}/api/super-admin/leads/${id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

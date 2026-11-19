@@ -48,18 +48,22 @@ function Home() {
     const video = videoRef.current;
     if (!video) return;
 
+    // React does not always serialize the HTML `muted` / `playsinline` attributes
+    // on initial render; iOS Safari checks the attributes for autoplay eligibility.
     video.defaultMuted = true;
     video.muted = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "true");
 
     const playVideo = () => {
+      if (!video.paused) return;
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
-          // Fallback if autoplay is restricted until first touch
+          // Fallback if autoplay is restricted (e.g. Low Power Mode) until first touch
           const handleFirstInteraction = () => {
             video.play().catch(() => {});
-            window.removeEventListener("touchstart", handleFirstInteraction);
-            window.removeEventListener("click", handleFirstInteraction);
           };
           window.addEventListener("touchstart", handleFirstInteraction, {
             once: true,
@@ -73,6 +77,19 @@ function Home() {
     };
 
     playVideo();
+    video.addEventListener("canplay", playVideo);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        playVideo();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      video.removeEventListener("canplay", playVideo);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const scrollToContent = () => {
@@ -101,6 +118,9 @@ function Home() {
           muted
           loop
           playsInline
+          controls={false}
+          disablePictureInPicture
+          disableRemotePlayback
           preload="auto"
           poster={HERO_POSTER_URL}
         >

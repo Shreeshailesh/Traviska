@@ -9,14 +9,19 @@ const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb:/
 const CEO_EMAIL = "owner@traviska.com";
 
 async function bootstrap() {
-  const password = process.argv[2] || process.env.CEO_PASSWORD || "TraviskaCeo@2026!";
+  const password = process.env.CEO_PASSWORD || process.argv[2];
+
+  if (!password || password.trim().length < 8) {
+    console.error("❌ Error: A secure password (minimum 8 characters) must be supplied via CEO_PASSWORD env var or CLI argument.");
+    process.exit(1);
+  }
 
   console.log(`[BOOTSTRAP] Connecting to database...`);
   await mongoose.connect(MONGO_URI);
   console.log(`[BOOTSTRAP] Connected.`);
 
   const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
+  const hashedPassword = await bcrypt.hash(password.trim(), salt);
 
   let ceo = await User.findOne({ email: CEO_EMAIL });
 
@@ -57,10 +62,10 @@ async function bootstrap() {
   });
 
   console.log(`\n======================================================`);
-  console.log(`✅ CEO Super Admin Account Ready:`);
+  console.log(`✅ CEO Super Admin Account Initialized:`);
   console.log(`   Email:    ${CEO_EMAIL}`);
-  console.log(`   Password: ${password}`);
   console.log(`   Role:     super_admin`);
+  console.log(`   Status:   Credentials updated securely (secrets withheld)`);
   console.log(`======================================================\n`);
 
   await mongoose.disconnect();

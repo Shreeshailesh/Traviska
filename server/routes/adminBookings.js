@@ -799,63 +799,24 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
 
   /**
    * POST /admin/bookings/purge-test
-   * Deletes all test bookings, cancelled bookings, and rescheduled bookings
+   * Destructive booking purge is disabled to protect financial audit and customer record integrity.
+   * Super Admin authorization is strictly required. Unsafe heuristic deletion based on cancellation,
+   * rescheduling, amounts, names, emails, or phone patterns has been permanently removed.
    */
   router.post("/admin/bookings/purge-test", authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-      const purgeFilter = {
-        $or: [
-          { status: "Cancelled" },
-          { isRescheduled: true },
-          { total: { $lt: 100 } },
-          { name: { $regex: /test|dgsddgz|7777/i } },
-          { email: { $regex: /test|example/i } },
-          { phone: { $regex: /^67890|^99999|^3526346642/ } },
-        ],
-      };
-
-      const matchingBookings = await Booking.find(purgeFilter);
-      if (matchingBookings.length === 0) {
-        return res.json({
-          success: true,
-          count: 0,
-          message: "No test, cancelled, or rescheduled bookings found to purge.",
-        });
-      }
-
-      const matchingIds = matchingBookings.map((b) => b._id);
-
-      for (const booking of matchingBookings) {
-        if (booking.status === "Confirmed" && booking.slotId && booking.travellers) {
-          try {
-            const travellersCount = Number(booking.travellers) || 1;
-            await TripSlot.findByIdAndUpdate(booking.slotId, {
-              $inc: { bookedSlots: -travellersCount },
-            });
-            await TripSlot.updateOne(
-              { _id: booking.slotId, bookedSlots: { $lt: 0 } },
-              { $set: { bookedSlots: 0 } }
-            );
-          } catch (slotErr) {
-            console.warn(`Could not adjust slot ${booking.slotId}:`, slotErr.message);
-          }
-        }
-      }
-
-      const deleteResult = await Booking.deleteMany({ _id: { $in: matchingIds } });
-
-      return res.json({
-        success: true,
-        count: deleteResult.deletedCount,
-        message: `Successfully purged ${deleteResult.deletedCount} test, cancelled, and rescheduled booking(s).`,
-      });
-    } catch (err) {
-      console.error("Purge failed:", err);
-      return res.status(500).json({
+    // Strictly require Super Admin authorization for any cleanup requests
+    if (req.user?.role !== "super_admin") {
+      return res.status(403).json({
         success: false,
-        message: err.message || "Failed to purge test bookings",
+        message: "Super Admin authorization required for database cleanup operations.",
       });
     }
+
+    // Endpoint is disabled to guarantee financial records and genuine customer bookings are never deleted
+    return res.status(403).json({
+      success: false,
+      message: "Destructive booking purge is disabled. Legitimate customer records, cancelled bookings, and rescheduled bookings are protected under financial retention policies.",
+    });
   });
 
   return router;

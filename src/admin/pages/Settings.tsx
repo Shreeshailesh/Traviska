@@ -33,9 +33,9 @@ export const SettingsPage: React.FC = () => {
   const [adminUsers, setAdminUsers] = useState([
     {
       id: "u1",
-      name: "Shailesh K.",
-      email: "admin@traviska.com",
-      role: "Super Admin",
+      name: "Operations Admin",
+      email: "operations@traviska.com",
+      role: "Operations Manager",
       status: "Active",
       lastLogin: "Today, 04:15 AM",
     },

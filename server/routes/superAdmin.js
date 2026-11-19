@@ -7,6 +7,7 @@ const Team = require("../models/Team");
 const AuditLog = require("../models/AuditLog");
 const Booking = require("../models/Booking");
 const Enquiry = require("../models/Enquiry");
+const { sendStaffInvitationEmail } = require("../services/mailer");
 
 module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddleware }) {
   const router = express.Router();
@@ -282,7 +283,7 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       let invitations = [];
       if (tab === "all" || tab === "invited") {
         const inviteQuery = {
-          status: { $in: ["pending", "pending_delivery", "sent"] },
+          status: { $in: ["pending", "pending_delivery", "sent", "verified_pending_password"] },
           expiresAt: { $gt: now },
         };
         if (search) {
@@ -329,8 +330,13 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
         department: inv.department || "Operations",
         team: inv.team?.name || inv.teamName || "Unassigned",
         teamId: inv.team?._id || null,
-        status: "Invited",
-        lastLogin: "Pending Registration",
+        status:
+          inv.status === "verified_pending_password" || inv.isEmailOwnershipVerified
+            ? "Verified — Password Pending"
+            : inv.deliveryStatus === "sent"
+            ? "Pending Verification"
+            : "Invited",
+        lastLogin: inv.isEmailOwnershipVerified ? "Email Verified (Password Pending)" : "Pending Registration",
         isSuspended: false,
         deliveryStatus: inv.deliveryStatus,
         expiresAt: inv.expiresAt,
@@ -498,9 +504,9 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
         counts: {
           staff: {
             total: users.length + invitations.length,
-            active: users.filter((u) => !u.isSuspended).length,
+            active: users.filter((u) => !u.isSuspended && u.isActive === true).length,
             invited: invitations.length,
-            suspended: users.filter((u) => u.isSuspended).length,
+            suspended: users.filter((u) => u.isSuspended === true).length,
           },
           customers: {
             total: rawCustomerList.length,
@@ -602,10 +608,25 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-      // Delivery status check (SMTP not configured -> manual handoff)
-      const hasSmtp = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
-      const deliveryStatus = hasSmtp ? "sent" : "manual_handoff";
-      const deliveryError = hasSmtp ? "" : "SMTP configuration not detected in server environment.";
+      const isProduction = process.env.NODE_ENV === "production";
+      const defaultOrigin = isProduction ? "https://traviska.com" : "http://localhost:5173";
+      const clientOrigin = process.env.CLIENT_URL || req.headers.origin || defaultOrigin;
+      const registrationLink = `${clientOrigin}/staff/register?token=${rawToken}`;
+
+      // Dispatch single-use invitation email
+      const mailResult = await sendStaffInvitationEmail({
+        to: normalizedEmail,
+        name: name.trim(),
+        role,
+        department: department || "Operations",
+        registrationLink,
+        expiresAt,
+      });
+
+      const deliveryStatus = mailResult.delivered
+        ? "sent"
+        : (mailResult.reason === "SMTP_NOT_CONFIGURED" ? "manual_handoff" : "failed");
+      const deliveryError = mailResult.error || (mailResult.reason === "SMTP_NOT_CONFIGURED" ? "SMTP configuration not detected in server environment." : "");
 
       const invitation = await StaffInvitation.create({
         email: normalizedEmail,
@@ -624,9 +645,6 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
         expiresAt,
       });
 
-      const clientOrigin = req.headers.origin || "http://localhost:5173";
-      const registrationLink = `${clientOrigin}/staff/register?token=${rawToken}`;
-
       await logAudit({
         actor: req.currentUser,
         action: "invitation.created",
@@ -637,9 +655,9 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
 
       res.json({
         success: true,
-        message: hasSmtp
-          ? `Invitation sent successfully to ${normalizedEmail}.`
-          : `Email ${normalizedEmail} authorized successfully. Copy the secure registration link below for manual delivery.`,
+        message: mailResult.delivered
+          ? `Invitation email sent successfully to ${normalizedEmail}.`
+          : `Email ${normalizedEmail} authorized successfully. Copy the registration link below for manual verification or direct delivery.`,
         invitation: {
           id: invitation._id,
           email: invitation.email,
@@ -678,8 +696,26 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       invitation.status = "pending";
       await invitation.save();
 
-      const clientOrigin = req.headers.origin || "http://localhost:5173";
+      const isProduction = process.env.NODE_ENV === "production";
+      const defaultOrigin = isProduction ? "https://traviska.com" : "http://localhost:5173";
+      const clientOrigin = process.env.CLIENT_URL || req.headers.origin || defaultOrigin;
       const registrationLink = `${clientOrigin}/staff/register?token=${rawToken}`;
+
+      // Re-dispatch invitation email
+      const mailResult = await sendStaffInvitationEmail({
+        to: invitation.email,
+        name: invitation.name,
+        role: invitation.role,
+        department: invitation.department,
+        registrationLink,
+        expiresAt: invitation.expiresAt,
+      });
+
+      invitation.deliveryStatus = mailResult.delivered
+        ? "sent"
+        : (mailResult.reason === "SMTP_NOT_CONFIGURED" ? "manual_handoff" : "failed");
+      invitation.deliveryError = mailResult.error || "";
+      await invitation.save();
 
       await logAudit({
         actor: req.currentUser,
@@ -691,7 +727,9 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
 
       res.json({
         success: true,
-        message: "Invitation reissued with 24 hours validity.",
+        message: mailResult.delivered
+          ? `Invitation email sent to ${invitation.email} with 24 hours validity. You can also copy the manual verification link below.`
+          : "Invitation reissued with 24 hours validity. Copy the registration link below for manual delivery.",
         registrationLink,
       });
     } catch (err) {
@@ -871,6 +909,7 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       }
 
       user.isSuspended = false;
+      user.isActive = true;
       user.suspendedAt = null;
       user.suspensionReason = null;
       await user.save();

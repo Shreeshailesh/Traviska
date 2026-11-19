@@ -139,14 +139,14 @@ const saveGlobalSections = async () => {
 
   const handleLogout = () => {
   localStorage.removeItem("token");
-  navigate("/login");
+  navigate("/admin/login");
 };
 
  useEffect(() => {
   const token = localStorage.getItem("token");
 
   if (!token) {
-    navigate("/login");
+    navigate("/admin/login");
     return;
   }
 

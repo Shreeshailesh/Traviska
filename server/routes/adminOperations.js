@@ -605,49 +605,19 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
     }
   });
 
-  // Purge sample captains
+  // Purge sample captains - Disabled to prevent accidental data loss and protect captain operational history
   router.post("/admin/operations/captains/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-      const sampleNames = ["test caption", "test captain", "Shailesh N.", "Divya S.", "Naveen R.", "Arjun K."];
-      const samplePhones = ["+91 99999 00001", "+91 90123 45678", "+91 87654 32109", "+91 98765 43210", "+91 99016 54321"];
-      
-      const sampleCaptains = await Captain.find({
-        $or: [
-          { name: { $in: sampleNames } },
-          { phone: { $in: samplePhones } },
-          { name: { $regex: /test/i } },
-        ],
+    if (req.user?.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Super Admin authorization required for cleanup operations.",
       });
-      const sampleIds = sampleCaptains.map((c) => c._id);
-
-      if (sampleIds.length > 0) {
-        await CaptainAssignment.deleteMany({
-          $or: [{ captainId: { $in: sampleIds } }, { captain: { $in: sampleIds } }],
-        });
-        await TripSlot.updateMany(
-          { assignedCaptain: { $in: sampleIds } },
-          { $unset: { assignedCaptain: 1 }, $set: { captainAssigned: false } }
-        );
-        await TripSlot.updateMany(
-          { "assignedCaptains.captain": { $in: sampleIds } },
-          { $pull: { assignedCaptains: { captain: { $in: sampleIds } } } }
-        );
-        await CaptainPayout.deleteMany({
-          captainId: { $in: sampleIds },
-          amountPaid: { $lte: 0 },
-        });
-        await Captain.deleteMany({ _id: { $in: sampleIds } });
-      }
-
-      return res.json({
-        success: true,
-        count: sampleIds.length,
-        message: `Successfully deleted ${sampleIds.length} sample captain(s) and their assignments.`,
-      });
-    } catch (err) {
-      console.error("Purge sample captains error:", err);
-      return res.status(500).json({ success: false, message: "Failed to purge sample captains" });
     }
+
+    return res.status(403).json({
+      success: false,
+      message: "Unsafe captain purge is disabled. Hardcoded name matching has been removed to protect captain profiles and trip records.",
+    });
   });
 
   // Slot Details Modal endpoint (Requirement 2: View Trip Details)
@@ -1233,29 +1203,19 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
     }
   });
 
-  // Purge sample / orphan assignments
+  // Purge sample / orphan assignments - Disabled to protect operational history
   router.post("/admin/operations/assignments/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-      const allAssignments = await CaptainAssignment.find().populate("captainId").populate("slotId");
-      const toDeleteIds = [];
-      const sampleNames = ["test caption", "test captain", "Shailesh N.", "Divya S.", "Naveen R.", "Arjun K."];
-      for (const a of allAssignments) {
-        if (!a.captainId || !a.slotId || sampleNames.includes(a.captainId?.name) || /test/i.test(a.captainId?.name || "")) {
-          toDeleteIds.push(a._id);
-        }
-      }
-      if (toDeleteIds.length > 0) {
-        await CaptainAssignment.deleteMany({ _id: { $in: toDeleteIds } });
-      }
-      res.json({
-        success: true,
-        count: toDeleteIds.length,
-        message: `Successfully purged ${toDeleteIds.length} sample/orphan assignment(s).`,
+    if (req.user?.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Super Admin authorization required for cleanup operations.",
       });
-    } catch (err) {
-      console.error("Purge sample assignments error:", err);
-      res.json({ success: true, count: 0, message: "No assignments needed purging." });
     }
+
+    return res.status(403).json({
+      success: false,
+      message: "Unsafe assignment purge is disabled. Legitimate expedition assignments and history are protected.",
+    });
   });
 
   // Delete an individual expense
@@ -2414,48 +2374,19 @@ module.exports = function adminOperationsRoutes({ authMiddleware, adminMiddlewar
     }
   });
 
-  // Purge sample / test payouts and captain assignments
+  // Purge sample / test payouts and captain assignments - Disabled to protect financial records
   router.post("/admin/operations/payouts/purge-sample", authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-      const sampleCaptains = await Captain.find({
-        $or: [
-          { name: { $in: ["test caption", "test captain", "Shailesh N.", "Divya S.", "Naveen R.", "Arjun K."] } },
-          { phone: { $in: ["+91 99999 00001", "+91 90123 45678", "+91 87654 32109", "+91 98765 43210", "+91 99016 54321"] } },
-          { name: { $regex: /test/i } },
-        ],
+    if (req.user?.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Super Admin authorization required for cleanup operations.",
       });
-      const sampleCaptainIds = sampleCaptains.map((c) => c._id);
-
-      const payoutDelete = await CaptainPayout.deleteMany({
-        $or: [
-          { captainId: { $in: sampleCaptainIds } },
-          { captainId: null },
-        ],
-      });
-
-      const assignmentDelete = await CaptainAssignment.deleteMany({
-        $or: [
-          { captainId: { $in: sampleCaptainIds } },
-          { captain: { $in: sampleCaptainIds } },
-        ],
-      });
-
-      const expenseDelete = await TripExpense.deleteMany({
-        captainId: { $in: sampleCaptainIds },
-      });
-
-      const captainDelete = await Captain.deleteMany({
-        _id: { $in: sampleCaptainIds },
-      });
-
-      return res.json({
-        success: true,
-        message: `Purged ${payoutDelete.deletedCount} payout(s), ${assignmentDelete.deletedCount} assignment(s), and ${captainDelete.deletedCount} sample captain profile(s).`,
-      });
-    } catch (err) {
-      console.error("Purge sample payouts error:", err);
-      return res.status(500).json({ success: false, message: "Failed to purge sample payouts" });
     }
+
+    return res.status(403).json({
+      success: false,
+      message: "Unsafe payout purge is disabled. Legitimate captain compensation and financial records are protected under audit retention policies.",
+    });
   });
 
   return router;

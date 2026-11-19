@@ -1,30 +1,13 @@
-require("dotenv").config();
+/**
+ * DEPRECATED AND DISABLED SCRIPT
+ * 
+ * Default and demo admin account creation has been permanently retired.
+ * All new administrator accounts must be created through the authorized
+ * Super Admin Staff Management workflow:
+ * Super Admin -> Staff Management -> Invite Admin -> Email OTP Verification -> Password Creation.
+ */
 
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
-const User = require("./models/User");
-
-// Replace with your MongoDB connection string
-mongoose.connect(process.env.MONGODB_URI);
-
-async function createAdmin() {
-  try {
-    const hashedPassword = await bcrypt.hash("123456", 10);
-
-    const admin = new User({
-      name: "Traviska Admin",
-      email: "admin@traviska.com",
-      password: hashedPassword,
-    });
-
-    await admin.save();
-
-    console.log("✅ Admin user created successfully!");
-    process.exit();
-  } catch (err) {
-    console.error(err);
-    process.exit(1);
-  }
-}
-
-createAdmin();
+console.error("❌ createAdmin.js is deprecated and disabled.");
+console.error("Automatic creation of default admin accounts is prohibited.");
+console.error("Please log into Super Admin to invite and authorize new administrators.");
+process.exit(1);

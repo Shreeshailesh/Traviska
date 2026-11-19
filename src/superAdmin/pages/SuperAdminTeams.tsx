@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
 import { Modal } from "../../admin/ui/Modal";
+import { getSuperAdminToken } from "../authHelper";
 
 interface TeamMember {
   _id: string;
@@ -47,7 +48,7 @@ export const SuperAdminTeams: React.FC = () => {
   const fetchTeams = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/teams`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -63,7 +64,7 @@ export const SuperAdminTeams: React.FC = () => {
 
   const fetchAllUsers = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/users?tab=active`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -100,7 +101,7 @@ export const SuperAdminTeams: React.FC = () => {
     e.preventDefault();
     setTeamSubmitting(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       if (editingTeam) {
@@ -129,7 +130,7 @@ export const SuperAdminTeams: React.FC = () => {
   const handleAddMember = async () => {
     if (!activeTeamForMembers || !selectedUserIdToAdd) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       await axios.post(
         `${API_BASE_URL}/api/super-admin/teams/${activeTeamForMembers._id}/members`,
         { userId: selectedUserIdToAdd },
@@ -148,7 +149,7 @@ export const SuperAdminTeams: React.FC = () => {
   const handleRemoveMember = async (userId: string) => {
     if (!activeTeamForMembers) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       await axios.delete(
         `${API_BASE_URL}/api/super-admin/teams/${activeTeamForMembers._id}/members/${userId}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
@@ -169,7 +170,7 @@ export const SuperAdminTeams: React.FC = () => {
     if (!window.confirm(`Are you sure you want to archive team "${team.name}"?`)) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       await axios.delete(`${API_BASE_URL}/api/super-admin/teams/${team._id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

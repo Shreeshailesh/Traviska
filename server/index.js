@@ -1,3 +1,5 @@
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 require("dotenv").config();
 
 const dns = require("dns");
@@ -100,7 +102,7 @@ app.options(/(.*)/, cors(corsOptions));
 app.use(express.json({ limit: "8mb" }));
 app.use("/uploads", express.static("uploads"));
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -115,6 +117,45 @@ const authMiddleware = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
+
+    // Validate account status against MongoDB to immediately reject suspended or revoked accounts
+    const user = await User.findById(decoded.id).select("role isActive isSuspended sessionsRevokedAt");
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Account no longer exists.",
+      });
+    }
+
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: "Account has been suspended. Please contact the administrator.",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Account is inactive. Please contact the administrator.",
+      });
+    }
+
+    // Check if token was issued prior to sessionsRevokedAt
+    if (user.sessionsRevokedAt && decoded.iat) {
+      const tokenIatDate = new Date(decoded.iat * 1000);
+      if (tokenIatDate < user.sessionsRevokedAt) {
+        return res.status(401).json({
+          success: false,
+          message: "Session has been revoked. Please log in again.",
+        });
+      }
+    }
+
+    // Ensure role matches actual current database record
+    req.user.role = user.role;
+    req.currentUser = user;
+
     next();
   } catch (err) {
     return res.status(401).json({
@@ -144,7 +185,7 @@ const superAdminMiddleware = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findById(req.user.id);
+    const user = req.currentUser || (await User.findById(req.user.id));
     if (!user || user.role !== "super_admin") {
       return res.status(403).json({
         success: false,
@@ -156,6 +197,13 @@ const superAdminMiddleware = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: "Account suspended",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Account is inactive",
       });
     }
 
@@ -197,6 +245,7 @@ app.use(require("./routes/coupons")({ authMiddleware, adminMiddleware }));
 app.use(require("./routes/gallery")({ authMiddleware, adminMiddleware }));
 app.use("/api/super-admin", require("./routes/superAdmin")({ authMiddleware, superAdminMiddleware }));
 app.use("/api/staff-invitation", require("./routes/staffInvitation")());
+app.use("/api/staff-auth", require("./routes/staffPasswordReset")());
 
 const razorpay =
   process.env.NODE_ENV === "production"
@@ -2194,77 +2243,108 @@ app.put(
 
 app.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const normalizedEmail = (email || "").trim().toLowerCase();
+    const { email, password, portal } = req.body;
+    if (!email || !password || typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const safeEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const user = await User.findOne({
-      email: { $regex: new RegExp(`^${normalizedEmail}$`, "i") },
+      email: { $regex: new RegExp(`^${safeEmail}$`, "i") },
     });
 
     if (!user) {
-  return res.status(401).json({
-    success: false,
-    message: "Invalid Email or Password",
-  });
-}
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Email or Password",
+      });
+    }
 
-const isMatch = await bcrypt.compare(password, user.password);
+    // Strict portal separation:
+    // Super Admin must log in ONLY via the dedicated /super-admin/login portal
+    if (portal === "admin" && user.role === "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Super Admin (CEO) credentials cannot be used on the staff portal. Please use the dedicated Super Admin Portal at /super-admin/login.",
+      });
+    }
 
-if (!isMatch) {
-  return res.status(401).json({
-    success: false,
-    message: "Invalid Email or Password",
-  });
-}
+    // Super Admin portal must accept ONLY super_admin
+    if (portal === "super_admin" && user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. This login portal is strictly reserved for the Super Admin (CEO). Please visit /admin/login.",
+      });
+    }
 
-if (user.isSuspended) {
-  return res.status(403).json({
-    success: false,
-    message: "Your staff account has been suspended. Please contact the CEO.",
-  });
-}
+    const staffRoles = ["super_admin", "admin", "sales", "sales_lead", "sales_executive", "captain_admin"];
+    if (!staffRoles.includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access restricted to authorized Traviska team members.",
+      });
+    }
 
-if (user.isActive === false) {
-  return res.status(403).json({
-    success: false,
-    message: "Your staff account is currently inactive. Please contact the CEO.",
-  });
-}
+    const isMatch = await bcrypt.compare(password, user.password);
 
-user.lastLogin = new Date();
-await user.save();
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Email or Password",
+      });
+    }
 
-const token = jwt.sign(
-  {
-    id: user._id,
-    email: user.email,
-    role: user.role,
-  },
-  process.env.JWT_SECRET,
-  {
-    expiresIn: "7d",
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: "Your staff account has been suspended. Please contact the CEO.",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your staff account is currently inactive. Please contact the CEO.",
+      });
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Login Successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
-);
-
-res.json({
-  success: true,
-  message: "Login Successful",
-  token,
-  user: {
-    id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-  },
-});
-  }
-  catch (err) {
-  console.error(err);
-
-  res.status(500).json({
-    success: false,
-    message: "Server Error",
-  });
-}
 });
 
 app.post("/customer/firebase-login", async (req, res) => {

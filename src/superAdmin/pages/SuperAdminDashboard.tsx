@@ -19,6 +19,7 @@ import {
   Shield,
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
+import { getSuperAdminToken, clearSuperAdminAuth } from "../authHelper";
 
 interface DashboardData {
   metrics: {
@@ -56,15 +57,19 @@ export const SuperAdminDashboard: React.FC = () => {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = getSuperAdminToken();
         const res = await axios.get(`${API_BASE_URL}/api/super-admin/dashboard`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.data.success) {
           setData(res.data);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Dashboard fetch error:", err);
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          clearSuperAdminAuth();
+          navigate("/super-admin/login", { replace: true });
+        }
       } finally {
         setLoading(false);
       }

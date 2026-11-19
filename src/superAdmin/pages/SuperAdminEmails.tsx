@@ -6,6 +6,7 @@ import {
   Plus,
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
+import { getSuperAdminToken, clearSuperAdminAuth } from "../authHelper";
 import { useNavigate } from "react-router-dom";
 
 interface EmailItem {
@@ -33,7 +34,7 @@ export const SuperAdminEmails: React.FC = () => {
   const fetchEmails = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/emails`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -42,8 +43,12 @@ export const SuperAdminEmails: React.FC = () => {
         setPendingInvites(res.data.pendingInvites || []);
         setExpiredOrRevoked(res.data.expiredOrRevoked || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch emails error:", err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        clearSuperAdminAuth();
+        navigate("/super-admin/login", { replace: true });
+      }
     } finally {
       setLoading(false);
     }
@@ -55,7 +60,7 @@ export const SuperAdminEmails: React.FC = () => {
 
   const handleResend = async (id: string) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${id}/resend-invite`,
         {},
@@ -73,7 +78,7 @@ export const SuperAdminEmails: React.FC = () => {
   const handleRevoke = async (id: string, email: string) => {
     if (!window.confirm(`Are you sure you want to revoke authorization for ${email}?`)) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${id}/revoke-invite`,
         {},

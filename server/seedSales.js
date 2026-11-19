@@ -14,21 +14,11 @@ async function seedSalesData() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("Connected to MongoDB...");
 
-    // 1. Create or update a dedicated sales executive
-    const salesHashedPassword = await bcrypt.hash("Traviska@123", 10);
-    const salesUser = await User.findOneAndUpdate(
-      { email: "sales@traviska.com" },
-      {
-        name: "Arun Verma (Sales)",
-        password: salesHashedPassword,
-        role: "sales",
-        phone: "9876543210",
-        department: "Expedition Sales",
-        isActive: true,
-      },
-      { upsert: true, new: true }
-    );
-    console.log("✅ Sales executive ready: sales@traviska.com / Traviska@123");
+    // 1. Locate existing active sales executive or unassigned (no automatic hardcoded default credentials)
+    let salesUser = await User.findOne({ role: { $in: ["sales", "sales_lead"] }, isActive: true });
+    if (!salesUser) {
+      console.log("ℹ️ No active sales executive found in database. Please invite a sales team member via Super Admin.");
+    }
 
     // 2. Fetch active trip/slots to link sample enquiries
     const trip = await Trip.findOne();

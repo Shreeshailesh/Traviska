@@ -6,9 +6,12 @@ import {
   EyeOff,
   CheckCircle2,
   XCircle,
-  Send,
+  Lock,
+  Check,
+  AlertCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../api";
+import logo from "../assets/logo.jpg";
 
 export const StaffRegister: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -25,21 +28,13 @@ export const StaffRegister: React.FC = () => {
     role: string;
     department: string;
     teamName: string;
-    isEmailOwnershipVerified: boolean;
   } | null>(null);
-
-  // OTP Verification state
-  const [otpCode, setOtpCode] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpVerifying, setOtpVerifying] = useState(false);
-  const [otpError, setOtpError] = useState("");
-  const [isVerified, setIsVerified] = useState(false);
-  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
 
   // Password fields
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -48,7 +43,7 @@ export const StaffRegister: React.FC = () => {
     const validateToken = async () => {
       if (!token) {
         setLoading(false);
-        setErrorMessage("Invitation token is missing from the URL.");
+        setErrorMessage("Invitation token is missing from the URL. Please verify your link.");
         return;
       }
 
@@ -57,12 +52,11 @@ export const StaffRegister: React.FC = () => {
         if (res.data.valid) {
           setTokenValid(true);
           setInvitationData(res.data);
-          setIsVerified(Boolean(res.data.isEmailOwnershipVerified));
         }
       } catch (err: any) {
         setTokenValid(false);
         setErrorMessage(
-          err.response?.data?.message || "Invalid or expired invitation link. Please contact your CEO."
+          err.response?.data?.message || "Invalid or expired invitation link. Please contact your CEO to re-issue an invitation."
         );
       } finally {
         setLoading(false);
@@ -72,44 +66,6 @@ export const StaffRegister: React.FC = () => {
     validateToken();
   }, [token]);
 
-  // Send Verification OTP
-  const handleSendOtp = async () => {
-    if (!token) return;
-    setOtpError("");
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/staff-invitation/send-verification-otp`, { token });
-      if (res.data.success) {
-        setOtpSent(true);
-        if (res.data.devVerificationCode) {
-          setDevOtpHint(res.data.devVerificationCode);
-        }
-      }
-    } catch (err: any) {
-      setOtpError(err.response?.data?.message || "Failed to send verification code.");
-    }
-  };
-
-  // Verify OTP
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !otpCode) return;
-    setOtpVerifying(true);
-    setOtpError("");
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/staff-invitation/verify-otp`, {
-        token,
-        code: otpCode,
-      });
-      if (res.data.success) {
-        setIsVerified(true);
-      }
-    } catch (err: any) {
-      setOtpError(err.response?.data?.message || "Verification code is invalid or has expired.");
-    } finally {
-      setOtpVerifying(false);
-    }
-  };
-
   // Password Strength Criteria
   const hasMinLength = password.length >= 8;
   const hasUppercase = /[A-Z]/.test(password);
@@ -118,10 +74,10 @@ export const StaffRegister: React.FC = () => {
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const isPasswordStrong = hasMinLength && hasUppercase && hasLowercase && hasNumber && passwordsMatch;
 
-  // Complete Registration
+  // Complete Registration & Set Password
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isPasswordStrong || !isVerified) return;
+    if (!isPasswordStrong) return;
 
     setSubmitting(true);
     setErrorMessage("");
@@ -135,19 +91,17 @@ export const StaffRegister: React.FC = () => {
 
       if (res.data.success) {
         setSuccess(true);
-        // Store JWT token and user info
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
+        // Clear any previous session so the employee logs in cleanly
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("isAdmin");
 
-        // Auto-redirect to appropriate workspace after 2.5 seconds
+        // Redirect to /admin/login after displaying confirmation
         setTimeout(() => {
-          if (res.data.user.role === "super_admin") {
-            navigate("/super-admin");
-          } else if (res.data.user.role === "sales" || res.data.user.role === "sales_lead") {
-            navigate("/sales");
-          } else {
-            navigate("/admin");
-          }
+          navigate("/admin/login", {
+            replace: true,
+            state: { message: "Your account has been activated successfully. Please sign in." },
+          });
         }, 2200);
       }
     } catch (err: any) {
@@ -157,12 +111,16 @@ export const StaffRegister: React.FC = () => {
     }
   };
 
+  const formattedRole = invitationData?.role
+    ? invitationData.role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : "Staff Member";
+
   if (loading) {
     return (
       <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#f8faf8" }}>
         <div style={{ textAlign: "center", color: "#166534" }}>
-          <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>Validating Invitation...</div>
-          <div style={{ fontSize: "12px", color: "#64748b" }}>Please wait while we verify your authorized token.</div>
+          <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>Verifying Invitation...</div>
+          <div style={{ fontSize: "13px", color: "#64748b" }}>Connecting securely to Traviska...</div>
         </div>
       </div>
     );
@@ -170,32 +128,9 @@ export const StaffRegister: React.FC = () => {
 
   if (!tokenValid) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#f8faf8", padding: "20px" }}>
-        <div
-          style={{
-            maxWidth: "440px",
-            width: "100%",
-            background: "#ffffff",
-            border: "1px solid #fee2e2",
-            borderRadius: "20px",
-            padding: "36px 30px",
-            textAlign: "center",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "50%",
-              background: "#fee2e2",
-              color: "#dc2626",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 16px",
-            }}
-          >
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8faf8", padding: "20px" }}>
+        <div style={{ maxWidth: "420px", width: "100%", background: "#ffffff", borderRadius: "16px", padding: "32px 24px", textAlign: "center", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.06)", border: "1px solid #fee2e2" }}>
+          <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <XCircle size={32} />
           </div>
           <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", margin: "0 0 8px" }}>
@@ -239,37 +174,25 @@ export const StaffRegister: React.FC = () => {
     >
       <div
         style={{
-          maxWidth: "480px",
+          maxWidth: "460px",
           width: "100%",
           background: "#ffffff",
-          border: "1px solid #e2ece5",
-          borderRadius: "22px",
+          borderRadius: "20px",
           padding: "36px 32px",
-          boxShadow: "0 15px 35px -5px rgba(0, 0, 0, 0.05)",
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.08)",
+          border: "1px solid #e2e8f0",
         }}
       >
         {/* Brand Header */}
-        <div style={{ textAlign: "center", marginBottom: "26px" }}>
-          <div
-            style={{
-              display: "inline-block",
-              background: "#092816",
-              color: "#ffffff",
-              padding: "6px 14px",
-              borderRadius: "8px",
-              fontSize: "13px",
-              fontWeight: 800,
-              letterSpacing: "1px",
-              marginBottom: "12px",
-            }}
-          >
-            TRAVISKA
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "54px", height: "54px", borderRadius: "14px", overflow: "hidden", marginBottom: "14px", border: "1px solid #e2e8f0" }}>
+            <img src={logo} alt="Traviska" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
           <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>
-            Welcome to Team Traviska!
+            Welcome to Traviska
           </h1>
           <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>
-            Set up your account to access your Traviska workspace.
+            Your email has been verified. Create your password to activate your account.
           </p>
         </div>
 
@@ -293,188 +216,81 @@ export const StaffRegister: React.FC = () => {
             <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
               Account Activated!
             </h3>
-            <p style={{ fontSize: "13px", color: "#64748b" }}>
-              Your password has been securely configured. Redirecting you to your authorized workspace...
+            <p style={{ fontSize: "13.5px", color: "#166534", fontWeight: 600, marginBottom: "8px" }}>
+              Your account has been activated successfully. Please sign in.
+            </p>
+            <p style={{ fontSize: "12.5px", color: "#64748b" }}>
+              Redirecting you to the staff sign-in page...
             </p>
           </div>
-        ) : !isVerified ? (
-          /* Step 1: Email Ownership Verification */
-          <div>
+        ) : (
+          <form onSubmit={handleRegister}>
+            {/* Read-Only Verified Email & Role Details */}
             <div
               style={{
                 background: "#f0fdf4",
                 border: "1px solid #bbf7d0",
                 borderRadius: "12px",
-                padding: "14px",
+                padding: "14px 16px",
                 marginBottom: "20px",
-                fontSize: "13px",
-                color: "#166534",
               }}
             >
-              <div>
-                Approved Email: <strong>{invitationData?.email}</strong>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#15803d", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                  Verified Email
+                </span>
+                <span style={{ fontSize: "11px", background: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: "9999px", fontWeight: 700, border: "1px solid #86efac" }}>
+                  Verified ✓
+                </span>
               </div>
-              <div style={{ fontSize: "11.5px", marginTop: "2px" }}>
-                Role: <strong>{invitationData?.role}</strong> • Team:{" "}
-                <strong>{invitationData?.teamName || "General"}</strong>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", wordBreak: "break-all" }}>
+                {invitationData?.email}
+              </div>
+              <div style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
+                Assigned Role: <strong style={{ color: "#065f46" }}>{formattedRole}</strong> ({invitationData?.department || "Operations"})
               </div>
             </div>
 
-            <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6", marginBottom: "16px" }}>
-              Before setting your password, please confirm ownership of your approved email by requesting a one-time verification code.
-            </p>
-
-            {!otpSent ? (
-              <button
-                type="button"
-                onClick={handleSendOtp}
+            {errorMessage && (
+              <div
                 style={{
-                  width: "100%",
-                  padding: "12px",
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
                   borderRadius: "10px",
-                  background: "#0e3820",
-                  color: "#ffffff",
-                  border: "none",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: "pointer",
+                  padding: "10px 14px",
+                  color: "#b91c1c",
+                  fontSize: "12.5px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
                   gap: "8px",
+                  marginBottom: "16px",
                 }}
               >
-                <Send size={15} />
-                <span>Send Verification Code</span>
-              </button>
-            ) : (
-              <form onSubmit={handleVerifyOtp}>
-                {devOtpHint && (
-                  <div
-                    style={{
-                      background: "#fef3c7",
-                      border: "1px solid #fde68a",
-                      color: "#92400e",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                      marginBottom: "14px",
-                    }}
-                  >
-                    <strong>Verification Code:</strong> {devOtpHint} (Enter below)
-                  </div>
-                )}
-
-                <div style={{ marginBottom: "14px" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Enter 6-Digit Code
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    placeholder="123456"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "11px 14px",
-                      borderRadius: "10px",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "16px",
-                      letterSpacing: "4px",
-                      textAlign: "center",
-                      fontFamily: "monospace",
-                    }}
-                  />
-                </div>
-
-                {otpError && (
-                  <div style={{ color: "#dc2626", fontSize: "12px", marginBottom: "12px" }}>{otpError}</div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={otpVerifying || otpCode.length < 6}
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    borderRadius: "10px",
-                    background: "#0e3820",
-                    color: "#ffffff",
-                    border: "none",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    opacity: otpCode.length < 6 ? 0.6 : 1,
-                  }}
-                >
-                  {otpVerifying ? "Verifying..." : "Verify & Continue"}
-                </button>
-              </form>
+                <AlertCircle size={16} />
+                <span>{errorMessage}</span>
+              </div>
             )}
-          </div>
-        ) : (
-          /* Step 2: Set Password */
-          <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "5px" }}>
-                Full Name
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={invitationData?.name}
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid #e2ece5",
-                  background: "#f8faf8",
-                  fontSize: "13px",
-                  color: "#64748b",
-                }}
-              />
-            </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "5px" }}>
-                Approved Email
-              </label>
-              <input
-                type="email"
-                readOnly
-                value={invitationData?.email}
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid #e2ece5",
-                  background: "#f8faf8",
-                  fontSize: "13px",
-                  color: "#64748b",
-                  fontFamily: "monospace",
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "5px" }}>
-                Create Password *
+            {/* Create Password */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                Create Password
               </label>
               <div style={{ position: "relative" }}>
                 <input
                   type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Create your secure password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter strong password"
+                  required
                   style={{
                     width: "100%",
-                    padding: "10px 40px 10px 12px",
-                    borderRadius: "8px",
+                    padding: "11px 40px 11px 14px",
+                    borderRadius: "10px",
                     border: "1px solid #cbd5e1",
-                    fontSize: "13px",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
                 <button
@@ -482,13 +298,14 @@ export const StaffRegister: React.FC = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     position: "absolute",
-                    right: "10px",
+                    right: "12px",
                     top: "50%",
                     transform: "translateY(-50%)",
-                    background: "transparent",
+                    background: "none",
                     border: "none",
-                    color: "#94a3b8",
+                    color: "#64748b",
                     cursor: "pointer",
+                    padding: "4px",
                   }}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -496,72 +313,103 @@ export const StaffRegister: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "5px" }}>
-                Confirm Password *
+            {/* Confirm Password */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                Confirm Password
               </label>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                placeholder="Confirm password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid #cbd5e1",
-                  fontSize: "13px",
-                }}
-              />
-            </div>
-
-            {/* Password Validation Checklist */}
-            <div style={{ background: "#f8faf8", borderRadius: "10px", padding: "12px 14px", fontSize: "11.5px" }}>
-              <div style={{ fontWeight: 700, color: "#475569", marginBottom: "6px" }}>Password Requirements:</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                <div style={{ color: hasMinLength ? "#166534" : "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>{hasMinLength ? "✓" : "○"} At least 8 characters</span>
-                </div>
-                <div style={{ color: hasUppercase ? "#166534" : "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>{hasUppercase ? "✓" : "○"} 1 uppercase letter</span>
-                </div>
-                <div style={{ color: hasLowercase ? "#166534" : "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>{hasLowercase ? "✓" : "○"} 1 lowercase letter</span>
-                </div>
-                <div style={{ color: hasNumber ? "#166534" : "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>{hasNumber ? "✓" : "○"} 1 number</span>
-                </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter password"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "11px 40px 11px 14px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "#64748b",
+                    cursor: "pointer",
+                    padding: "4px",
+                  }}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
-              {confirmPassword.length > 0 && (
-                <div style={{ marginTop: "6px", color: passwordsMatch ? "#166534" : "#dc2626" }}>
-                  {passwordsMatch ? "✓ Passwords match" : "✕ Passwords do not match"}
-                </div>
-              )}
             </div>
 
-            {errorMessage && (
-              <div style={{ color: "#dc2626", fontSize: "12px" }}>{errorMessage}</div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !isPasswordStrong}
+            {/* Password Strength Checklist */}
+            <div
               style={{
-                width: "100%",
-                padding: "12px",
+                background: "#f8fafc",
                 borderRadius: "10px",
-                background: "#0e3820",
-                color: "#ffffff",
-                border: "none",
-                fontSize: "13.5px",
-                fontWeight: 700,
-                cursor: isPasswordStrong ? "pointer" : "not-allowed",
-                opacity: isPasswordStrong ? 1 : 0.6,
-                marginTop: "4px",
+                padding: "12px",
+                marginBottom: "22px",
+                border: "1px solid #e2e8f0",
               }}
             >
-              {submitting ? "Activating Account..." : "Create Account & Enter Workspace"}
+              <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "8px" }}>
+                Password Requirements:
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontSize: "11.5px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: hasMinLength ? "#16a34a" : "#94a3b8" }}>
+                  <Check size={13} strokeWidth={hasMinLength ? 3 : 2} /> At least 8 characters
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: hasUppercase ? "#16a34a" : "#94a3b8" }}>
+                  <Check size={13} strokeWidth={hasUppercase ? 3 : 2} /> Uppercase letter
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: hasLowercase ? "#16a34a" : "#94a3b8" }}>
+                  <Check size={13} strokeWidth={hasLowercase ? 3 : 2} /> Lowercase letter
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: hasNumber ? "#16a34a" : "#94a3b8" }}>
+                  <Check size={13} strokeWidth={hasNumber ? 3 : 2} /> Number (0-9)
+                </div>
+                <div style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: "6px", color: passwordsMatch ? "#16a34a" : "#94a3b8", marginTop: "2px" }}>
+                  <Check size={13} strokeWidth={passwordsMatch ? 3 : 2} /> Passwords match
+                </div>
+              </div>
+            </div>
+
+            {/* Set Password & Activate Account Button */}
+            <button
+              type="submit"
+              disabled={!isPasswordStrong || submitting}
+              style={{
+                width: "100%",
+                padding: "13px",
+                borderRadius: "12px",
+                background: isPasswordStrong && !submitting ? "#0e3820" : "#94a3b8",
+                color: "#ffffff",
+                border: "none",
+                fontSize: "14px",
+                fontWeight: 700,
+                cursor: isPasswordStrong && !submitting ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                transition: "background 0.2s ease",
+              }}
+            >
+              <Lock size={16} />
+              <span>{submitting ? "Activating Account..." : "Set Password & Activate Account"}</span>
             </button>
           </form>
         )}
@@ -569,3 +417,5 @@ export const StaffRegister: React.FC = () => {
     </div>
   );
 };
+
+export default StaffRegister;

@@ -166,6 +166,12 @@
   color: #991b1b;
 }
 
+.admin-login-alert.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
 /* Form Groups */
 .admin-login-form-group {
   margin-bottom: 18px;

@@ -31,6 +31,18 @@
   height: 100%;
   object-fit: cover;
   z-index: 1;
+  pointer-events: none;
+}
+
+/* Hide native mobile Safari / WebKit play button overlay when autoplay is deferred */
+.hero-video::-webkit-media-controls,
+.hero-video::-webkit-media-controls-panel,
+.hero-video::-webkit-media-controls-play-button,
+.hero-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .overlay {

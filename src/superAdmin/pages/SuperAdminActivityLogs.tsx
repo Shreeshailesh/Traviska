@@ -6,6 +6,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
+import { getSuperAdminToken } from "../authHelper";
 
 interface AuditLogItem {
   _id: string;
@@ -29,7 +30,7 @@ export const SuperAdminActivityLogs: React.FC = () => {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/activity-logs`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: { action: actionFilter, filter: dateFilter },

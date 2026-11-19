@@ -149,10 +149,10 @@ export const SalesTopbar: React.FC<SalesTopbarProps> = ({ onToggleSidebar }) => 
                 }}
               >
                 <div style={{ fontSize: "12px", fontWeight: 600, color: "#0f172a" }}>
-                  {user?.name || "Shailesh K."}
+                  {user?.name || "Team Member"}
                 </div>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>
-                  {user?.email || "admin@traviska.com"}
+                  {user?.email || "staff@traviska.com"}
                 </div>
               </div>
 

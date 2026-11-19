@@ -3,53 +3,68 @@ import { Navigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../api";
 import { SuperAdminLayout } from "./SuperAdminLayout";
+import { getSuperAdminToken, getSuperAdminUser, clearSuperAdminAuth } from "./authHelper";
 
 export const ProtectedSuperAdmin: React.FC = () => {
-  const token = localStorage.getItem("token");
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
+  const token = getSuperAdminToken();
+  const user = getSuperAdminUser();
 
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const verifySuperAdmin = async () => {
       if (!token || !user) {
-        setIsAuthorized(false);
-        setIsVerifying(false);
+        if (isMounted) {
+          setIsAuthorized(false);
+          setIsVerifying(false);
+        }
         return;
       }
 
       // Quick role check
       if (user.role !== "super_admin") {
-        setIsAuthorized(false);
-        setIsVerifying(false);
+        clearSuperAdminAuth();
+        if (isMounted) {
+          setIsAuthorized(false);
+          setIsVerifying(false);
+        }
         return;
       }
 
       try {
-        // Verify with server
+        // Authoritative verification with server
         const res = await axios.get(`${API_BASE_URL}/api/super-admin/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.data.success) {
-          setIsAuthorized(true);
-        } else {
-          setIsAuthorized(false);
+        if (isMounted) {
+          if (res.data?.success) {
+            setIsAuthorized(true);
+          } else {
+            clearSuperAdminAuth();
+            setIsAuthorized(false);
+          }
         }
       } catch (err: any) {
-        // Fallback: if server reachable and user is super_admin, permit session
-        if (user.role === "super_admin") {
-          setIsAuthorized(true);
-        } else {
+        // Strictly reject invalid, expired or unauthorized tokens and clear session
+        clearSuperAdminAuth();
+        if (isMounted) {
           setIsAuthorized(false);
         }
       } finally {
-        setIsVerifying(false);
+        if (isMounted) {
+          setIsVerifying(false);
+        }
       }
     };
 
     verifySuperAdmin();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   if (isVerifying) {
@@ -76,7 +91,7 @@ export const ProtectedSuperAdmin: React.FC = () => {
   }
 
   if (!isAuthorized) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/super-admin/login" replace />;
   }
 
   return <SuperAdminLayout />;

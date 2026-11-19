@@ -66,20 +66,27 @@ const SuperAdminEmails = named(() => import("./superAdmin/pages/SuperAdminEmails
 const SuperAdminPipeline = named(() => import("./superAdmin/pages/SuperAdminPipeline"), "SuperAdminPipeline");
 const SuperAdminActivityLogs = named(() => import("./superAdmin/pages/SuperAdminActivityLogs"), "SuperAdminActivityLogs");
 const SuperAdminSettings = named(() => import("./superAdmin/pages/SuperAdminSettings"), "SuperAdminSettings");
+const SuperAdminLogin = named(() => import("./superAdmin/SuperAdminLogin"), "SuperAdminLogin");
 const StaffRegister = named(() => import("./pages/StaffRegister"), "StaffRegister");
+const StaffResetPassword = named(() => import("./pages/StaffResetPassword"), "StaffResetPassword");
 
 function AppContent() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith("/admin");
   const isCaptain = location.pathname.startsWith("/captain");
   const isSales = location.pathname.startsWith("/sales");
-  const isSuperAdmin = location.pathname.startsWith("/super-admin");
+  const isSuperAdmin =
+    location.pathname.startsWith("/super-admin") ||
+    location.pathname.startsWith("/superadmin") ||
+    location.pathname.startsWith("/super_admin");
   const isStaffRegister = location.pathname.startsWith("/staff/register");
+  const isStaffResetPassword = location.pathname.startsWith("/staff/reset-password") || location.pathname.startsWith("/admin/reset-password");
   const isCustomer = location.pathname.startsWith("/customer");
   const isBooking = location.pathname === "/booking";
   const isLogin =
     location.pathname === "/login" ||
     location.pathname === "/admin/login" ||
+    location.pathname === "/super-admin/login" ||
     location.pathname === "/customer/login" ||
     location.pathname === "/captain/login" ||
     location.pathname === "/sales/login" ||
@@ -91,11 +98,12 @@ function AppContent() {
     isSales ||
     isSuperAdmin ||
     isStaffRegister ||
+    isStaffResetPassword ||
     isCustomer ||
     isBooking ||
     isLogin;
 
-  const hidePublicChrome = isAdmin || isCaptain || isSales || isSuperAdmin || isStaffRegister || isLogin;
+  const hidePublicChrome = isAdmin || isCaptain || isSales || isSuperAdmin || isStaffRegister || isStaffResetPassword || isLogin;
 
   return (
     <>
@@ -196,6 +204,13 @@ function AppContent() {
     <Route path="attendance" element={<Navigate to="/captain/trips" replace />} />
   </Route>
 
+  {/* Super Admin Dedicated Login */}
+  <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+  <Route path="/superadmin/login" element={<Navigate to="/super-admin/login" replace />} />
+  <Route path="/super_admin/login" element={<Navigate to="/super-admin/login" replace />} />
+  <Route path="/superadmin" element={<Navigate to="/super-admin" replace />} />
+  <Route path="/super_admin" element={<Navigate to="/super-admin" replace />} />
+
   {/* Super Admin Portal Routes (CEO) */}
   <Route path="/super-admin" element={<ProtectedSuperAdmin />}>
     <Route index element={<SuperAdminDashboard />} />
@@ -208,8 +223,10 @@ function AppContent() {
     <Route path="settings" element={<SuperAdminSettings />} />
   </Route>
 
-  {/* Staff Self-Service Registration */}
+  {/* Staff Self-Service Registration & Password Reset */}
   <Route path="/staff/register" element={<StaffRegister />} />
+  <Route path="/staff/reset-password" element={<StaffResetPassword />} />
+  <Route path="/admin/reset-password" element={<StaffResetPassword />} />
 
   <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
 </Routes>

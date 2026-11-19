@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronDown,
 } from "lucide-react";
+import { getSuperAdminUser, clearSuperAdminAuth } from "./authHelper";
 import "./superAdmin.css";
 
 export const SuperAdminLayout: React.FC = () => {
@@ -20,15 +21,13 @@ export const SuperAdminLayout: React.FC = () => {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
+  const user = getSuperAdminUser();
   const userName = user?.name || "Shailesh";
   const userEmail = user?.email || "owner@traviska.com";
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/admin/login");
+    clearSuperAdminAuth();
+    navigate("/super-admin/login");
   };
 
   const navItems = [

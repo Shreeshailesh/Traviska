@@ -42,7 +42,7 @@ const staffInvitationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "pending_delivery", "sent", "accepted", "expired", "revoked"],
+      enum: ["pending", "pending_delivery", "sent", "verified_pending_password", "accepted", "expired", "revoked"],
       default: "pending_delivery",
       index: true,
     },

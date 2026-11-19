@@ -41,7 +41,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("isAdmin");
-    navigate("/login", { replace: true });
+    navigate("/admin/login", { replace: true });
   };
 
   return (

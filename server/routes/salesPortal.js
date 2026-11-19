@@ -15,11 +15,20 @@ module.exports = function ({ authMiddleware }) {
   const router = express.Router();
 
   /* ------------------------------------------------------------------ */
-  /* Middleware: Verify Sales or Admin Access                           */
+  /* Middleware & Helpers: Verify Sales or Admin Access                 */
   /* ------------------------------------------------------------------ */
+  const isSalesManager = (role) =>
+    role === "admin" || role === "super_admin" || role === "sales_lead";
+
   const salesMiddleware = (req, res, next) => {
     const role = req.user?.role;
-    if (role !== "admin" && role !== "sales" && role !== "sales_lead") {
+    if (
+      role !== "admin" &&
+      role !== "super_admin" &&
+      role !== "sales" &&
+      role !== "sales_lead" &&
+      role !== "sales_executive"
+    ) {
       return res.status(403).json({
         success: false,
         message: "Sales or Admin access required.",
@@ -296,7 +305,8 @@ module.exports = function ({ authMiddleware }) {
       const query = {};
 
       if (search) {
-        const regex = new RegExp(search.trim(), "i");
+        const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(safeSearch, "i");
         query.$or = [{ name: regex }, { email: regex }, { phone: regex }, { enquiryId: regex }, { tripTitle: regex }];
       }
 
@@ -312,7 +322,10 @@ module.exports = function ({ authMiddleware }) {
         query.tripId = tripId;
       }
 
-      if (assignedTo && assignedTo !== "All") {
+      // Restrict individual sales executives strictly to their own assigned leads
+      if (!isSalesManager(req.user.role)) {
+        query.assignedTo = req.user.id;
+      } else if (assignedTo && assignedTo !== "All") {
         query.assignedTo = assignedTo;
       }
 
@@ -426,6 +439,17 @@ module.exports = function ({ authMiddleware }) {
         return res.status(404).json({ success: false, message: "Enquiry not found" });
       }
 
+      // Restrict access: Sales executives can only inspect their own assigned leads
+      if (!isSalesManager(req.user.role)) {
+        const assignedId = String(enquiry.assignedTo?._id || enquiry.assignedTo || "");
+        if (assignedId !== String(req.user.id)) {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied. You are only authorized to view your own assigned leads.",
+          });
+        }
+      }
+
       const followUps = await FollowUp.find({ enquiryId: enquiry._id }).sort({ scheduledAt: -1 });
 
       return res.json({
@@ -449,6 +473,25 @@ module.exports = function ({ authMiddleware }) {
       const enquiry = await Enquiry.findById(req.params.id);
       if (!enquiry) {
         return res.status(404).json({ success: false, message: "Enquiry not found" });
+      }
+
+      // Restrict access: Non-manager sales agents can only update leads assigned to them
+      if (!isSalesManager(req.user.role)) {
+        const assignedId = String(enquiry.assignedTo?._id || enquiry.assignedTo || "");
+        if (assignedId !== String(req.user.id)) {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied. You are only authorized to update your own assigned leads.",
+          });
+        }
+
+        // Forbid sales executives from reassigning leads
+        if (assignedTo !== undefined) {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied. Only sales leads and administrators can reassign leads.",
+          });
+        }
       }
 
       if (status !== undefined) enquiry.status = status;
@@ -610,6 +653,17 @@ module.exports = function ({ authMiddleware }) {
       const enquiry = await Enquiry.findById(req.params.id);
       if (!enquiry) {
         return res.status(404).json({ success: false, message: "Enquiry not found" });
+      }
+
+      // Restrict access: Sales executives can only convert their own assigned leads
+      if (!isSalesManager(req.user.role)) {
+        const assignedId = String(enquiry.assignedTo?._id || enquiry.assignedTo || "");
+        if (assignedId !== String(req.user.id)) {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied. You can only convert enquiries assigned to you.",
+          });
+        }
       }
 
       if (!slotId) {
@@ -815,9 +869,9 @@ module.exports = function ({ authMiddleware }) {
 
   router.post("/api/sales/agents", authMiddleware, async (req, res) => {
     try {
-      // Only Admin or Sales Lead can create sales employees
-      if (req.user.role !== "admin" && req.user.role !== "sales_lead") {
-        return res.status(403).json({ success: false, message: "Admin or Sales Lead access required." });
+      // Only Admin, Super Admin or Sales Lead can create sales employees
+      if (!isSalesManager(req.user.role)) {
+        return res.status(403).json({ success: false, message: "Admin, Super Admin, or Sales Lead access required." });
       }
 
       const { name, email, password, phone, role = "sales", department = "Sales" } = req.body;

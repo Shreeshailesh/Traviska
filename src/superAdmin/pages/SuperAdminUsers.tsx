@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
 import { Modal } from "../../admin/ui/Modal";
+import { getSuperAdminToken, clearSuperAdminAuth } from "../authHelper";
 
 interface StaffUser {
   _id: string;
@@ -28,7 +29,16 @@ interface StaffUser {
   department: string;
   team: string;
   teamId?: string | null;
-  status: "Active" | "Invited" | "Suspended" | "Inactive";
+  status:
+    | "Active"
+    | "Invited"
+    | "Pending Verification"
+    | "Verified — Password Pending"
+    | "Suspended"
+    | "Inactive"
+    | "Revoked"
+    | "Invitation Revoked"
+    | string;
   lastLogin: string;
   isSuspended: boolean;
   deliveryStatus?: string;
@@ -105,7 +115,7 @@ export const SuperAdminUsers: React.FC = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/users`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: { section, tab: "all", search },
@@ -151,21 +161,33 @@ export const SuperAdminUsers: React.FC = () => {
         setCustomerUsers(customerList);
 
         // 3. Counts are always computed from the separated lists so they stay accurate
-        setStaffCounts({
-          total: staffList.length,
-          active: staffList.filter((u) => !u.isSuspended && u.status === "Active").length,
-          invited: staffList.filter((u) => u.status === "Invited" || u.type === "invitation").length,
-          suspended: staffList.filter((u) => u.isSuspended || u.status === "Suspended").length,
-        });
-        setCustomerCounts({
-          total: customerList.length,
-          active: customerList.filter((c) => c.status === "Active").length,
-          inactive: customerList.filter((c) => c.status !== "Active").length,
-        });
+        if (res.data.counts?.staff) {
+          setStaffCounts(res.data.counts.staff);
+        } else {
+          setStaffCounts({
+            total: staffList.length,
+            active: staffList.filter((u) => !u.isSuspended && u.status === "Active").length,
+            invited: staffList.filter((u) => u.type === "invitation" || u.status === "Invited" || u.status === "Pending Verification" || u.status === "Verified — Password Pending").length,
+            suspended: staffList.filter((u) => u.isSuspended || u.status === "Suspended").length,
+          });
+        }
+        if (res.data.counts?.customers) {
+          setCustomerCounts(res.data.counts.customers);
+        } else {
+          setCustomerCounts({
+            total: customerList.length,
+            active: customerList.filter((c) => c.status === "Active").length,
+            inactive: customerList.filter((c) => c.status !== "Active").length,
+          });
+        }
         setSectionCounts({ staff: staffList.length, customers: customerList.length });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch users error:", err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        clearSuperAdminAuth();
+        navigate("/super-admin/login", { replace: true });
+      }
     } finally {
       setLoading(false);
     }
@@ -173,7 +195,7 @@ export const SuperAdminUsers: React.FC = () => {
 
   const fetchTeams = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.get(`${API_BASE_URL}/api/super-admin/teams`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -207,7 +229,7 @@ export const SuperAdminUsers: React.FC = () => {
     setInviteResult(null);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/authorize-email`,
         inviteForm,
@@ -223,6 +245,12 @@ export const SuperAdminUsers: React.FC = () => {
         fetchUsers();
       }
     } catch (err: any) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        clearSuperAdminAuth();
+        alert(err.response?.data?.message || "Session expired or unauthorized. Please log in again as Super Admin.");
+        navigate("/super-admin/login", { replace: true });
+        return;
+      }
       alert(err.response?.data?.message || "Failed to authorize employee.");
     } finally {
       setInviteLoading(false);
@@ -234,7 +262,7 @@ export const SuperAdminUsers: React.FC = () => {
     if (!editingUser) return;
     setEditLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       await axios.put(
@@ -260,15 +288,16 @@ export const SuperAdminUsers: React.FC = () => {
 
   // Suspend / Reactivate Staff
   const handleToggleSuspend = async (user: StaffUser) => {
-    const action = user.isSuspended ? "reactivate" : "suspend";
-    const confirmPrompt = user.isSuspended
+    const isBlocked = user.isSuspended || user.status === "Suspended" || user.status === "Inactive";
+    const action = isBlocked ? "reactivate" : "suspend";
+    const confirmPrompt = isBlocked
       ? `Are you sure you want to reactivate access for ${user.email}?`
       : `Are you sure you want to suspend ${user.email}? Their active sessions will be terminated immediately.`;
 
     if (!window.confirm(confirmPrompt)) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${user._id}/${action}`,
         { reason: "Suspended by CEO via User Management" },
@@ -289,7 +318,7 @@ export const SuperAdminUsers: React.FC = () => {
       return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/customers/${customer._id}/toggle-status`,
         {},
@@ -309,7 +338,7 @@ export const SuperAdminUsers: React.FC = () => {
       return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${user._id}/revoke-sessions`,
         {},
@@ -326,7 +355,7 @@ export const SuperAdminUsers: React.FC = () => {
   // Initiate Password Reset
   const handleInitiatePasswordReset = async (user: StaffUser) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${user._id}/initiate-password-reset`,
         {},
@@ -346,17 +375,18 @@ export const SuperAdminUsers: React.FC = () => {
   // Resend or Revoke Staff Invitation
   const handleResendInvite = async (invitationId: string) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${invitationId}/resend-invite`,
         {},
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       if (res.data.success) {
-        prompt(
-          "Invitation reissued with 24 hours validity. Copy registration link:",
-          res.data.registrationLink
-        );
+        setInviteResult({
+          message: res.data.message || "Invitation reissued with 24 hours validity.",
+          registrationLink: res.data.registrationLink,
+        });
+        setShowInviteModal(true);
         fetchUsers();
       }
     } catch (err: any) {
@@ -367,7 +397,7 @@ export const SuperAdminUsers: React.FC = () => {
   const handleRevokeInvite = async (invitationId: string) => {
     if (!window.confirm("Are you sure you want to revoke this pending authorization?")) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getSuperAdminToken();
       const res = await axios.post(
         `${API_BASE_URL}/api/super-admin/users/${invitationId}/revoke-invite`,
         {},
@@ -393,8 +423,8 @@ export const SuperAdminUsers: React.FC = () => {
     // Strict guard: only staff/admin roles ever appear in the Staff & Admin section
     if (!STAFF_ROLES.includes(u.role)) return false;
     if (staffTab === "active") return !u.isSuspended && u.status === "Active";
-    if (staffTab === "invited") return u.status === "Invited" || u.type === "invitation";
-    if (staffTab === "suspended") return u.isSuspended || u.status === "Suspended";
+    if (staffTab === "invited") return u.type === "invitation" || u.status === "Invited" || u.status === "Pending Verification" || u.status === "Verified — Password Pending";
+    if (staffTab === "suspended") return u.isSuspended || u.status === "Suspended" || u.status === "Inactive";
     return true;
   });
 
@@ -685,6 +715,14 @@ export const SuperAdminUsers: React.FC = () => {
                         <span className="sa-badge-active">● Active</span>
                       ) : u.status === "Invited" ? (
                         <span className="sa-badge-invited">● Invited</span>
+                      ) : u.status === "Pending Verification" ? (
+                        <span className="sa-badge-invited" style={{ background: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" }}>● Pending Verification</span>
+                      ) : u.status === "Verified — Password Pending" ? (
+                        <span className="sa-badge-invited" style={{ background: "#fef3c7", color: "#b45309", borderColor: "#fde68a" }}>● Verified — Password Pending</span>
+                      ) : u.status === "Revoked" || u.status === "Invitation Revoked" ? (
+                        <span className="sa-badge-suspended" style={{ background: "#f1f5f9", color: "#64748b", borderColor: "#cbd5e1" }}>● Revoked</span>
+                      ) : u.status === "Inactive" ? (
+                        <span className="sa-badge-suspended" style={{ background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" }}>● Inactive</span>
                       ) : (
                         <span className="sa-badge-suspended">● Suspended</span>
                       )}
@@ -755,19 +793,24 @@ export const SuperAdminUsers: React.FC = () => {
 
                             {u.role !== "super_admin" && (
                               <>
-                                <button
-                                  onClick={() => handleToggleSuspend(u)}
-                                  style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    color: u.isSuspended ? "#15803d" : "#ef4444",
-                                    padding: "5px",
-                                    cursor: "pointer",
-                                  }}
-                                  title={u.isSuspended ? "Reactivate Account" : "Suspend Account"}
-                                >
-                                  {u.isSuspended ? <UserCheck size={16} /> : <UserX size={16} />}
-                                </button>
+                                {(() => {
+                                  const isBlocked = u.isSuspended || u.status === "Suspended" || u.status === "Inactive";
+                                  return (
+                                    <button
+                                      onClick={() => handleToggleSuspend(u)}
+                                      style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        color: isBlocked ? "#15803d" : "#ef4444",
+                                        padding: "5px",
+                                        cursor: "pointer",
+                                      }}
+                                      title={isBlocked ? "Reactivate Account" : "Suspend Account"}
+                                    >
+                                      {isBlocked ? <UserCheck size={16} /> : <UserX size={16} />}
+                                    </button>
+                                  );
+                                })()}
 
                                 <button
                                   onClick={() => handleRevokeSessions(u)}
@@ -1098,7 +1141,7 @@ export const SuperAdminUsers: React.FC = () => {
                   </button>
                 </div>
                 <p style={{ fontSize: "11.5px", color: "#64748b", marginTop: "6px" }}>
-                  Hand this link directly to the employee. The employee will choose and verify their own secure password.
+                  Hand this link directly to the employee if email delivery is not configured. The employee will verify their account and choose their own secure password.
                 </p>
               </div>
             )}

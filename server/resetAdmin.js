@@ -1,32 +1,12 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
-require("dotenv").config();
+/**
+ * DEPRECATED AND DISABLED SCRIPT
+ * 
+ * Default and demo admin reset scripts have been permanently retired.
+ * Staff password resets and credential management must be conducted
+ * through the authorized Super Admin workflow.
+ */
 
-const User = require("./models/User");
-
-async function resetAdmin() {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log("MongoDB Connected");
-
-    const hashedPassword = await bcrypt.hash("Traviska@123", 10);
-
-    const user = await User.findOneAndUpdate(
-      { email: "admin@traviska.com" },
-      { password: hashedPassword, role: "admin", name: "Traviska Admin" },
-      { returnDocument: "after", upsert: true }
-    );
-
-    if (!user) {
-      console.log("Admin user not found");
-    } else {
-      console.log("Admin password reset successfully!");
-    }
-
-    await mongoose.disconnect();
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-resetAdmin();
+console.error("❌ resetAdmin.js is deprecated and disabled.");
+console.error("Manual script resetting of default admin credentials is prohibited.");
+console.error("For staff password resets, use the Super Admin password reset workflow.");
+process.exit(1);
