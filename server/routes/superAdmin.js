@@ -340,32 +340,40 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       const combinedStaff = tab === "invited" ? formattedInvites : [...formattedUsers, ...formattedInvites];
 
       // 2. Query Customer Logins & Booking Customers
-      const custQuery = {
+      // The customer role constraint MUST always apply, preventing staff from ever appearing here
+      const customerRoleConstraint = {
         $or: [
           { role: "customer" },
           { role: { $nin: staffRoles } },
           { role: { $exists: false } },
         ],
       };
+
+      const custAndClauses = [customerRoleConstraint];
+
       if (tab === "active") {
-        custQuery.isActive = { $ne: false };
-        custQuery.isSuspended = { $ne: true };
+        custAndClauses.push({
+          isActive: { $ne: false },
+          isSuspended: { $ne: true },
+        });
       } else if (tab === "inactive" || tab === "suspended") {
-        custQuery.$or = [{ isActive: false }, { isSuspended: true }];
+        custAndClauses.push({
+          $or: [{ isActive: false }, { isSuspended: true }],
+        });
       }
 
       if (search) {
         const regex = new RegExp(search.trim(), "i");
-        custQuery.$and = [
-          {
-            $or: [
-              { name: regex },
-              { email: regex },
-              { phone: regex },
-            ],
-          },
-        ];
+        custAndClauses.push({
+          $or: [
+            { name: regex },
+            { email: regex },
+            { phone: regex },
+          ],
+        });
       }
+
+      const custQuery = custAndClauses.length === 1 ? custAndClauses[0] : { $and: custAndClauses };
 
       const [custUsers, allBookings] = await Promise.all([
         User.find(custQuery).sort({ createdAt: -1 }).lean(),
@@ -374,9 +382,16 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
 
       const customerMap = new Map();
 
+      // Collect all staff emails to ensure staff accounts never leak via bookings or registered logins
+      const staffEmailSet = new Set(
+        users.map((u) => (u.email ? u.email.toLowerCase().trim() : "")).filter(Boolean)
+      );
+
       // First, add registered User accounts with role "customer"
       for (const u of custUsers) {
+        if (staffRoles.includes(u.role)) continue; // strict guard: staff roles never in customer map
         const emailKey = u.email ? u.email.toLowerCase().trim() : null;
+        if (emailKey && staffEmailSet.has(emailKey)) continue;
         const phoneKey = u.phone ? u.phone.replace(/\D/g, "").slice(-10) : null;
         const key = emailKey || (phoneKey ? `p:${phoneKey}` : `u:${u._id}`);
 
@@ -410,6 +425,7 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       // Second, merge customers from Bookings
       for (const b of allBookings) {
         const emailKey = b.email ? b.email.toLowerCase().trim() : null;
+        if (emailKey && staffEmailSet.has(emailKey)) continue; // Never treat staff as customer accounts
         const phoneKey = b.phone ? b.phone.replace(/\D/g, "").slice(-10) : null;
         const key = emailKey || (phoneKey ? `p:${phoneKey}` : `b:${b._id}`);
 
@@ -457,16 +473,20 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
         }
       }
 
-      let allCustomers = Array.from(customerMap.values());
+      const rawCustomerList = Array.from(customerMap.values());
+      const activeCustomersCount = rawCustomerList.filter((c) => c.status === "Active").length;
+      const inactiveCustomersCount = rawCustomerList.filter((c) => c.status !== "Active").length;
+
+      let allCustomers = rawCustomerList;
       if (tab === "active") {
         allCustomers = allCustomers.filter((c) => c.status === "Active");
       } else if (tab === "inactive") {
-        allCustomers = allCustomers.filter((c) => c.status === "Inactive");
+        allCustomers = allCustomers.filter((c) => c.status === "Inactive" || c.status === "Suspended");
       } else if (tab === "suspended") {
         allCustomers = allCustomers.filter((c) => c.status === "Suspended");
       }
 
-      const totalCustomerCount = customerMap.size;
+      const totalCustomerCount = rawCustomerList.length;
       const totalStaffCount = users.length;
       const pendingInvitesCount = invitations.length;
 
@@ -483,9 +503,9 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
             suspended: users.filter((u) => u.isSuspended).length,
           },
           customers: {
-            total: allCustomers.length,
-            active: allCustomers.filter((c) => c.status === "Active").length,
-            inactive: allCustomers.filter((c) => c.status !== "Active").length,
+            total: rawCustomerList.length,
+            active: activeCustomersCount,
+            inactive: inactiveCustomersCount,
           },
         },
         sectionCounts: {

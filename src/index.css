@@ -7,3 +7,58 @@ body {
   font-family: "Outfit", sans-serif;
   background: #ffffff;
 }
+
+
+/* ============================================================
+   Trip card skeleton placeholders (Home "Popular Experiences" + Trips page)
+   Reuse the real card classes for identical size/layout; only the
+   contents are replaced by lightweight shimmer blocks while fetching.
+   ============================================================ */
+.trip-skeleton-card {
+  cursor: default;
+  pointer-events: none;
+}
+
+.trip-skeleton-card:hover {
+  transform: none;
+}
+
+.trip-skeleton-media {
+  background-color: #e8efe6;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  margin: 0 0 12px;
+  background-color: #e8efe6;
+}
+
+.skeleton-line-lg {
+  height: 20px;
+  margin-bottom: 16px;
+}
+
+.skeleton-btn {
+  height: 44px;
+  border-radius: 12px;
+  margin-top: 16px;
+  background-color: #e8efe6;
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(90deg, #e8efe6 0%, #f4f8f2 50%, #e8efe6 100%);
+  background-size: 200% 100%;
+  animation: traviska-skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes traviska-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
+}

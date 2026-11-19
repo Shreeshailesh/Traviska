@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import heroVideo from "../assets/videos/hero.mp4";
-import { useEffect, useState, useRef } from "react";
-import axios from "axios";
+import { useEffect, useRef } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -15,7 +14,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
-import { API_BASE_URL } from "../api";
+import { useTrips } from "../lib/tripsStore";
 import {
   TitleBrush,
   TornPaperEdge,
@@ -39,8 +38,7 @@ const HERO_POSTER_URL =
   "https://res.cloudinary.com/clpacmp1/video/upload/so_0,q_auto,f_auto/traviska_hero_video.jpg";
 
 function Home() {
-  const [trips, setTrips] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { trips, loading, error, retry } = useTrips();
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
 
@@ -74,22 +72,6 @@ function Home() {
     };
 
     playVideo();
-  }, []);
-
-  useEffect(() => {
-    const fetchTrips = async () => {
-      try {
-        setLoading(true);
-        const { data } = await axios.get(`${API_BASE_URL}/trips`);
-        setTrips(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Failed to fetch trips:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTrips();
   }, []);
 
   const scrollToContent = () => {
@@ -172,8 +154,31 @@ function Home() {
         </div>
 
         {loading ? (
+          <div
+            className="popular-cards-grid"
+            aria-busy="true"
+            aria-label="Loading handpicked journeys"
+          >
+            {[0, 1, 2].map((i) => (
+              <div className="nature-trip-card trip-skeleton-card" key={`sk-${i}`} aria-hidden="true">
+                <div className="trip-card-media trip-skeleton-media skeleton-shimmer" />
+                <div className="trip-card-content">
+                  <div className="skeleton-line skeleton-shimmer" style={{ width: "45%" }} />
+                  <div className="skeleton-line skeleton-line-lg skeleton-shimmer" style={{ width: "80%" }} />
+                  <div className="trip-card-divider"></div>
+                  <div className="skeleton-line skeleton-shimmer" style={{ width: "35%" }} />
+                  <div className="skeleton-btn skeleton-shimmer" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
           <div className="nature-loading">
-            <p>Loading handpicked journeys...</p>
+            <p>We couldn't load our journeys right now.</p>
+            <button type="button" className="popular-view-all-btn" onClick={retry}>
+              <span>Try Again</span>
+              <ArrowRight size={16} />
+            </button>
           </div>
         ) : trips.length === 0 ? (
           <div className="nature-loading">
@@ -205,6 +210,7 @@ function Home() {
                           alt={trip.title}
                           className="trip-card-img"
                           loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="trip-card-no-img">

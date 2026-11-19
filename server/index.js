@@ -1876,6 +1876,63 @@ app.post("/trips", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 
+app.get("/sitemap.xml", async (req, res) => {
+  try {
+    const baseUrl = "https://traviska.com";
+    const trips = await Trip.find({
+      title: { $exists: true, $type: "string", $ne: "" },
+      price: { $exists: true, $type: "number", $gt: 0 },
+    })
+      .select("_id createdAt updatedAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const staticRoutes = [
+      { loc: `${baseUrl}/`, priority: "1.0", changefreq: "daily" },
+      { loc: `${baseUrl}/trips`, priority: "0.9", changefreq: "daily" },
+      { loc: `${baseUrl}/about`, priority: "0.7", changefreq: "monthly" },
+      { loc: `${baseUrl}/contact`, priority: "0.7", changefreq: "monthly" },
+    ];
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+    for (const route of staticRoutes) {
+      xml += `  <url>\n`;
+      xml += `    <loc>${route.loc}</loc>\n`;
+      xml += `    <changefreq>${route.changefreq}</changefreq>\n`;
+      xml += `    <priority>${route.priority}</priority>\n`;
+      xml += `  </url>\n`;
+    }
+
+    for (const trip of trips) {
+      if (!trip._id) continue;
+      const dateVal = trip.updatedAt || trip.createdAt || new Date();
+      const lastmod = new Date(dateVal).toISOString().split("T")[0];
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}/trip/${trip._id}</loc>\n`;
+      xml += `    <lastmod>${lastmod}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.8</priority>\n`;
+      xml += `  </url>\n`;
+    }
+
+    xml += `</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400");
+    res.status(200).send(xml);
+  } catch (err) {
+    console.error("Failed to generate dynamic sitemap.xml:", err);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Retry-After", "120");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.status(503).send("Service Unavailable: Sitemap generation temporarily unavailable. Please retry shortly.");
+  }
+});
+
+
 app.get("/trips", async (req, res) => {
   try {
     const trips = await Trip.find().sort({ createdAt: -1 });

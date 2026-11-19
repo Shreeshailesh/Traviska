@@ -1,5 +1,6 @@
 import "./App.css";
 
+import { lazy, Suspense } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -11,6 +12,7 @@ import {
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
+// Public website pages stay in the main bundle so they render instantly.
 import Home from "./pages/Home";
 import Trips from "./pages/Trips";
 import About from "./pages/About";
@@ -21,40 +23,49 @@ import Login from "./pages/Login";
 import CustomerLogin from "./pages/CustomerLogin";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import ProtectedCustomer from "./components/ProtectedCustomer";
-import ProtectedAdmin from "./components/ProtectedAdmin";
 
 import { CaptainAuthProvider } from "./captain/CaptainAuthContext";
-import CaptainLayout from "./captain/CaptainLayout";
-import CaptainLogin from "./captain/CaptainLogin";
-import CaptainTrips from "./captain/CaptainTrips";
-import CaptainTripDetails from "./captain/CaptainTripDetails";
-import CaptainAttendance from "./captain/CaptainAttendance";
-import CaptainUserCheck from "./captain/CaptainUserCheck";
-import CaptainTripExpenses from "./captain/CaptainTripExpenses";
-import CaptainAddExpense from "./captain/CaptainAddExpense";
-import CaptainProfile from "./captain/CaptainProfile";
-import CaptainPayoutHistory from "./captain/CaptainPayoutHistory";
-import CaptainBankDetails from "./captain/CaptainBankDetails";
-
 import { SalesAuthProvider } from "./sales/SalesAuthContext";
-import SalesLayout from "./sales/SalesLayout";
-import SalesLogin from "./sales/SalesLogin";
-import SalesDashboard from "./sales/SalesDashboard";
-import SalesLeads from "./sales/SalesLeads";
-import SalesPipeline from "./sales/SalesPipeline";
-import SalesFollowUps from "./sales/SalesFollowUps";
-import SalesManualBooking from "./sales/SalesManualBooking";
-import OdooSyncCenter from "./sales/OdooSyncCenter";
 
-import { ProtectedSuperAdmin } from "./superAdmin/ProtectedSuperAdmin";
-import { SuperAdminDashboard } from "./superAdmin/pages/SuperAdminDashboard";
-import { SuperAdminUsers } from "./superAdmin/pages/SuperAdminUsers";
-import { SuperAdminTeams } from "./superAdmin/pages/SuperAdminTeams";
-import { SuperAdminEmails } from "./superAdmin/pages/SuperAdminEmails";
-import { SuperAdminPipeline } from "./superAdmin/pages/SuperAdminPipeline";
-import { SuperAdminActivityLogs } from "./superAdmin/pages/SuperAdminActivityLogs";
-import { SuperAdminSettings } from "./superAdmin/pages/SuperAdminSettings";
-import { StaffRegister } from "./pages/StaffRegister";
+// Staff portals (admin, captain, sales, super admin) are code-split so public
+// visitors don't download them before the home page / trips can load.
+const named = <T extends Record<string, any>>(
+  loader: () => Promise<T>,
+  key: keyof T
+) => lazy(() => loader().then((m) => ({ default: m[key] })));
+
+const ProtectedAdmin = lazy(() => import("./components/ProtectedAdmin"));
+
+const CaptainLayout = lazy(() => import("./captain/CaptainLayout"));
+const CaptainLogin = lazy(() => import("./captain/CaptainLogin"));
+const CaptainTrips = lazy(() => import("./captain/CaptainTrips"));
+const CaptainTripDetails = lazy(() => import("./captain/CaptainTripDetails"));
+const CaptainAttendance = lazy(() => import("./captain/CaptainAttendance"));
+const CaptainUserCheck = lazy(() => import("./captain/CaptainUserCheck"));
+const CaptainTripExpenses = lazy(() => import("./captain/CaptainTripExpenses"));
+const CaptainAddExpense = lazy(() => import("./captain/CaptainAddExpense"));
+const CaptainProfile = lazy(() => import("./captain/CaptainProfile"));
+const CaptainPayoutHistory = lazy(() => import("./captain/CaptainPayoutHistory"));
+const CaptainBankDetails = lazy(() => import("./captain/CaptainBankDetails"));
+
+const SalesLayout = lazy(() => import("./sales/SalesLayout"));
+const SalesLogin = lazy(() => import("./sales/SalesLogin"));
+const SalesDashboard = lazy(() => import("./sales/SalesDashboard"));
+const SalesLeads = lazy(() => import("./sales/SalesLeads"));
+const SalesPipeline = lazy(() => import("./sales/SalesPipeline"));
+const SalesFollowUps = lazy(() => import("./sales/SalesFollowUps"));
+const SalesManualBooking = lazy(() => import("./sales/SalesManualBooking"));
+const OdooSyncCenter = lazy(() => import("./sales/OdooSyncCenter"));
+
+const ProtectedSuperAdmin = named(() => import("./superAdmin/ProtectedSuperAdmin"), "ProtectedSuperAdmin");
+const SuperAdminDashboard = named(() => import("./superAdmin/pages/SuperAdminDashboard"), "SuperAdminDashboard");
+const SuperAdminUsers = named(() => import("./superAdmin/pages/SuperAdminUsers"), "SuperAdminUsers");
+const SuperAdminTeams = named(() => import("./superAdmin/pages/SuperAdminTeams"), "SuperAdminTeams");
+const SuperAdminEmails = named(() => import("./superAdmin/pages/SuperAdminEmails"), "SuperAdminEmails");
+const SuperAdminPipeline = named(() => import("./superAdmin/pages/SuperAdminPipeline"), "SuperAdminPipeline");
+const SuperAdminActivityLogs = named(() => import("./superAdmin/pages/SuperAdminActivityLogs"), "SuperAdminActivityLogs");
+const SuperAdminSettings = named(() => import("./superAdmin/pages/SuperAdminSettings"), "SuperAdminSettings");
+const StaffRegister = named(() => import("./pages/StaffRegister"), "StaffRegister");
 
 function AppContent() {
   const location = useLocation();
@@ -76,6 +87,7 @@ function AppContent() {
     <>
       {!hidePublicChrome && <Navbar />}
 
+     <Suspense fallback={null}>
      <Routes>
   <Route path="/" element={<Home />} />
   <Route path="/trips" element={<Trips />} />
@@ -180,6 +192,7 @@ function AppContent() {
 
   <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
 </Routes>
+     </Suspense>
 
       {!hidePublicChrome && <Footer />}
 

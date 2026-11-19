@@ -1,0 +1,30 @@
+# robots.txt for https://traviska.com
+User-agent: *
+Allow: /
+
+# Ensure Googlebot, Googlebot-Image, and all crawlers can access favicon and logo assets
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon.svg
+Allow: /favicon-16x16.png
+Allow: /favicon-32x32.png
+Allow: /favicon-48x48.png
+Allow: /favicon-192x192.png
+Allow: /favicon-512x512.png
+Allow: /apple-touch-icon.png
+Allow: /site.webmanifest
+Allow: /logo.jpg
+
+# Disallow private administrative, customer, and checkout paths from indexing
+Disallow: /admin
+Disallow: /super-admin
+Disallow: /captain
+Disallow: /sales
+Disallow: /booking
+Disallow: /customer
+Disallow: /login
+Disallow: /admin-login
+Disallow: /staff
+
+Sitemap: https://traviska.com/sitemap.xml
+

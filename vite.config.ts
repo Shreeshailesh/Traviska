@@ -7,4 +7,20 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/sitemap.xml': {
+        target: 'https://traviska-backend.onrender.com',
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      '/sitemap.xml': {
+        target: 'https://traviska-backend.onrender.com',
+        changeOrigin: true,
+      },
+    },
+  },
 })

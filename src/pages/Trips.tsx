@@ -1,7 +1,4 @@
-import { API_BASE_URL } from "../api";
 import "./Trips.css";
-import { useEffect, useState } from "react";
-import axios from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MapPin, Clock3, Compass, ArrowRight, X, Sparkles } from "lucide-react";
 import {
@@ -11,30 +8,14 @@ import {
   MountainPeaksWatermark,
   PalmTreesWatermark,
 } from "../components/HomeIllustrations";
+import { useTrips } from "../lib/tripsStore";
 
 function Trips() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") || "";
 
-  const [trips, setTrips] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchTrips = async () => {
-      try {
-        setLoading(true);
-        const { data } = await axios.get(`${API_BASE_URL}/trips`);
-        setTrips(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Failed to fetch trips:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTrips();
-  }, []);
+  const { trips, loading, error, retry } = useTrips();
 
   const filteredTrips = trips.filter((trip) => {
     if (!searchQuery.trim()) return true;
@@ -79,8 +60,28 @@ function Trips() {
       </div>
 
       {loading ? (
+        <div className="trip-grid" aria-busy="true" aria-label="Loading expeditions">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div className="trip-box trip-skeleton-card" key={`sk-${i}`} aria-hidden="true">
+              <div className="trip-box-img-wrap trip-skeleton-media skeleton-shimmer" />
+              <div className="trip-info">
+                <div className="skeleton-line skeleton-shimmer" style={{ width: "45%" }} />
+                <div className="skeleton-line skeleton-line-lg skeleton-shimmer" style={{ width: "80%" }} />
+                <div className="trip-card-divider"></div>
+                <div className="skeleton-line skeleton-shimmer" style={{ width: "35%" }} />
+                <div className="skeleton-btn skeleton-shimmer" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
         <div className="trips-state-msg">
-          <p>Loading expeditions...</p>
+          <Compass size={48} color="#3b6328" style={{ margin: "0 auto 16px" }} />
+          <h3>Couldn't load expeditions</h3>
+          <p>Please check your connection and try again.</p>
+          <button type="button" onClick={retry} className="reset-filter-btn">
+            Try Again
+          </button>
         </div>
       ) : filteredTrips.length === 0 ? (
         <div className="trips-state-msg">
@@ -106,7 +107,10 @@ function Trips() {
                   <img
                     src={trip.image}
                     alt={trip.title}
-                    loading="lazy"
+                    // First row is above the fold: load immediately; the rest lazy-load.
+                    loading={index < 3 ? "eager" : "lazy"}
+                    fetchPriority={index < 3 ? "high" : "auto"}
+                    decoding="async"
                   />
                 ) : (
                   <div className="trip-box-placeholder">
