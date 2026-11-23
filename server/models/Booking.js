@@ -196,6 +196,84 @@ paymentReferenceKey: {
     default: 0,
   },
 
+  policyVersion: {
+    type: String,
+    default: "2026-11-v1",
+  },
+
+  termsAcceptedAt: {
+    type: Date,
+    default: null,
+  },
+
+  bookingState: {
+    type: String,
+    enum: [
+      "Confirmed",
+      "Cancellation Requested",
+      "Cancelled",
+      "Reschedule Requested",
+      "Reschedule Proposed",
+      "Awaiting Customer Response",
+      "Rescheduled",
+    ],
+    default: "Confirmed",
+  },
+
+  cancellationSource: {
+    type: String,
+    enum: ["", "Customer", "Traviska"],
+    default: "",
+  },
+
+  customerFacingReason: {
+    type: String,
+    default: "",
+  },
+
+  rescheduleCount: {
+    type: Number,
+    default: 0,
+  },
+
+  rescheduleFeeCharged: {
+    type: Number,
+    default: 0,
+  },
+
+  refundState: {
+    type: String,
+    enum: [
+      "Not Applicable",
+      "Pending Admin Approval",
+      "Pending Initiation",
+      "Approved — Pending Initiation",
+      "Initiation In Progress",
+      "Initiated",
+      "Processing",
+      "Completed",
+      "Failed — Requires Action",
+      "Failed / Requires Action",
+      "Reconciliation Required",
+    ],
+    default: "Not Applicable",
+  },
+
+  refundReference: {
+    type: String,
+    default: "",
+  },
+
+  refundInitiatedAt: {
+    type: Date,
+    default: null,
+  },
+
+  refundCompletedAt: {
+    type: Date,
+    default: null,
+  },
+
   whatsappOptIn: {
     type: Boolean,
     default: false,

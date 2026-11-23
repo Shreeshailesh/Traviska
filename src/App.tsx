@@ -181,6 +181,7 @@ function AppContent() {
 </Route>
   <Route path="/admin" element={<ProtectedAdmin />} />
   <Route path="/admin/bookings" element={<ProtectedAdmin />} />
+  <Route path="/admin/booking-requests" element={<ProtectedAdmin />} />
   <Route path="/admin/trips" element={<ProtectedAdmin />} />
   <Route path="/admin/sections" element={<ProtectedAdmin />} />
   <Route path="/admin/customers" element={<ProtectedAdmin />} />

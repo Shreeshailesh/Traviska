@@ -153,6 +153,8 @@ export const Bookings: React.FC = () => {
   // Filters for bookings table
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedPickup, setSelectedPickup] = useState<string>("all");
+  const [rescheduleMode, setRescheduleMode] = useState<"propose" | "direct">("propose");
+  const [cancelSource, setCancelSource] = useState<"Customer" | "Traviska">("Customer");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [bookingsPage, setBookingsPage] = useState<number>(1);
   const BOOKINGS_PER_PAGE = 5;
@@ -335,7 +337,7 @@ export const Bookings: React.FC = () => {
     setSelectedTripId(trip._id);
     setSelectedSlotId("all");
     setBookingsPage(1);
-      };
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -385,8 +387,12 @@ export const Bookings: React.FC = () => {
     const token = localStorage.getItem("token");
 
     try {
+      const endpoint =
+        rescheduleMode === "propose"
+          ? `${API_BASE_URL}/api/admin/bookings/${rescheduleBooking._id}/propose-reschedule`
+          : `${API_BASE_URL}/admin/bookings/${rescheduleBooking._id}/reschedule`;
       const res = await axios.post(
-        `${API_BASE_URL}/admin/bookings/${rescheduleBooking._id}/reschedule`,
+        endpoint,
         {
           newSlotId: targetRescheduleSlotId,
           reason: rescheduleReason.trim(),
@@ -428,6 +434,7 @@ export const Bookings: React.FC = () => {
       const res = await axios.post(
         `${API_BASE_URL}/admin/bookings/${cancelBooking._id}/cancel`,
         {
+          cancellationSource: cancelSource,
           reason: cancelReason,
           notes: cancelNotes.trim(),
         },
@@ -1351,8 +1358,8 @@ export const Bookings: React.FC = () => {
                     {activeTab === "cancelled"
                       ? "No cancelled bookings for this selection."
                       : activeTab === "rescheduled"
-                      ? "No rescheduled bookings for this selection."
-                      : "No customers have booked this departure yet."}
+                        ? "No rescheduled bookings for this selection."
+                        : "No customers have booked this departure yet."}
                   </p>
                 </div>
               ) : (
@@ -1490,8 +1497,8 @@ export const Bookings: React.FC = () => {
                             {activeTab === "cancelled"
                               ? "No cancelled bookings for this selection."
                               : activeTab === "rescheduled"
-                              ? "No rescheduled bookings for this selection."
-                              : "No customers have booked this departure yet."}
+                                ? "No rescheduled bookings for this selection."
+                                : "No customers have booked this departure yet."}
                           </p>
                         </div>
                       </td>
@@ -1779,23 +1786,78 @@ export const Bookings: React.FC = () => {
               />
             </div>
 
+            {/* Reschedule Workflow Mode */}
+            <div>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Reschedule Type *
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleMode("propose")}
+                  style={{
+                    padding: "9px 10px",
+                    borderRadius: "8px",
+                    border: rescheduleMode === "propose" ? "2px solid #0e3820" : "1px solid #cbd5e1",
+                    background: rescheduleMode === "propose" ? "#f0fdf4" : "#fff",
+                    color: "#0f172a",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  Propose &amp; Ask Customer
+                  <div style={{ fontSize: "11px", fontWeight: 400, color: "#475569", marginTop: "2px" }}>
+                    Customer chooses Accept or 100% Refund
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleMode("direct")}
+                  style={{
+                    padding: "9px 10px",
+                    borderRadius: "8px",
+                    border: rescheduleMode === "direct" ? "2px solid #0e3820" : "1px solid #cbd5e1",
+                    background: rescheduleMode === "direct" ? "#f0fdf4" : "#fff",
+                    color: "#0f172a",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  Direct Reschedule
+                  <div style={{ fontSize: "11px", fontWeight: 400, color: "#475569", marginTop: "2px" }}>
+                    Move {rescheduleBooking.travellers} seat(s) immediately
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Capacity change preview */}
             <div
               style={{
-                background: "#eef7ed",
-                border: "1px solid #b9deb4",
+                background: rescheduleMode === "propose" ? "#eff6ff" : "#eef7ed",
+                border: rescheduleMode === "propose" ? "1px solid #bfdbfe" : "1px solid #b9deb4",
                 borderRadius: "8px",
                 padding: "12px 14px",
                 fontSize: "12.5px",
-                color: "#164e23",
+                color: rescheduleMode === "propose" ? "#1e3a8a" : "#164e23",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
                 <CheckCircle size={15} />
-                <span>Automatic Capacity & Website Sync</span>
+                <span>
+                  {rescheduleMode === "propose"
+                    ? "Awaiting Customer Response (Seats Held Until Accepted)"
+                    : "Automatic Capacity & Website Sync"}
+                </span>
               </div>
-              <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#2d6a4f" }}>
-                Submitting will automatically release {rescheduleBooking.travellers} seat(s) from the current departure and reserve {rescheduleBooking.travellers} seat(s) in the new departure. The customer's booking view on the website will update immediately.
+              <p style={{ margin: "4px 0 0", fontSize: "11.5px" }}>
+                {rescheduleMode === "propose"
+                  ? "Customer will receive an email/WhatsApp & see Accept New Date or Request 100% Refund in My Trips. Seats will move only after customer confirmation."
+                  : `Submitting will automatically release ${rescheduleBooking.travellers} seat(s) from the current departure and reserve ${rescheduleBooking.travellers} seat(s) in the new departure.`}
               </p>
             </div>
 
@@ -1850,6 +1912,52 @@ export const Bookings: React.FC = () => {
               <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#b91c1c" }}>
                 Cancelling will immediately release <strong>{cancelBooking.travellers} seat(s)</strong> back to the departure slot so other travellers can book online.
               </p>
+            </div>
+
+            <div>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                Cancellation Source *
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => setCancelSource("Customer")}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "8px",
+                    border: cancelSource === "Customer" ? "2px solid #0e3820" : "1px solid #cbd5e1",
+                    background: cancelSource === "Customer" ? "#f0fdf4" : "#fff",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  Customer Requested
+                  <div style={{ fontSize: "11px", fontWeight: 400, color: "#475569" }}>
+                    Standard tiered policy (90/50/25/0%)
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelSource("Traviska")}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "8px",
+                    border: cancelSource === "Traviska" ? "2px solid #0e3820" : "1px solid #cbd5e1",
+                    background: cancelSource === "Traviska" ? "#f0fdf4" : "#fff",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  Traviska Initiated
+                  <div style={{ fontSize: "11px", fontWeight: 400, color: "#475569" }}>
+                    100% Refund Guarantee (0% fee)
+                  </div>
+                </button>
+              </div>
             </div>
 
             <div>

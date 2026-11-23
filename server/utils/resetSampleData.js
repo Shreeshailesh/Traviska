@@ -1,4 +1,6 @@
 const Booking = require("../models/Booking");
+const BookingRequest = require("../models/BookingRequest");
+const NotificationOutbox = require("../models/NotificationOutbox");
 const TripExpense = require("../models/TripExpense");
 const CaptainPayout = require("../models/CaptainPayout");
 const CaptainAssignment = require("../models/CaptainAssignment");
@@ -11,9 +13,15 @@ const Trip = require("../models/Trip");
 async function resetAllSampleData() {
   const results = {};
 
-  // 1. Delete all sample / test bookings
+  // 1. Delete all sample / test bookings, booking requests, and notification outbox entries
   const bookingsRes = await Booking.deleteMany({});
   results.bookingsDeleted = bookingsRes.deletedCount;
+
+  const requestsRes = await BookingRequest.deleteMany({});
+  results.bookingRequestsDeleted = requestsRes.deletedCount;
+
+  const outboxRes = await NotificationOutbox.deleteMany({});
+  results.notificationOutboxDeleted = outboxRes.deletedCount;
 
   // 2. Delete all sample trip expenses
   const expensesRes = await TripExpense.deleteMany({});

@@ -1,9 +1,20 @@
 const express = require("express");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
 const Trip = require("../models/Trip");
 const TripSlot = require("../models/TripSlot");
 const Coupon = require("../models/Coupon");
+const BookingRequest = require("../models/BookingRequest");
+const Invoice = require("../models/Invoice");
+const { POLICY_VERSION, calculateCancellationRefund } = require("../services/cancellationPolicyService");
+const {
+  queueAndSendEmail,
+  queueAndSendWhatsApp,
+  sendStaffAlertEmail,
+} = require("../services/notificationOutboxService");
+const { renderCustomerEmail } = require("../services/emailTemplateService");
+const { getPolicyAttachmentFilename } = require("../services/policyPdfService");
 
 // Helper to format dates in Indian Standard Time (Asia/Kolkata)
 function formatISTDate(rawDate) {
@@ -641,6 +652,8 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
       booking.rescheduledAt = new Date();
       booking.rescheduledFrom = oldDateStr;
       booking.rescheduleReason = reason?.trim() || "Rescheduled by Admin";
+      booking.bookingState = "Rescheduled";
+      booking.rescheduleCount = (booking.rescheduleCount || 0) + 1;
 
       if (!Array.isArray(booking.rescheduleHistory)) {
         booking.rescheduleHistory = [];
@@ -661,6 +674,96 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
 
       await booking.save({ session });
       await session.commitTransaction();
+
+      // Record durable BookingRequest & send customer/staff notifications
+      try {
+        const newDateStr = formatISTDate(newSlot.date);
+        const reqDoc = await BookingRequest.create({
+          requestCode: `REQ-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
+          bookingId: booking._id,
+          bookingCode: formatBookingCode(booking),
+          customerId: booking.customerId || null,
+          customerSnapshot: { name: booking.name || "", email: booking.email || "", phone: booking.phone || "" },
+          tripTitle: booking.trip?.title || "",
+          requestType: "CustomerReschedule",
+          status: "Completed",
+          reason: booking.rescheduleReason,
+          oldSlotId: currentSlotId || null,
+          oldDate: oldDateStr,
+          proposedSlotId: newSlot._id,
+          proposedDate: newDateStr,
+          travellers: travellersCount,
+          reviewedBy: req.user?.email || req.user?.name || "Admin",
+          reviewedAt: new Date(),
+          isReadByAdmin: true,
+          auditHistory: [
+            {
+              action: "Admin Rescheduled Booking",
+              actor: req.user?.email || req.user?.name || "Admin",
+              note: `Moved ${travellersCount} seat(s) from ${oldDateStr} to ${newDateStr}.`,
+            },
+          ],
+        });
+
+        const adminReschedEmail = renderCustomerEmail({
+          eyebrow: "RESCHEDULE UPDATE",
+          statusLabel: "Rescheduled",
+          statusTone: "success",
+          title: "Booking Rescheduled",
+          customerName: booking.name || "Traveller",
+          introParagraphs: [
+            `Your booking ${formatBookingCode(booking)} for ${booking.trip?.title || "Traviska Trip"} has been rescheduled.`,
+          ],
+          details: [
+            { label: "Booking ID", value: formatBookingCode(booking) },
+            { label: "Trip", value: booking.trip?.title || "Traviska Trip" },
+            { label: "Previous Date", value: oldDateStr },
+            { label: "New Departure Date", value: newDateStr, highlight: true },
+            { label: "Reason", value: booking.rescheduleReason },
+          ],
+          nextStepsBody: "Your seats are confirmed on the new departure date. View updated itinerary details in My Trips.",
+          ctaLabel: "View My Trips",
+          ctaUrl: "https://traviska.com/customer/dashboard",
+          policyAttachmentName: getPolicyAttachmentFilename(booking.policyVersion || POLICY_VERSION),
+        });
+
+        await queueAndSendEmail({
+          audience: "customer",
+          eventType: "AdminRescheduledBooking",
+          bookingId: booking._id,
+          requestId: reqDoc._id,
+          recipient: booking.email,
+          subject: `Traviska — Booking Rescheduled (${formatBookingCode(booking)})`,
+          textBody: adminReschedEmail.text,
+          htmlBody: adminReschedEmail.html,
+          attachPolicyVersion: booking.policyVersion || POLICY_VERSION,
+          idempotencyKey: `admin-resched-email:${reqDoc._id}`,
+        });
+
+        await queueAndSendWhatsApp({
+          booking,
+          eventType: "AdminRescheduledBooking",
+          requestId: reqDoc._id,
+          templateName: process.env.WHATSAPP_RESCHEDULE_CONFIRMED_TEMPLATE_NAME || "traviska_reschedule_confirmed",
+          templateParams: [
+            booking.name || "Traveller",
+            formatBookingCode(booking),
+            booking.trip?.title || "Traviska Trip",
+            newDateStr,
+          ],
+          idempotencyKey: `admin-resched-wa:${reqDoc._id}`,
+        });
+
+        await sendStaffAlertEmail({
+          eventType: "Admin Rescheduled Booking",
+          booking,
+          request: reqDoc,
+          summaryText: `Booking rescheduled from ${oldDateStr} to ${newDateStr}. Reason: ${booking.rescheduleReason}`,
+          idempotencyKeyPrefix: `staff-admin-resched:${reqDoc._id}`,
+        });
+      } catch (notifErr) {
+        console.warn("Post-reschedule request/notification warning:", notifErr.message);
+      }
 
       return res.json({
         success: true,
@@ -737,14 +840,153 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
         );
       }
 
+      const source = req.body?.cancellationSource === "Traviska" ? "Traviska" : "Customer";
+      const customerFacingReason = String(req.body?.customerFacingExplanation || reason).trim();
+
+      let amountPaidRupees = booking.paymentStatus === "Paid" ? Math.round(Number(booking.total || 0)) : 0;
+      let slotDate = booking.date;
+      try {
+        const [inv, slotDoc] = await Promise.all([
+          Invoice.findOne({ bookingId: booking._id }).lean(),
+          booking.slotId ? TripSlot.findById(booking.slotId).lean() : null,
+        ]);
+        if (inv?.pricing?.netPaidPaise !== undefined) {
+          amountPaidRupees = Math.round(Number(inv.pricing.netPaidPaise) / 100);
+        }
+        if (slotDoc?.date) slotDate = slotDoc.date;
+      } catch {
+        // Fallback to booking fields when mocked/unavailable
+      }
+
+      const preview = calculateCancellationRefund({
+        amountPaidRupees,
+        departureDate: slotDate,
+        source,
+      });
+
       booking.status = "Cancelled";
+      booking.bookingState = "Cancelled";
+      booking.cancellationSource = source;
       booking.cancelledAt = new Date();
       booking.cancelledBy = req.user?.email || req.user?.name || "Admin";
       booking.cancellationReason = reason.trim();
+      booking.customerFacingReason = customerFacingReason;
       booking.cancellationNotes = notes.trim();
+      booking.refundAmount = preview.eligibleRefundRupees;
+      booking.refundStatus = preview.eligibleRefundRupees > 0 ? "Pending" : "None";
+      booking.refundState = preview.eligibleRefundRupees > 0 ? "Pending Admin Approval" : "Not Applicable";
 
       await booking.save({ session });
       await session.commitTransaction();
+
+      try {
+        const reqDoc = await BookingRequest.create({
+          requestCode: `REQ-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
+          bookingId: booking._id,
+          bookingCode: formatBookingCode(booking),
+          customerId: booking.customerId || null,
+          customerSnapshot: { name: booking.name || "", email: booking.email || "", phone: booking.phone || "" },
+          tripTitle: booking.trip?.title || "",
+          requestType: preview.eligibleRefundRupees > 0 ? "ManualRefundAction" : "CustomerCancel",
+          status: preview.eligibleRefundRupees > 0 ? "Pending Review" : "Completed",
+          reason: booking.cancellationReason,
+          customerExplanation: booking.customerFacingReason,
+          internalNotes: booking.cancellationNotes,
+          oldSlotId: booking.slotId || null,
+          oldDate: formatISTDate(slotDate),
+          travellers: travellersCount,
+          amountPaidRupees,
+          cancellationFeeRupees: preview.cancellationFeeRupees,
+          eligibleRefundAmount: preview.eligibleRefundRupees,
+          refundPercentage: preview.refundPercentage,
+          cancellationSource: source,
+          originalPaymentMethod: booking.paymentMethod || "Razorpay",
+          gatewayTransactionRef: booking.paymentId || booking.orderId || booking.paymentReference || "",
+          policyVersion: booking.policyVersion || POLICY_VERSION,
+          refundState: booking.refundState,
+          reviewedBy: preview.eligibleRefundRupees > 0 ? "" : req.user?.email || "Admin",
+          reviewedAt: preview.eligibleRefundRupees > 0 ? null : new Date(),
+          isReadByAdmin: preview.eligibleRefundRupees === 0,
+          auditHistory: [
+            {
+              action: `Admin Cancelled (${source})`,
+              actor: req.user?.email || req.user?.name || "Admin",
+              note: `${preview.tierLabel}. Refund: ₹${preview.eligibleRefundRupees} (${booking.refundState}).`,
+            },
+          ],
+        });
+
+        const adminCancelRendered = renderCustomerEmail({
+          eyebrow: source === "Traviska" ? "TRIP CANCELLATION" : "BOOKING UPDATE",
+          statusLabel: booking.refundState,
+          statusTone: source === "Traviska" ? "info" : preview.eligibleRefundRupees > 0 ? "warning" : "neutral",
+          title: source === "Traviska" ? "Trip Cancelled — 100% Refund" : "Booking Cancellation Confirmed",
+          customerName: booking.name || "Traveller",
+          introParagraphs: [
+            source === "Traviska"
+              ? `We regret to inform you that ${booking.trip?.title || "Traviska Trip"} (${formatBookingCode(booking)}) has been cancelled by Traviska. You are entitled to a 100% refund.`
+              : `Your booking ${formatBookingCode(booking)} for ${booking.trip?.title || "Traviska Trip"} has been cancelled.`,
+          ],
+          details: [
+            { label: "Booking ID", value: formatBookingCode(booking) },
+            { label: "Trip", value: booking.trip?.title || "Traviska Trip" },
+            { label: "Departure Date", value: formatISTDate(slotDate) },
+            { label: "Reason", value: booking.customerFacingReason },
+            { label: "Amount Paid", value: `₹${amountPaidRupees.toLocaleString("en-IN")}` },
+            { label: "Cancellation Charge", value: `₹${preview.cancellationFeeRupees.toLocaleString("en-IN")}` },
+            { label: "Eligible Refund", value: `₹${preview.eligibleRefundRupees.toLocaleString("en-IN")} (${preview.refundPercentage}%)`, highlight: true },
+          ],
+          nextStepsBody:
+            preview.eligibleRefundRupees > 0
+              ? "Your refund payout is awaiting Admin approval and will be processed to your original payment method or verified bank account."
+              : "Per the applicable cancellation policy, no refund is due for this cancellation.",
+          ctaLabel: "View My Trips",
+          ctaUrl: "https://traviska.com/customer/dashboard",
+          policyAttachmentName: getPolicyAttachmentFilename(booking.policyVersion || POLICY_VERSION),
+        });
+
+        await queueAndSendEmail({
+          audience: "customer",
+          eventType: source === "Traviska" ? "CompanyTripCancelled" : "CustomerBookingCancelled",
+          bookingId: booking._id,
+          requestId: reqDoc._id,
+          recipient: booking.email,
+          subject: `Traviska — Booking Cancelled (${formatBookingCode(booking)})`,
+          textBody: adminCancelRendered.text,
+          htmlBody: adminCancelRendered.html,
+          attachPolicyVersion: booking.policyVersion || POLICY_VERSION,
+          idempotencyKey: `admin-cancel-email:${booking._id}`,
+        });
+
+        await queueAndSendWhatsApp({
+          booking,
+          eventType: source === "Traviska" ? "CompanyTripCancelled" : "CustomerBookingCancelled",
+          requestId: reqDoc._id,
+          templateName:
+            source === "Traviska"
+              ? process.env.WHATSAPP_COMPANY_CANCELLED_TEMPLATE_NAME || "traviska_company_trip_cancelled"
+              : process.env.WHATSAPP_CANCELLED_TEMPLATE_NAME || "traviska_booking_cancelled",
+          templateParams: [
+            booking.name || "Traveller",
+            formatBookingCode(booking),
+            booking.trip?.title || "Traviska Trip",
+            formatISTDate(slotDate),
+            booking.customerFacingReason,
+            `₹${preview.eligibleRefundRupees} (${booking.refundState})`,
+          ],
+          idempotencyKey: `admin-cancel-wa:${booking._id}`,
+        });
+
+        await sendStaffAlertEmail({
+          eventType: preview.eligibleRefundRupees > 0 ? "Refund Pending Admin Approval" : "Admin Booking Cancelled",
+          booking,
+          request: reqDoc,
+          summaryText: `Admin cancelled (${source}: ${booking.cancellationReason}). Eligible refund: ₹${preview.eligibleRefundRupees}.`,
+          idempotencyKeyPrefix: `staff-admin-cancel:${booking._id}`,
+        });
+      } catch (notifErr) {
+        console.warn("Post-cancel request/notification warning:", notifErr.message);
+      }
 
       return res.json({
         success: true,

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import bottomDrawingImg from "../assets/dashboard-bottom-drawing.jpg";
 import { AVATAR_PRESETS } from "../assets/avatarPresets";
+import { CustomerBookingActionsModal } from "../components/CustomerBookingActionsModal";
 import "./CustomerDashboard.css";
 
 type CustomerProfile = {
@@ -108,6 +109,12 @@ export default function CustomerDashboard() {
   // Bookings State
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [customerInvoices, setCustomerInvoices] = useState<any[]>([]);
+  const [bookingRequests, setBookingRequests] = useState<any[]>([]);
+  const [activeActionModal, setActiveActionModal] = useState<{
+    mode: "cancel" | "reschedule" | "decision";
+    booking: any;
+    proposal?: any;
+  } | null>(null);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
 
@@ -150,29 +157,37 @@ export default function CustomerDashboard() {
     };
   }, []);
 
+  const fetchBookingsAndRequests = async () => {
+    const token = getCustomerToken();
+    if (!token) return;
+    const [res, invRes, reqRes] = await Promise.all([
+      axios.get(`${API_BASE_URL}/customer/bookings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      axios
+        .get(`${API_BASE_URL}/api/customer/invoices`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .catch(() => ({ data: { invoices: [] } })),
+      axios
+        .get(`${API_BASE_URL}/api/customer/booking-requests`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .catch(() => ({ data: { requests: [] } })),
+    ]);
+    setBookings(res.data.bookings || []);
+    setCustomerInvoices(invRes.data?.invoices || []);
+    setBookingRequests(reqRes.data?.requests || []);
+  };
+
   // Load Bookings
   useEffect(() => {
     let cancelled = false;
 
     const loadBookings = async () => {
       try {
-        const token = getCustomerToken();
-        if (!token) return;
-
-        const [res, invRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/customer/bookings`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          axios
-            .get(`${API_BASE_URL}/api/customer/invoices`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            .catch(() => ({ data: { invoices: [] } })),
-        ]);
-
+        await fetchBookingsAndRequests();
         if (!cancelled) {
-          setBookings(res.data.bookings || []);
-          setCustomerInvoices(invRes.data?.invoices || []);
           setBookingsError("");
         }
       } catch (err: any) {
@@ -825,16 +840,73 @@ export default function CustomerDashboard() {
                             </button>
                           </div>
                         )}
+                        {(() => {
+                          const activeProposal = bookingRequests.find(
+                            (r) =>
+                              String(r.bookingId) === String(b._id) &&
+                              r.requestType === "CompanyRescheduleProposal" &&
+                              r.status === "Awaiting Customer Response"
+                          );
+                          const isConfirmed = String(b.status || "").toLowerCase() === "confirmed";
+                          return (
+                            <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                              {activeProposal && (
+                                <div style={{ width: "100%", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "8px 10px", fontSize: "12px", color: "#1e3a8a", marginBottom: "4px" }}>
+                                  <strong>Action Required — Trip Rescheduled:</strong> Traviska proposed moving to <strong>{activeProposal.proposedDate}</strong>.{" "}
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveActionModal({ mode: "decision", booking: b, proposal: activeProposal })}
+                                    style={{ marginLeft: "6px", padding: "3px 9px", borderRadius: "6px", border: "none", background: "#1d4ed8", color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: "11.5px" }}
+                                  >
+                                    Choose Accept / 100% Refund
+                                  </button>
+                                </div>
+                              )}
+                              {isConfirmed && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveActionModal({ mode: "reschedule", booking: b })}
+                                    style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #0e3820", background: "#fff", color: "#0e3820", fontSize: "11.5px", fontWeight: 600, cursor: "pointer" }}
+                                  >
+                                    Request Reschedule
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveActionModal({ mode: "cancel", booking: b })}
+                                    style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #dc2626", background: "#fff", color: "#dc2626", fontSize: "11.5px", fontWeight: 600, cursor: "pointer" }}
+                                  >
+                                    Cancel Booking
+                                  </button>
+                                </>
+                              )}
+                              {(b as any).refundState && (b as any).refundState !== "Not Applicable" && (
+                                <span style={{ fontSize: "11.5px", color: "#0f766e", fontWeight: 600 }}>
+                                  {(b as any).refundState === "Pending Admin Approval"
+                                    ? "Booking Cancelled — Refund Awaiting Processing"
+                                    : (b as any).refundState === "Approved — Pending Initiation" ||
+                                      (b as any).refundState === "Initiation In Progress"
+                                    ? "Refund Approved — Awaiting Initiation"
+                                    : (b as any).refundState === "Failed — Requires Action" ||
+                                      (b as any).refundState === "Reconciliation Required"
+                                    ? "Refund Requires Assistance"
+                                    : `Refund ${(b as any).refundState}`}{" "}
+                                  (₹{Number((b as any).refundAmount || 0).toLocaleString("en-IN")})
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <span
                       className={`dash-status-pill ${
-                        b.status === "confirmed"
+                        String(b.status || "").toLowerCase() === "confirmed"
                           ? "dash-status-confirmed"
                           : "dash-status-pending"
                       }`}
                     >
-                      {b.status || "confirmed"}
+                      {(b as any).bookingState || b.status || "Confirmed"}
                     </span>
                   </div>
                   );
@@ -843,6 +915,19 @@ export default function CustomerDashboard() {
             )}
           </div>
         </div>
+        {activeActionModal && getCustomerToken() && (
+          <CustomerBookingActionsModal
+            mode={activeActionModal.mode}
+            booking={activeActionModal.booking}
+            proposal={activeActionModal.proposal}
+            token={getCustomerToken()!}
+            onClose={() => setActiveActionModal(null)}
+            onSuccess={() => {
+              setActiveActionModal(null);
+              fetchBookingsAndRequests();
+            }}
+          />
+        )}
 
         {/* =========================================================
             FEATURE HIGHLIGHTS RIBBON BAR

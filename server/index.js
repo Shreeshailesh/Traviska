@@ -292,6 +292,7 @@ app.use("/api/staff-invitation", require("./routes/staffInvitation")());
 app.use("/api/staff-auth", require("./routes/staffPasswordReset")());
 app.use(require("./routes/invoices")({ authMiddleware, adminMiddleware }));
 app.use(require("./routes/customerCheckout")({ authMiddleware }));
+app.use(require("./routes/cancellationReschedule")({ authMiddleware, adminMiddleware }));
 const { issueInvoiceAndNotifyForBooking } = require("./services/bookingInvoiceHook");
 const PaymentEvent = require("./models/PaymentEvent");
 
@@ -3033,6 +3034,8 @@ async function startServer() {
 
     app.listen(PORT, () => {
       console.log(`🚀 Traviska Server running on http://localhost:${PORT}`);
+      const { startNotificationOutboxWorker } = require("./services/notificationOutboxService");
+      startNotificationOutboxWorker();
     });
   } catch (error) {
     console.error("❌ Fatal MongoDB Connection Failure during startup:", error.message);

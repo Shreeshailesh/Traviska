@@ -89,6 +89,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         </Link>
 
         <Link
+          to="/admin/booking-requests"
+          className={`admin-nav-item ${isActive("/admin/booking-requests") ? "active" : ""}`}
+          onClick={onClose}
+        >
+          <CalendarCheck size={18} />
+          <span>Booking Requests</span>
+        </Link>
+
+        <Link
           to="/admin/trips"
           className={`admin-nav-item ${isActive("/admin/trips") ? "active" : ""}`}
           onClick={onClose}

@@ -8,6 +8,7 @@ import RouteErrorBoundary from "./RouteErrorBoundary";
 import AdminLayout from "../admin/layout/AdminLayout";
 import Dashboard from "../admin/pages/Dashboard";
 import Bookings from "../admin/pages/Bookings";
+import BookingRequests from "../admin/pages/BookingRequests";
 import Trips from "../admin/pages/Trips";
 import EditTrip from "../admin/pages/EditTrip";
 import DetailedSections from "../admin/pages/DetailedSections";
@@ -106,6 +107,8 @@ export default function ProtectedAdmin() {
     content = <Dashboard />;
   } else if (path === "/admin/bookings") {
     content = <Bookings />;
+  } else if (path === "/admin/booking-requests") {
+    content = <BookingRequests />;
   } else if (path === "/admin/trips") {
     content = <Trips />;
   } else if (path === "/admin/add-trip") {

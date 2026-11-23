@@ -1,5 +1,8 @@
 const nodemailer = require("nodemailer");
 const { formatINR } = require("./invoiceService");
+const { renderCustomerEmail } = require("./emailTemplateService");
+const { OFFICIAL_CANCELLATION_POLICY, POLICY_VERSION } = require("./cancellationPolicyService");
+const { generatePolicyPdfBuffer, getPolicyAttachmentFilename } = require("./policyPdfService");
 
 const TEST_SAFE_RECIPIENT = "travelwithtraviska@gmail.com";
 
@@ -18,7 +21,9 @@ function parseFromNameAndEmail(fromStr) {
 }
 
 async function sendViaHttpsProvider(httpsCfg, { from, replyTo, to, subject, text, html, attachments }) {
-  const att = Array.isArray(attachments) && attachments[0] ? attachments[0] : null;
+  const validAttachments = Array.isArray(attachments)
+    ? attachments.filter((a) => a && a.filename && a.content)
+    : [];
   if (httpsCfg.provider === "resend") {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -33,16 +38,14 @@ async function sendViaHttpsProvider(httpsCfg, { from, replyTo, to, subject, text
         subject,
         text,
         html,
-        ...(att
+        ...(validAttachments.length > 0
           ? {
-              attachments: [
-                {
-                  filename: att.filename,
-                  content: Buffer.isBuffer(att.content)
-                    ? att.content.toString("base64")
-                    : Buffer.from(att.content).toString("base64"),
-                },
-              ],
+              attachments: validAttachments.map((att) => ({
+                filename: att.filename,
+                content: Buffer.isBuffer(att.content)
+                  ? att.content.toString("base64")
+                  : Buffer.from(att.content).toString("base64"),
+              })),
             }
           : {}),
       }),
@@ -70,16 +73,14 @@ async function sendViaHttpsProvider(httpsCfg, { from, replyTo, to, subject, text
         subject,
         textContent: text,
         htmlContent: html,
-        ...(att
+        ...(validAttachments.length > 0
           ? {
-              attachment: [
-                {
-                  name: att.filename,
-                  content: Buffer.isBuffer(att.content)
-                    ? att.content.toString("base64")
-                    : Buffer.from(att.content).toString("base64"),
-                },
-              ],
+              attachment: validAttachments.map((att) => ({
+                name: att.filename,
+                content: Buffer.isBuffer(att.content)
+                  ? att.content.toString("base64")
+                  : Buffer.from(att.content).toString("base64"),
+              })),
             }
           : {}),
       }),
@@ -153,6 +154,14 @@ function getFromAddress() {
   return raw;
 }
 
+function canAttachPolicyPdf() {
+  return (
+    OFFICIAL_CANCELLATION_POLICY.legalApprovalStatus !== "PENDING_LEGAL_REVIEW" ||
+    process.env.NODE_ENV !== "production" ||
+    process.env.ENABLE_POLICY_PDF_ATTACHMENT === "true"
+  );
+}
+
 /**
  * Builds the exact invoice email subject & body (text + HTML).
  */
@@ -167,64 +176,45 @@ function buildInvoiceEmailContent(invoice) {
   const bookingId = invoice.bookingCode || "—";
   const travelDate = invoice.tripSnapshot?.travelDate || "—";
   const amountReceived = formatINR(invoice.pricing?.netPaidPaise || 0);
-  const paymentStatus = invoice.paymentStatus;
+  const paymentStatus = invoice.paymentStatus || "Paid";
 
-  const testWarningText = invoice.isSample
-    ? "\n[TEST / SAMPLE NOTICE: No money was collected and no actual booking was confirmed.]\n"
+  const testWarning = invoice.isSample
+    ? "[TEST / SAMPLE NOTICE: No money was collected and no actual booking was confirmed.]"
     : "";
 
-  const text = `Hello ${customerName},
-${testWarningText}
-Thank you for choosing Traviska.
+  const policyAttachName = canAttachPolicyPdf() ? getPolicyAttachmentFilename(POLICY_VERSION) : "";
 
-Your booking payment has been processed.
+  const rendered = renderCustomerEmail({
+    eyebrow: "BOOKING CONFIRMATION",
+    statusLabel: paymentStatus,
+    statusTone: paymentStatus === "Paid" ? "success" : "warning",
+    title: "Booking Confirmed",
+    previewText: `Booking ${bookingId} confirmed for ${tripName}`,
+    customerName,
+    introParagraphs: [
+      testWarning,
+      "Thank you for choosing Traviska. Your booking payment has been processed and your invoice is attached.",
+    ],
+    details: [
+      { label: "Invoice Number", value: invoice.invoiceNumber || "—" },
+      { label: "Booking ID", value: bookingId },
+      { label: "Trip", value: tripName },
+      { label: "Travel Date", value: travelDate },
+      { label: "Payment Status", value: paymentStatus },
+      { label: "Amount Received", value: amountReceived, highlight: true },
+    ],
+    nextStepsTitle: "What happens next?",
+    nextStepsBody:
+      "Please find your invoice attached as a PDF. You can view your booking details, pickup point, and itinerary anytime in My Trips.",
+    ctaLabel: "View My Trips",
+    ctaUrl: "https://traviska.com/customer/dashboard",
+    policyAttachmentName: policyAttachName,
+    policyAttachmentNote: policyAttachName
+      ? "Please find the applicable Cancellation, Refund & Rescheduling Policy attached for your reference."
+      : "",
+  });
 
-Trip: ${tripName}
-Booking ID: ${bookingId}
-Travel Date: ${travelDate}
-Amount Received: ${amountReceived}
-Payment Status: ${paymentStatus}
-
-Please find your invoice attached as a PDF.
-You can also view your booking details in My Trips.
-
-Thank you,
-Team Traviska
-Website: traviska.com`;
-
-  const testBannerHtml = invoice.isSample
-    ? `<div style="background:#fef2f2;border:1px solid #dc2626;color:#991b1b;padding:10px 14px;border-radius:6px;font-weight:700;margin-bottom:16px;">
-         TEST / SAMPLE NOTICE: No money was collected and no actual booking was confirmed.
-       </div>`
-    : "";
-
-  const html = `
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.5;">
-      <div style="background:#114224;padding:20px 24px;border-radius:8px 8px 0 0;color:#ffffff;">
-        <h2 style="margin:0;font-size:20px;">TRAVISKA</h2>
-        <p style="margin:4px 0 0;font-size:12px;color:#bbf7d0;">Travel • Explore • Experience</p>
-      </div>
-      <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
-        ${testBannerHtml}
-        <p>Hello <strong>${customerName}</strong>,</p>
-        <p>Thank you for choosing Traviska. Your booking payment has been processed.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border:1px solid #e2e8f0;">
-          <tr><td style="padding:8px 12px;color:#64748b;width:140px;">Trip</td><td style="padding:8px 12px;font-weight:600;">${tripName}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Booking ID</td><td style="padding:8px 12px;font-weight:600;">${bookingId}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Travel Date</td><td style="padding:8px 12px;font-weight:600;">${travelDate}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Amount Received</td><td style="padding:8px 12px;font-weight:600;">${amountReceived}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Payment Status</td><td style="padding:8px 12px;font-weight:600;">${paymentStatus}</td></tr>
-        </table>
-        <p>Please find your invoice attached as a PDF.<br/>You can also view your booking details in <strong>My Trips</strong>.</p>
-        <p style="margin-top:20px;">Thank you,<br/><strong>Team Traviska</strong><br/>Website: <a href="https://traviska.com">traviska.com</a></p>
-        <p style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;">
-          This is an automated email. Please do not reply directly to noreply@traviska.com. For billing or trip support, contact <a href="mailto:admin@traviska.com">admin@traviska.com</a>.
-        </p>
-      </div>
-    </div>
-  `;
-
-  return { subject, text, html };
+  return { subject, text: rendered.text, html: rendered.html };
 }
 
 /**
@@ -297,43 +287,34 @@ Thank you,
 Team Traviska
 Website: traviska.com`;
 
-  const testBannerHtml = invoice.isSample
-    ? `<div style="background:#fef2f2;border:1px solid #dc2626;color:#991b1b;padding:10px 14px;border-radius:6px;font-weight:700;margin-bottom:16px;">
-         TEST / SAMPLE NOTICE: This is a localhost simulation. No real money was refunded.
-       </div>`
-    : "";
+  const rendered = renderCustomerEmail({
+    eyebrow: "REFUND UPDATE",
+    statusLabel: displayStatus,
+    statusTone: isCompleted ? "success" : "info",
+    title: isCompleted ? "Refund Completed & Credited" : "Refund Initiated",
+    previewText: `${displayStatus} for ${bookingId} (${amountFormatted})`,
+    customerName,
+    introParagraphs: [
+      invoice.isSample ? "[TEST / SAMPLE NOTICE: This is a localhost simulation. No real money was refunded.]" : "",
+      headline,
+    ],
+    details: [
+      { label: "Invoice No.", value: invoice.invoiceNumber },
+      { label: "Trip", value: tripName },
+      { label: "Booking ID", value: bookingId },
+      { label: "Refund Reference", value: refText },
+      { label: "Status", value: displayStatus },
+      { label: "Net Amount Retained", value: netPaidFormatted },
+      ...(reason ? [{ label: "Reason", value: reason }] : []),
+      { label: "Refund Amount", value: amountFormatted, highlight: true },
+    ],
+    nextStepsTitle: "What happens next?",
+    nextStepsBody: `${timelineNote} ${receiptSentence}`,
+    ctaLabel: "View My Trips",
+    ctaUrl: "https://traviska.com/customer/dashboard",
+  });
 
-  const html = `
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.5;">
-      <div style="background:#114224;padding:20px 24px;border-radius:8px 8px 0 0;color:#ffffff;">
-        <h2 style="margin:0;font-size:20px;">TRAVISKA</h2>
-        <p style="margin:4px 0 0;font-size:12px;color:#bbf7d0;">${
-          isCompleted ? "Refund Credited & Completed" : "Refund Initiated"
-        }</p>
-      </div>
-      <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
-        ${testBannerHtml}
-        <p>Hello <strong>${customerName}</strong>,</p>
-        <p>${headline}</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border:1px solid #e2e8f0;">
-          <tr><td style="padding:8px 12px;color:#64748b;width:150px;">Invoice No.</td><td style="padding:8px 12px;font-weight:600;">${invoice.invoiceNumber}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Trip</td><td style="padding:8px 12px;font-weight:600;">${tripName}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Booking ID</td><td style="padding:8px 12px;font-weight:600;">${bookingId}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Refund Amount</td><td style="padding:8px 12px;font-weight:700;color:#166534;">${amountFormatted}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Refund Reference</td><td style="padding:8px 12px;font-family:monospace;">${refText}</td></tr>
-          <tr><td style="padding:8px 12px;color:#64748b;">Status</td><td style="padding:8px 12px;font-weight:600;">${displayStatus}</td></tr>
-        </table>
-        <p style="font-size:13px;color:#475569;">${timelineNote}</p>
-        <p>${receiptSentence}</p>
-        <p style="margin-top:20px;">Thank you,<br/><strong>Team Traviska</strong><br/>Website: <a href="https://traviska.com">traviska.com</a></p>
-        <p style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;">
-          This is an automated email. Please do not reply directly to noreply@traviska.com. For billing or trip support, contact <a href="mailto:admin@traviska.com">admin@traviska.com</a>.
-        </p>
-      </div>
-    </div>
-  `;
-
-  return { subject, text, html };
+  return { subject, text: rendered.text, html: rendered.html };
 }
 
 async function dispatchEmailWithAttachment({
@@ -390,6 +371,27 @@ async function dispatchEmailWithAttachment({
   await invoice.save();
 
   try {
+    const attachments = [];
+    if (pdfBuffer) {
+      attachments.push({
+        filename: pdfFileName || `${invoice.invoiceNumber.replace(/\//g, "-")}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      });
+    }
+    if (canAttachPolicyPdf()) {
+      try {
+        const policyBuf = await generatePolicyPdfBuffer({ policyVersion: POLICY_VERSION });
+        attachments.push({
+          filename: getPolicyAttachmentFilename(POLICY_VERSION),
+          content: policyBuf,
+          contentType: "application/pdf",
+        });
+      } catch {
+        // Non-fatal if policy PDF fails
+      }
+    }
+
     const mailPayload = {
       from: getFromAddress(),
       replyTo: process.env.SMTP_REPLY_TO || "admin@traviska.com",
@@ -397,15 +399,7 @@ async function dispatchEmailWithAttachment({
       subject,
       text,
       html,
-      attachments: pdfBuffer
-        ? [
-            {
-              filename: pdfFileName || `${invoice.invoiceNumber.replace(/\//g, "-")}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ]
-        : [],
+      attachments,
     };
 
     let info;
@@ -513,6 +507,8 @@ async function sendRefundEmail({
 
 module.exports = {
   TEST_SAFE_RECIPIENT,
+  getHttpsEmailProvider,
+  sendViaHttpsProvider,
   getSmtpConfigSummary,
   getSmtpTransporter,
   getFromAddress,
