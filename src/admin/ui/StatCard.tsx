@@ -4,7 +4,7 @@ interface StatCardProps {
   icon: React.ReactNode;
   label: string;
   value: string | number;
-  change?: string;
+  change?: string | number;
   isPositive?: boolean;
   subtitle?: string;
   iconTheme?: "green" | "gold" | "blue" | "default";
@@ -19,19 +19,20 @@ export const StatCard: React.FC<StatCardProps> = ({
   subtitle,
   iconTheme = "green",
 }) => {
+  const changeStr = change !== undefined && change !== null && change !== "" ? String(change) : "";
   return (
     <div className="admin-stat-card">
       <div className="admin-stat-header">
         <div className={`admin-stat-icon-pill ${iconTheme}`}>{icon}</div>
-        {change && (
+        {changeStr && (
           <span
             className={`admin-stat-badge ${
               isPositive ? "positive" : "neutral"
             }`}
           >
-            {isPositive && !change.startsWith("-") && !change.startsWith("+")
-              ? `+${change}`
-              : change}
+            {isPositive && !changeStr.startsWith("-") && !changeStr.startsWith("+")
+              ? `+${changeStr}`
+              : changeStr}
           </span>
         )}
       </div>

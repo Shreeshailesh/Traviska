@@ -163,7 +163,7 @@ export const TripCaptains: React.FC = () => {
           <p>Add, manage, and view trip leaders, guide credentials and ratings.</p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div className="captains-header-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button onClick={handleOpenAdd} className="admin-btn admin-btn-primary">
             <Plus size={16} />
             <span>Add Captain</span>
@@ -172,21 +172,8 @@ export const TripCaptains: React.FC = () => {
       </div>
 
       {/* Filter / Search Bar */}
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #e7ecf0",
-          borderRadius: "12px",
-          padding: "14px 18px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "14px",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ position: "relative", flex: 1, minWidth: "260px" }}>
+      <div className="captains-filters-bar">
+        <div className="captains-search-box">
           <Search
             size={16}
             style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}
@@ -208,16 +195,19 @@ export const TripCaptains: React.FC = () => {
           />
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "13px", color: "#64748b" }}>
-          <span>
-            Total Captains: <strong style={{ color: "#0f172a" }}>{captains.length}</strong>
-          </span>
-          <span>
-            Active:{" "}
-            <strong style={{ color: "#166534" }}>
+        <div className="captains-stats-summary">
+          <div className="captains-stat-chip">
+            <span className="captains-stat-chip-label">Total Captains</span>
+            <strong className="captains-stat-chip-val" style={{ color: "#0f172a" }}>
+              {captains.length}
+            </strong>
+          </div>
+          <div className="captains-stat-chip">
+            <span className="captains-stat-chip-label">Active Captains</span>
+            <strong className="captains-stat-chip-val" style={{ color: "#166534" }}>
               {captains.filter((c) => c.status === "Active").length}
             </strong>
-          </span>
+          </div>
         </div>
       </div>
 
@@ -241,8 +231,9 @@ export const TripCaptains: React.FC = () => {
         </div>
       )}
 
-      {/* Captains Table */}
+      {/* Captains Table (Desktop) & Cards (Mobile) */}
       <div
+        className="captains-list-wrapper"
         style={{
           background: "#ffffff",
           border: "1px solid #e7ecf0",
@@ -252,7 +243,188 @@ export const TripCaptains: React.FC = () => {
           width: "100%",
         }}
       >
-        <div className="admin-table-container">
+        {/* Mobile Captain Cards (<= 768px) */}
+        <div className="captains-mobile-cards">
+          {loading ? (
+            <div style={{ padding: "32px 16px", textAlign: "center" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", color: "#166534", fontWeight: 600 }}>
+                <Loader2 size={20} className="animate-spin" />
+                <span>Loading Trip Captains...</span>
+              </div>
+            </div>
+          ) : filteredCaptains.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "36px 16px", color: "#64748b", fontSize: "13.5px" }}>
+              No trip captains found. Tap "Add Captain" above to register a captain.
+            </div>
+          ) : (
+            filteredCaptains.map((captain) => {
+              const roleInfo = getCaptainRoleBadge(captain.role);
+              const specs = captain.specialities || captain.specialties || [];
+              const ratingVal = Number(captain.rating) || 0;
+
+              return (
+                <div key={`mob-${captain._id}`} className="captain-mobile-card">
+                  <div className="captain-mobile-card-top">
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "50%",
+                          background: "#0d2b17",
+                          color: "#ffffff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 700,
+                          fontSize: "13.5px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {captain.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Link
+                          to={`/admin/operations/history?captainId=${captain._id}`}
+                          style={{
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            textDecoration: "none",
+                            fontSize: "14.5px",
+                            display: "block",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {captain.name}
+                        </Link>
+                        {specs.length > 0 && (
+                          <div style={{ display: "flex", gap: "4px", marginTop: "4px", flexWrap: "wrap" }}>
+                            {specs.slice(0, 3).map((s, idx) => (
+                              <span
+                                key={idx}
+                                style={{
+                                  fontSize: "10.5px",
+                                  padding: "1px 6px",
+                                  borderRadius: "4px",
+                                  background: "#f1f5f9",
+                                  color: "#475569",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {s}
+                              </span>
+                            ))}
+                            {specs.length > 3 && (
+                              <span style={{ fontSize: "10.5px", color: "#94a3b8" }}>
+                                +{specs.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        background: roleInfo.bg,
+                        color: roleInfo.color,
+                        border: roleInfo.border,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {roleInfo.rank === 1 && "👑 "}
+                      {roleInfo.rank === 2 && "⭐ "}
+                      {roleInfo.rank === 3 && "🌱 "}
+                      {roleInfo.label}
+                    </span>
+                  </div>
+
+                  <div className="captain-mobile-contact">
+                    <a
+                      href={`tel:${captain.phone}`}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "#0f172a", textDecoration: "none", fontWeight: 500 }}
+                    >
+                      <Phone size={13} color="#64748b" />
+                      <span>{captain.phone}</span>
+                    </a>
+                    {captain.email && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#64748b", wordBreak: "break-all" }}>
+                        <Mail size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
+                        <span>{captain.email}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="captain-mobile-metrics">
+                    <div className="captain-mobile-metric-cell">
+                      <span className="captain-mobile-metric-val">
+                        <Award size={14} color="#15803d" />
+                        <span>{captain.completedTrips ?? 0}</span>
+                      </span>
+                      <span className="captain-mobile-metric-label">Trips Completed</span>
+                    </div>
+
+                    <div className="captain-mobile-metric-cell">
+                      <span className="captain-mobile-metric-val">
+                        {ratingVal > 0 ? (
+                          <>
+                            <Star size={14} color="#f59e0b" fill="#f59e0b" />
+                            <span>{ratingVal.toFixed(1)}</span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 600 }}>Not Rated Yet</span>
+                        )}
+                      </span>
+                      <span className="captain-mobile-metric-label">Rating</span>
+                    </div>
+
+                    <div className="captain-mobile-metric-cell">
+                      <StatusBadge status={captain.status === "Active" ? "confirmed" : "pending"} />
+                      <span className="captain-mobile-metric-label">{captain.status || "Status"}</span>
+                    </div>
+                  </div>
+
+                  <div className="captain-mobile-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(captain)}
+                      className="admin-btn admin-btn-secondary"
+                      style={{ flex: 1, minHeight: "40px", justifyContent: "center" }}
+                    >
+                      <Edit2 size={14} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCaptain(captain._id, captain.name)}
+                      className="admin-btn"
+                      style={{
+                        flex: 1,
+                        minHeight: "40px",
+                        justifyContent: "center",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        border: "1px solid #fecaca",
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="admin-table-container captains-desktop-table">
           <table className="admin-table">
             <thead>
               <tr>

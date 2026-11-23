@@ -60,6 +60,7 @@ export const Customers: React.FC = () => {
     repeatPercentage: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
 
@@ -69,6 +70,7 @@ export const Customers: React.FC = () => {
 
   const fetchCustomers = async () => {
     setLoading(true);
+    setError(null);
     const token = localStorage.getItem("token");
     try {
       const { data } = await axios.get(`${API_BASE_URL}/admin/customers`, {
@@ -77,9 +79,12 @@ export const Customers: React.FC = () => {
       if (data.success) {
         setCustomers(data.customers || []);
         if (data.stats) setStats(data.stats);
+      } else {
+        setError(data.message || "Failed to load customers.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load customers:", e);
+      setError(e?.response?.data?.message || "Failed to load customer records.");
     } finally {
       setLoading(false);
     }
@@ -126,37 +131,56 @@ export const Customers: React.FC = () => {
         </div>
       </div>
 
-      {/* 4 Top Stat Cards (Matches Reference Image #7) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
+      {/* Error Banner with Retry */}
+      {error && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "12px",
+            padding: "14px 16px",
+            marginBottom: "18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            color: "#991b1b",
+            fontSize: "13px",
+          }}
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={fetchCustomers}
+            className="admin-btn"
+            style={{ background: "#b91c1c", color: "#ffffff", border: "none", padding: "7px 14px" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* 4 Top Stat Cards */}
+      <div className="customers-stats-grid">
         <StatCard
           icon={<Users size={18} />}
           label="Total Customers"
-          value={stats.totalCustomers || customers.length || 3482}
-          change="+12%"
-          isPositive={true}
+          value={loading ? "—" : stats.totalCustomers ?? customers.length}
           iconTheme="green"
         />
 
         <StatCard
           icon={<CalendarCheck size={18} />}
           label="Customers with Bookings"
-          value={stats.customersWithBookings || customers.length || 2761}
-          change="+14%"
-          isPositive={true}
+          value={loading ? "—" : stats.customersWithBookings ?? customers.length}
           iconTheme="green"
         />
 
         <StatCard
           icon={<UserCheck size={18} />}
           label="Total Travellers"
-          value={stats.totalTravellers || 8946}
+          value={loading ? "—" : stats.totalTravellers ?? 0}
           subtitle="Across all bookings"
           iconTheme="green"
         />
@@ -164,8 +188,8 @@ export const Customers: React.FC = () => {
         <StatCard
           icon={<RefreshCw size={18} />}
           label="Repeat Customers"
-          value={stats.repeatCustomers || 1209}
-          change={`${stats.repeatPercentage || 43.8}%`}
+          value={loading ? "—" : stats.repeatCustomers ?? 0}
+          change={!loading && stats.totalCustomers > 0 ? `${stats.repeatPercentage ?? 0}%` : undefined}
           isPositive={true}
           subtitle="Retention rate"
           iconTheme="green"
@@ -173,21 +197,8 @@ export const Customers: React.FC = () => {
       </div>
 
       {/* Search & Filter Bar */}
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #e7ecf0",
-          borderRadius: "12px",
-          padding: "14px 18px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "14px",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ position: "relative", flex: 1, minWidth: "260px" }}>
+      <div className="customers-filters-bar">
+        <div className="customers-search-box">
           <Search
             size={16}
             style={{
@@ -246,7 +257,7 @@ export const Customers: React.FC = () => {
         </button>
       </div>
 
-      {/* Customers Table (Matches Reference Image #7 Table) */}
+      {/* Customers Table (Desktop) & Cards (Mobile) */}
       <div
         style={{
           background: "#ffffff",
@@ -255,7 +266,97 @@ export const Customers: React.FC = () => {
           overflow: "hidden",
         }}
       >
-        <div className="admin-table-container">
+        {/* Mobile Customer Cards (<= 768px) */}
+        <div className="customers-mobile-cards">
+          {loading ? (
+            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  style={{
+                    height: "92px",
+                    borderRadius: "12px",
+                    background: "#f1f5f9",
+                  }}
+                />
+              ))}
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "36px 16px", color: "#64748b", fontSize: "13.5px" }}>
+              No customer records found.
+            </div>
+          ) : (
+            filteredCustomers.map((c, idx) => (
+              <div
+                key={c.id || idx}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedCustomer(c)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedCustomer(c);
+                  }
+                }}
+                className="customer-mobile-card"
+              >
+                <div className="customer-mobile-card-top">
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "50%",
+                        background: "#eaf5e9",
+                        color: "#166534",
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "12px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {c.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px", wordBreak: "break-word" }}>
+                        {c.name}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
+                        {c.phone}
+                      </div>
+                      {c.email && (
+                        <div style={{ fontSize: "11.5px", color: "#64748b", wordBreak: "break-all" }}>
+                          {c.email}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge status={c.paymentStatus} />
+                </div>
+
+                <div className="customer-mobile-card-meta">
+                  <span>
+                    <strong>{c.totalBookings}</strong> {c.totalBookings === 1 ? "Booking" : "Bookings"}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <strong>{c.totalTravellers}</strong> {c.totalTravellers === 1 ? "Traveller" : "Travellers"}
+                  </span>
+                  {c.lastTrip && (
+                    <>
+                      <span>•</span>
+                      <span style={{ color: "#166534", fontWeight: 600 }}>{c.lastTrip}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="admin-table-container customers-desktop-table">
           <table className="admin-table">
             <thead>
               <tr>

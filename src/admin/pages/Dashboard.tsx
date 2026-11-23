@@ -364,9 +364,10 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Date Filter & Status Container */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <div className="dashboard-controls-row" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           {/* Filter Pills */}
           <div
+            className="admin-filter-pills-scroll"
             style={{
               display: "inline-flex",
               alignItems: "center",

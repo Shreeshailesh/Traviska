@@ -112,6 +112,12 @@ paymentReferenceKey: {
   sparse: true,
 },
 
+  checkoutRequestId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+
   paymentStatus: {
   type: String,
   enum: ["Pending", "Paid", "Failed"],
@@ -183,6 +189,16 @@ paymentReferenceKey: {
   refundAmount: {
     type: Number,
     default: 0,
+  },
+
+  whatsappOptIn: {
+    type: Boolean,
+    default: false,
+  },
+
+  whatsappOptInAt: {
+    type: Date,
+    default: null,
   },
 
   createdAt: {

@@ -106,10 +106,13 @@ module.exports = function superAdminRoutes({ authMiddleware, superAdminMiddlewar
       const effectiveLost = totalEnquiries > 0 ? lostEnquiries : 10;
       const effectiveTotalLeads = effectiveNew + effectiveInProgress + effectiveProposal + effectiveConfirmed + effectiveLost;
 
-      // Calculate real collected revenue from paid bookings
+      // Calculate real collected revenue from verified, non-simulated paid bookings
       const paidBookings = await Booking.find({
         paymentStatus: "Paid",
         status: { $ne: "Cancelled" },
+        isSimulated: { $ne: true },
+        bookingCode: { $not: /^SIM-/i },
+        paymentReference: { $not: /^SIM_/i },
       }).lean();
 
       let totalCollectedRevenue = 0;

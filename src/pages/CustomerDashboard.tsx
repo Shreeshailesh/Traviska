@@ -107,6 +107,7 @@ export default function CustomerDashboard() {
 
   // Bookings State
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
+  const [customerInvoices, setCustomerInvoices] = useState<any[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
 
@@ -158,12 +159,20 @@ export default function CustomerDashboard() {
         const token = getCustomerToken();
         if (!token) return;
 
-        const res = await axios.get(`${API_BASE_URL}/customer/bookings`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const [res, invRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/customer/bookings`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios
+            .get(`${API_BASE_URL}/api/customer/invoices`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            .catch(() => ({ data: { invoices: [] } })),
+        ]);
 
         if (!cancelled) {
           setBookings(res.data.bookings || []);
+          setCustomerInvoices(invRes.data?.invoices || []);
           setBookingsError("");
         }
       } catch (err: any) {
@@ -691,7 +700,56 @@ export default function CustomerDashboard() {
               </div>
             ) : (
               <div className="dash-bookings-list">
-                {bookings.map((b) => (
+                {bookings.map((b) => {
+                  const matchedInvoice = customerInvoices.find(
+                    (inv) =>
+                      (inv.bookingId && String(inv.bookingId) === String(b._id)) ||
+                      (b.bookingCode && inv.bookingCode === b.bookingCode)
+                  );
+                  const handleDownloadCustomerInvoice = async () => {
+                    if (!matchedInvoice) return;
+                    try {
+                      const token = getCustomerToken();
+                      const res = await axios.get(
+                        `${API_BASE_URL}/api/customer/invoices/${matchedInvoice._id}/pdf`,
+                        {
+                          headers: { Authorization: `Bearer ${token}` },
+                          responseType: "blob",
+                        }
+                      );
+                      const blob = new Blob([res.data], { type: "application/pdf" });
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${String(matchedInvoice.invoiceNumber).replace(/\//g, "-")}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      window.URL.revokeObjectURL(url);
+                    } catch {
+                      alert("Unable to download invoice right now.");
+                    }
+                  };
+                  const handleViewCustomerInvoice = async () => {
+                    if (!matchedInvoice) return;
+                    try {
+                      const token = getCustomerToken();
+                      const res = await axios.get(
+                        `${API_BASE_URL}/api/customer/invoices/${matchedInvoice._id}/html`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+                      const win = window.open("", "_blank");
+                      if (win) {
+                        win.document.open();
+                        win.document.write(res.data);
+                        win.document.close();
+                      }
+                    } catch {
+                      alert("Unable to preview invoice right now.");
+                    }
+                  };
+
+                  return (
                   <div key={b._id} className="dash-booking-item">
                     <div className="dash-booking-item-left">
                       {b.trip?.image && (
@@ -706,10 +764,67 @@ export default function CustomerDashboard() {
                           {b.trip?.title || "Upcoming Expedition"}
                         </h5>
                         <div className="dash-booking-meta">
+                          {b.bookingCode && (
+                            <>
+                              <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{b.bookingCode}</span>
+                              <span>•</span>
+                            </>
+                          )}
                           <span>{b.date || "Date TBA"}</span>
                           <span>•</span>
                           <span>{b.travellers || 1} Traveller(s)</span>
+                          {b.total !== undefined && (
+                            <>
+                              <span>•</span>
+                              <span>₹{Number(b.total).toLocaleString("en-IN")}</span>
+                            </>
+                          )}
+                          {b.paymentStatus && (
+                            <>
+                              <span>•</span>
+                              <span>{b.paymentStatus}</span>
+                            </>
+                          )}
                         </div>
+                        {matchedInvoice && (
+                          <div style={{ display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                            <span style={{ fontSize: "11px", color: "#475569", fontWeight: 600 }}>
+                              {matchedInvoice.invoiceNumber}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleViewCustomerInvoice}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                border: "1px solid #cbd5e1",
+                                background: "#ffffff",
+                                color: "#0e3820",
+                                fontSize: "11.5px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              View Invoice
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDownloadCustomerInvoice}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                border: "none",
+                                background: "#0e3820",
+                                color: "#ffffff",
+                                fontSize: "11.5px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Download Invoice
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <span
@@ -722,7 +837,8 @@ export default function CustomerDashboard() {
                       {b.status || "confirmed"}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

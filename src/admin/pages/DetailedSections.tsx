@@ -283,7 +283,7 @@ export const DetailedSections: React.FC = () => {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div className="sections-header-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <a
             href="/trips"
             target="_blank"
@@ -308,15 +308,7 @@ export const DetailedSections: React.FC = () => {
       </div>
 
       {/* 3-Column Split: Sections Nav + Editor + Live Preview */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "260px minmax(360px, 1fr) 340px",
-          gap: "20px",
-          alignItems: "flex-start",
-          width: "100%",
-        }}
-      >
+      <div className="sections-layout-grid">
         {/* COL 1: SECTIONS LIST */}
         <div
           style={{

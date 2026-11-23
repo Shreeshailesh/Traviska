@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -14,9 +14,10 @@ import {
   CheckCircle,
   IndianRupee,
   Activity,
-  Compass,
   LogIn,
   Shield,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { API_BASE_URL } from "../../api";
 import { getSuperAdminToken, clearSuperAdminAuth } from "../authHelper";
@@ -52,84 +53,54 @@ interface DashboardData {
 export const SuperAdminDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const token = getSuperAdminToken();
-        const res = await axios.get(`${API_BASE_URL}/api/super-admin/dashboard`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.data.success) {
-          setData(res.data);
-        }
-      } catch (err: any) {
-        console.error("Dashboard fetch error:", err);
-        if (err.response?.status === 401 || err.response?.status === 403) {
-          clearSuperAdminAuth();
-          navigate("/super-admin/login", { replace: true });
-        }
-      } finally {
-        setLoading(false);
+  const fetchMetrics = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getSuperAdminToken();
+      const res = await axios.get(`${API_BASE_URL}/api/super-admin/dashboard`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.data?.success) {
+        setData(res.data);
+      } else {
+        setError(res.data?.message || "Failed to load Super Admin dashboard metrics.");
       }
-    };
+    } catch (err: any) {
+      console.error("Dashboard fetch error:", err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        clearSuperAdminAuth();
+        navigate("/super-admin/login", { replace: true });
+        return;
+      }
+      setError(err?.response?.data?.message || "Unable to reach server. Please retry.");
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
     fetchMetrics();
-  }, []);
+  }, [fetchMetrics]);
 
   const metrics = data?.metrics || {
-    totalUsers: 24,
-    staffMembers: 8,
-    emailAccounts: 10,
-    activeToday: 6,
-    pendingInvites: 6,
+    totalUsers: 0,
+    staffMembers: 0,
+    emailAccounts: 0,
+    activeToday: 0,
+    pendingInvites: 0,
     collectedRevenue: 0,
     collectedRevenueFormatted: "₹0",
   };
 
-  const activities =
-    data?.recentActivity && data.recentActivity.length > 0
-      ? data.recentActivity.slice(0, 4)
-      : [
-          {
-            id: "act_1",
-            action: "user_added",
-            details: "New user added – kartik@traviska.com",
-            time: "Today, 05:42 PM",
-            date: "Today",
-          },
-          {
-            id: "act_2",
-            action: "team_updated",
-            details: "Team updated – Sales Team",
-            time: "Today, 04:18 PM",
-            date: "Today",
-          },
-          {
-            id: "act_3",
-            action: "email_created",
-            details: "Email account created – operations@traviska.com",
-            time: "Today, 01:27 PM",
-            date: "Today",
-          },
-          {
-            id: "act_4",
-            action: "user_login",
-            details: "User login – owner@traviska.com",
-            time: "Today, 10:03 AM",
-            date: "Today",
-          },
-        ];
+  const activities = Array.isArray(data?.recentActivity)
+    ? data.recentActivity.slice(0, 6)
+    : [];
 
-  const teamOverview =
-    data?.teamOverview && data.teamOverview.length > 0
-      ? data.teamOverview
-      : [
-          { id: "tm_1", name: "Operations Team", membersCount: 4 },
-          { id: "tm_2", name: "Sales Team", membersCount: 3 },
-          { id: "tm_3", name: "Trip & Operations", membersCount: 2 },
-          { id: "tm_4", name: "Admin Team", membersCount: 2 },
-        ];
+  const teamOverview = Array.isArray(data?.teamOverview) ? data.teamOverview : [];
 
   const getActivityIcon = (act: string, details: string) => {
     const text = (act + " " + details).toLowerCase();
@@ -148,93 +119,130 @@ export const SuperAdminDashboard: React.FC = () => {
     return <CheckCircle size={15} />;
   };
 
+  const collectedRevenueDisplay =
+    metrics.collectedRevenueFormatted ||
+    `₹${(metrics.collectedRevenue ?? 0).toLocaleString("en-IN")}`;
+
   return (
-    <div>
-      {/* 5 Top KPI Cards Matching Design */}
-      <div className="sa-kpi-grid" style={{ marginTop: "4px" }}>
+    <div className="sa-dashboard-root">
+      {/* Error Banner with Retry */}
+      {error && (
+        <div className="sa-error-banner" role="alert">
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={fetchMetrics}
+            className="sa-action-btn sa-action-btn-primary"
+            style={{ padding: "7px 14px", fontSize: "12.5px" }}
+          >
+            <RefreshCw size={14} />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
+      {/* 5 Top KPI Cards */}
+      <div className="sa-kpi-grid">
         {/* Card 1: Total Users */}
-        <div className="sa-card sa-kpi-card">
+        <div className="sa-card sa-kpi-card sa-kpi-premium">
           <div className="sa-kpi-icon-box" style={{ background: "#dcfce7", color: "#166534" }}>
-            <Users size={22} />
+            <Users size={20} />
           </div>
           <div className="sa-kpi-info">
             <div className="sa-kpi-label">Total Users</div>
             <div className="sa-kpi-value-row">
-              <span className="sa-kpi-number">{loading ? "24" : metrics.totalUsers || 24}</span>
-              <span className="sa-kpi-pill" style={{ background: "#dcfce7", color: "#166534" }}>
-                ↑ +12%
-              </span>
+              {loading ? (
+                <span className="sa-skeleton sa-skeleton-num" />
+              ) : (
+                <span className="sa-kpi-number">{metrics.totalUsers ?? 0}</span>
+              )}
             </div>
+            <div className="sa-kpi-subtext">All registered accounts</div>
           </div>
         </div>
 
         {/* Card 2: Staff Members */}
-        <div className="sa-card sa-kpi-card">
+        <div className="sa-card sa-kpi-card sa-kpi-premium">
           <div className="sa-kpi-icon-box" style={{ background: "#fef3c7", color: "#b45309" }}>
-            <UserCheck size={22} />
+            <UserCheck size={20} />
           </div>
           <div className="sa-kpi-info">
             <div className="sa-kpi-label">Staff Members</div>
             <div className="sa-kpi-value-row">
-              <span className="sa-kpi-number">{loading ? "8" : metrics.staffMembers || 8}</span>
-              <span className="sa-kpi-pill" style={{ background: "#dcfce7", color: "#166534" }}>
-                ↑ +33%
-              </span>
+              {loading ? (
+                <span className="sa-skeleton sa-skeleton-num" />
+              ) : (
+                <span className="sa-kpi-number">{metrics.staffMembers ?? 0}</span>
+              )}
             </div>
+            <div className="sa-kpi-subtext">Active workspace staff</div>
           </div>
         </div>
 
         {/* Card 3: Email Accounts */}
-        <div className="sa-card sa-kpi-card">
+        <div className="sa-card sa-kpi-card sa-kpi-premium">
           <div className="sa-kpi-icon-box" style={{ background: "#e0f2fe", color: "#0369a1" }}>
-            <Mail size={22} />
+            <Mail size={20} />
           </div>
           <div className="sa-kpi-info">
             <div className="sa-kpi-label">Email Accounts</div>
             <div className="sa-kpi-value-row">
-              <span className="sa-kpi-number">{loading ? "10" : metrics.emailAccounts || 10}</span>
+              {loading ? (
+                <span className="sa-skeleton sa-skeleton-num" />
+              ) : (
+                <span className="sa-kpi-number">{metrics.emailAccounts ?? 0}</span>
+              )}
+            </div>
+            <div className="sa-kpi-subtext">
+              {metrics.pendingInvites > 0
+                ? `${metrics.pendingInvites} pending invites`
+                : "Authorized identities"}
             </div>
           </div>
         </div>
 
         {/* Card 4: Active Today */}
-        <div className="sa-card sa-kpi-card">
+        <div className="sa-card sa-kpi-card sa-kpi-premium">
           <div className="sa-kpi-icon-box" style={{ background: "#fee2e2", color: "#b91c1c" }}>
-            <Activity size={22} />
+            <Activity size={20} />
           </div>
           <div className="sa-kpi-info">
             <div className="sa-kpi-label">Active Today</div>
             <div className="sa-kpi-value-row">
-              <span className="sa-kpi-number">{loading ? "6" : metrics.activeToday || 6}</span>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "9px",
-                  height: "9px",
-                  borderRadius: "50%",
-                  background: "#16a34a",
-                  marginLeft: "4px",
-                }}
-                title="Active"
-              />
+              {loading ? (
+                <span className="sa-skeleton sa-skeleton-num" />
+              ) : (
+                <>
+                  <span className="sa-kpi-number">{metrics.activeToday ?? 0}</span>
+                  <span className="sa-live-dot" title="Logged in today" />
+                </>
+              )}
             </div>
+            <div className="sa-kpi-subtext">Signed in today</div>
           </div>
         </div>
 
         {/* Card 5: Collected Revenue */}
-        <div className="sa-card sa-kpi-card">
-          <div className="sa-kpi-icon-box" style={{ background: "#ecfdf5", color: "#047857" }}>
-            <IndianRupee size={22} />
+        <div className="sa-card sa-kpi-card sa-kpi-premium sa-kpi-revenue">
+          <div className="sa-kpi-icon-box" style={{ background: "#dcfce7", color: "#047857" }}>
+            <IndianRupee size={20} />
           </div>
           <div className="sa-kpi-info">
             <div className="sa-kpi-label">Collected Revenue</div>
             <div className="sa-kpi-value-row">
-              <span className="sa-kpi-number" style={{ fontSize: "20px" }}>
-                {loading
-                  ? "₹0"
-                  : metrics.collectedRevenueFormatted || `₹${(metrics.collectedRevenue ?? 0).toLocaleString("en-IN")}`}
-              </span>
-              <span className="sa-kpi-pill" style={{ background: "#ecfdf5", color: "#047857" }}>
+              {loading ? (
+                <span className="sa-skeleton sa-skeleton-num" />
+              ) : (
+                <span className="sa-kpi-number sa-kpi-revenue-num">
+                  {collectedRevenueDisplay}
+                </span>
+              )}
+            </div>
+            <div style={{ marginTop: "6px" }}>
+              <span className="sa-kpi-pill" style={{ background: "#dcfce7", color: "#166534", fontSize: "11px" }}>
                 All Bookings
               </span>
             </div>
@@ -242,377 +250,228 @@ export const SuperAdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Middle Row: Quick Actions (Left) & Traviska Operations Card (Right) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 1fr",
-          gap: "20px",
-          marginBottom: "24px",
-        }}
-        className="sa-mid-row"
-      >
+      {/* Middle Row: Quick Actions + Collected Revenue & Operations Summary */}
+      <div className="sa-mid-row sa-dashboard-mid-grid">
         {/* Quick Actions Card */}
-        <div className="sa-card" style={{ padding: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "18px" }}>
-            <Zap size={18} style={{ color: "#16a34a" }} />
-            <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-              Quick Actions
-            </h3>
+        <div className="sa-card sa-panel-card">
+          <div className="sa-panel-header">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Zap size={18} style={{ color: "#15803d" }} />
+              <h3 className="sa-panel-title">Quick Actions</h3>
+            </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: "12px",
-            }}
-          >
-            {/* Primary Action: Add User */}
+          <div className="sa-quick-actions-grid">
             <button
+              type="button"
               onClick={() => navigate("/super-admin/users?action=invite")}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                padding: "16px 12px",
-                borderRadius: "14px",
-                border: "none",
-                background: "#0e3820",
-                color: "#ffffff",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "13px",
-                boxShadow: "0 4px 14px rgba(14, 56, 32, 0.25)",
-                transition: "transform 0.15s ease",
-              }}
+              className="sa-quick-btn sa-quick-btn-primary"
             >
-              <UserPlus size={22} />
+              <UserPlus size={20} />
               <span>Add User</span>
             </button>
 
-            {/* Create Team */}
             <button
-              onClick={() => navigate("/super-admin/teams?action=create")}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                padding: "16px 12px",
-                borderRadius: "14px",
-                border: "1px solid #e2ece5",
-                background: "#ffffff",
-                color: "#334155",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "13px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                transition: "all 0.15s ease",
-              }}
+              type="button"
+              onClick={() => navigate("/super-admin/teams")}
+              className="sa-quick-btn"
             >
-              <UsersRound size={22} style={{ color: "#15803d" }} />
+              <UsersRound size={20} style={{ color: "#15803d" }} />
               <span>Create Team</span>
             </button>
 
-            {/* Add Email Account */}
             <button
+              type="button"
               onClick={() => navigate("/super-admin/emails")}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                padding: "16px 12px",
-                borderRadius: "14px",
-                border: "1px solid #e2ece5",
-                background: "#ffffff",
-                color: "#334155",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "13px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                transition: "all 0.15s ease",
-              }}
+              className="sa-quick-btn"
             >
-              <Mail size={22} style={{ color: "#0284c7" }} />
+              <Mail size={20} style={{ color: "#0284c7" }} />
               <span>Add Email Account</span>
             </button>
 
-            {/* View Activity Logs */}
             <button
+              type="button"
               onClick={() => navigate("/super-admin/activity-logs")}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                padding: "16px 12px",
-                borderRadius: "14px",
-                border: "1px solid #e2ece5",
-                background: "#ffffff",
-                color: "#334155",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "13px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                transition: "all 0.15s ease",
-              }}
+              className="sa-quick-btn"
             >
-              <History size={22} style={{ color: "#475569" }} />
+              <History size={20} style={{ color: "#475569" }} />
               <span>View Activity Logs</span>
             </button>
           </div>
         </div>
 
-        {/* Traviska Operations Card Matching Image 3 */}
-        <div
-          className="sa-card"
-          style={{
-            padding: "24px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-            background: "linear-gradient(135deg, #ffffff 0%, #f7fdf9 100%)",
-          }}
-        >
-          <div
-            style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "50%",
-              background: "#dcfce7",
-              color: "#166534",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: "14px",
-              border: "2px solid #bbf7d0",
-            }}
-          >
-            <Compass size={28} />
+        {/* Verified Collected Revenue Summary Card (replaces unbacked breakdown donut) */}
+        <div className="sa-card sa-panel-card sa-revenue-summary-card">
+          <div className="sa-panel-header">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <IndianRupee size={18} style={{ color: "#15803d" }} />
+              <h3 className="sa-panel-title">Revenue &amp; Operations</h3>
+            </div>
+            <span className="sa-status-pill-green">
+              <CheckCircle size={13} />
+              <span>All Systems Active</span>
+            </span>
           </div>
 
-          <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", margin: "0 0 6px" }}>
-            Traviska Operations
-          </h3>
-          <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 16px", fontWeight: 500 }}>
-            Users • Teams • Emails • Activity
-          </p>
+          <div className="sa-revenue-summary-body">
+            <div className="sa-revenue-ring-row">
+              <div className="sa-revenue-ring-box">
+                <svg viewBox="0 0 120 120" className="sa-revenue-ring-svg">
+                  <circle cx="60" cy="60" r="46" fill="none" stroke="#e2ece5" strokeWidth="14" />
+                  {(metrics.collectedRevenue ?? 0) > 0 && (
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="46"
+                      fill="none"
+                      stroke="#15803d"
+                      strokeWidth="14"
+                      strokeDasharray={`${2 * Math.PI * 46}`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 60 60)"
+                    />
+                  )}
+                </svg>
+                <div className="sa-revenue-ring-center">
+                  <span className="sa-revenue-ring-amount">
+                    {loading ? "—" : collectedRevenueDisplay}
+                  </span>
+                  <span className="sa-revenue-ring-label">Total Revenue</span>
+                </div>
+              </div>
 
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "6px 14px",
-              borderRadius: "20px",
-              background: "#dcfce7",
-              color: "#166534",
-              fontSize: "12.5px",
-              fontWeight: 800,
-              border: "1px solid #bbf7d0",
-            }}
-          >
-            <CheckCircle size={14} />
-            <span>All Systems Active</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="sa-revenue-summary-label">Verified Paid Bookings</div>
+                <div className="sa-revenue-summary-note" style={{ marginTop: "6px" }}>
+                  100% of displayed revenue is aggregated from verified paid, non-cancelled bookings in MongoDB.
+                </div>
+              </div>
+            </div>
+
+            <div className="sa-revenue-meta-grid">
+              <div className="sa-revenue-meta-item">
+                <span className="sa-revenue-meta-label">Pending Invites</span>
+                <strong className="sa-revenue-meta-val">
+                  {loading ? "—" : metrics.pendingInvites ?? 0}
+                </strong>
+              </div>
+              <div className="sa-revenue-meta-item">
+                <span className="sa-revenue-meta-label">Active Teams</span>
+                <strong className="sa-revenue-meta-val">
+                  {loading ? "—" : teamOverview.length}
+                </strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom Row: Recent Activity (Left) & Team Overview (Right) Matching Image 3 */}
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "20px" }}
-        className="sa-bottom-row"
-      >
+      {/* Bottom Row: Recent Activity + Team Overview */}
+      <div className="sa-bottom-row sa-dashboard-bottom-grid">
         {/* Recent Activity Card */}
-        <div className="sa-card" style={{ padding: "24px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "18px",
-            }}
-          >
+        <div className="sa-card sa-panel-card">
+          <div className="sa-panel-header">
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Clock size={18} style={{ color: "#16a34a" }} />
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-                Recent Activity
-              </h3>
+              <Clock size={18} style={{ color: "#15803d" }} />
+              <h3 className="sa-panel-title">Recent Activity</h3>
             </div>
-            <Link
-              to="/super-admin/activity-logs"
-              style={{
-                fontSize: "12.5px",
-                fontWeight: 700,
-                color: "#15803d",
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
+            <Link to="/super-admin/activity-logs" className="sa-panel-link">
               <span>View All</span>
               <ArrowRight size={13} />
             </Link>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {activities.map((a, idx) => (
-              <div
-                key={a.id || idx}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                  paddingBottom: idx === activities.length - 1 ? 0 : "12px",
-                  borderBottom: idx === activities.length - 1 ? "none" : "1px solid #f1f5f9",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "10px",
-                      background: "#f0fdf4",
-                      color: "#166534",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {getActivityIcon(a.action, a.details)}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "#0f172a",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {a.details}
-                    </div>
-                  </div>
-                </div>
-                <span
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {loading ? (
+              [1, 2, 3].map((n) => (
+                <div key={n} className="sa-skeleton" style={{ height: "42px", borderRadius: "10px" }} />
+              ))
+            ) : activities.length === 0 ? (
+              <div className="sa-empty-state">
+                No recent activity recorded yet.
+              </div>
+            ) : (
+              activities.map((a, idx) => (
+                <div
+                  key={a.id || idx}
+                  className="sa-activity-row"
                   style={{
-                    fontSize: "11.5px",
-                    color: "#64748b",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
+                    borderBottom: idx === activities.length - 1 ? "none" : "1px solid #f1f5f9",
+                    paddingBottom: idx === activities.length - 1 ? 0 : "12px",
                   }}
                 >
-                  {a.time}
-                </span>
-              </div>
-            ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                    <div className="sa-activity-icon">
+                      {getActivityIcon(a.action, a.details)}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="sa-activity-details">{a.details}</div>
+                      {a.actorEmail && (
+                        <div className="sa-activity-actor">by {a.actorEmail}</div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="sa-activity-time">{a.time}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Team Overview Card Matching Image 3 */}
-        <div className="sa-card" style={{ padding: "24px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "18px",
-            }}
-          >
+        {/* Team Overview Card */}
+        <div className="sa-card sa-panel-card">
+          <div className="sa-panel-header">
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Users size={18} style={{ color: "#16a34a" }} />
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-                Team Overview
-              </h3>
+              <Users size={18} style={{ color: "#15803d" }} />
+              <h3 className="sa-panel-title">Team Overview</h3>
             </div>
-            <Link
-              to="/super-admin/teams"
-              style={{
-                fontSize: "12.5px",
-                fontWeight: 700,
-                color: "#15803d",
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
+            <Link to="/super-admin/teams" className="sa-panel-link">
               <span>Manage Teams</span>
               <ArrowRight size={13} />
             </Link>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {teamOverview.map((team, idx) => (
-              <div
-                key={team.id || idx}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                  paddingBottom: idx === teamOverview.length - 1 ? 0 : "12px",
-                  borderBottom: idx === teamOverview.length - 1 ? "none" : "1px solid #f1f5f9",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "10px",
-                      background: "#eff6ff",
-                      color: "#1e40af",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Shield size={15} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#0f172a" }}>
-                      {team.name}
-                    </div>
-                  </div>
-                </div>
-                <span
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {loading ? (
+              [1, 2, 3].map((n) => (
+                <div key={n} className="sa-skeleton" style={{ height: "42px", borderRadius: "10px" }} />
+              ))
+            ) : teamOverview.length === 0 ? (
+              <div className="sa-empty-state">
+                No teams created yet. Use "Manage Teams" to create your first team.
+              </div>
+            ) : (
+              teamOverview.map((team, idx) => (
+                <div
+                  key={team.id || idx}
+                  className="sa-team-row"
                   style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#475569",
-                    background: "#f1f5f9",
-                    padding: "3px 10px",
-                    borderRadius: "12px",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
+                    borderBottom: idx === teamOverview.length - 1 ? "none" : "1px solid #f1f5f9",
+                    paddingBottom: idx === teamOverview.length - 1 ? 0 : "12px",
                   }}
                 >
-                  {team.membersCount} Users
-                </span>
-              </div>
-            ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                    <div className="sa-team-icon">
+                      <Shield size={15} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="sa-team-name">{team.name}</div>
+                      {team.leadName && (
+                        <div className="sa-team-lead">Lead: {team.leadName}</div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="sa-team-count-pill">
+                    {team.membersCount} {team.membersCount === 1 ? "User" : "Users"}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+export default SuperAdminDashboard;

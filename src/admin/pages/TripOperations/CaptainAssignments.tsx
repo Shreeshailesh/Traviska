@@ -14,6 +14,7 @@ import {
   Phone,
   AlertCircle,
   Clock,
+  Search,
 } from "lucide-react";
 import { API_BASE_URL } from "../../../api";
 import { Modal } from "../../ui/Modal";
@@ -97,6 +98,9 @@ export const CaptainAssignments: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tripFilter, setTripFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [form, setForm] = useState({
     slotId: "",
@@ -308,6 +312,31 @@ export const CaptainAssignments: React.FC = () => {
   // Balance fee calculation
   const balanceDue = Math.max(0, (Number(form.captainFee) || 0) - (Number(form.advancePaid) || 0));
 
+  const uniqueTripTitles = useMemo(() => {
+    const set = new Set<string>();
+    assignments.forEach((a) => {
+      if (a.tripTitle) set.add(a.tripTitle);
+    });
+    return Array.from(set);
+  }, [assignments]);
+
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((row) => {
+      if (tripFilter !== "all" && row.tripTitle !== tripFilter) return false;
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          row.tripTitle.toLowerCase().includes(q) ||
+          row.captainName.toLowerCase().includes(q) ||
+          row.dates.toLowerCase().includes(q) ||
+          (row.destination || "").toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [assignments, tripFilter, statusFilter, searchQuery]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -396,14 +425,73 @@ export const CaptainAssignments: React.FC = () => {
           </p>
         </div>
 
-        <button onClick={handleOpenAdd} className="admin-btn admin-btn-primary">
+        <button onClick={handleOpenAdd} className="admin-btn admin-btn-primary assignments-add-btn">
           <Plus size={16} />
           <span>New Assignment</span>
         </button>
       </div>
 
-      {/* Assignments Table */}
+      {/* Search & Filter Controls (Client-side over live assignments) */}
+      <div className="assignments-filters-bar">
+        <div className="assignments-search-box">
+          <Search
+            size={15}
+            style={{
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search by trip, captain or date..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "9px 12px 9px 34px",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              fontSize: "13px",
+              outline: "none",
+            }}
+          />
+        </div>
+
+        <div className="assignments-filter-selects">
+          <select
+            value={tripFilter}
+            onChange={(e) => setTripFilter(e.target.value)}
+            aria-label="Filter by trip"
+          >
+            <option value="all">All Trips</option>
+            {uniqueTripTitles.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by status"
+          >
+            <option value="all">All Status</option>
+            <option value="Assigned">Assigned</option>
+            <option value="On Trip">On Trip</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Assignments Table (Desktop) & Cards (Mobile) */}
       <div
+        className="assignments-list-wrapper"
         style={{
           background: "#ffffff",
           border: "1px solid #e7ecf0",
@@ -413,7 +501,154 @@ export const CaptainAssignments: React.FC = () => {
           width: "100%",
         }}
       >
-        <div className="admin-table-container">
+        {/* Mobile Assignment Cards (<= 768px) */}
+        <div className="assignments-mobile-cards">
+          {filteredAssignments.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "36px 16px" }}>
+              <div style={{ color: "#64748b", fontSize: "14px", fontWeight: 600 }}>
+                No captain assignments found.
+              </div>
+              <div style={{ color: "#94a3b8", fontSize: "12.5px", marginTop: "4px", marginBottom: "14px" }}>
+                Tap "New Assignment" to assign a captain to an upcoming departure slot.
+              </div>
+              <button type="button" onClick={handleOpenAdd} className="admin-btn admin-btn-primary">
+                <Plus size={15} />
+                <span>New Assignment</span>
+              </button>
+            </div>
+          ) : (
+            filteredAssignments.map((row) => {
+              const roleBadge = getRoleBadge(row.role);
+              return (
+                <div key={`mob-${row._id}`} className="assignment-mobile-card">
+                  <div className="assignment-mobile-card-top">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14.5px", wordBreak: "break-word" }}>
+                        {row.tripTitle}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                        {row.destination}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "3px 9px",
+                        borderRadius: "999px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        background: "#dcfce7",
+                        color: "#166534",
+                        border: "1px solid #bbf7d0",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <CheckCircle2 size={11} />
+                      {row.status}
+                    </span>
+                  </div>
+
+                  <div className="assignment-mobile-card-meta">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                      <Calendar size={13} color="#64748b" />
+                      {row.dates}
+                    </span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                      <Users size={13} color="#64748b" />
+                      {row.travellers} / {row.capacity} Travellers
+                    </span>
+                  </div>
+
+                  <div className="assignment-mobile-captain-row">
+                    <div style={{ display: "flex", alignItems: "center", gap: "9px", minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          background: "#0d2b17",
+                          color: "#ffffff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {row.captainName.slice(0, 1)}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>
+                            {row.captainName}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              background: roleBadge.bg,
+                              color: roleBadge.color,
+                              border: roleBadge.border,
+                              padding: "1px 6px",
+                              borderRadius: "10px",
+                            }}
+                          >
+                            {roleBadge.label}
+                          </span>
+                        </div>
+                        {row.captainPhone && (
+                          <div style={{ fontSize: "11.5px", color: "#64748b" }}>{row.captainPhone}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13.5px" }}>
+                        ₹{row.captainFee.toLocaleString("en-IN")}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#166534", fontWeight: 600 }}>
+                        Adv: ₹{row.advancePaid.toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="assignment-mobile-card-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(row)}
+                      className="admin-btn admin-btn-secondary"
+                      style={{ flex: 1, minHeight: "38px", justifyContent: "center" }}
+                    >
+                      <Edit2 size={14} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(row)}
+                      className="admin-btn"
+                      style={{
+                        flex: 1,
+                        minHeight: "38px",
+                        justifyContent: "center",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        border: "1px solid #fecaca",
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="admin-table-container assignments-desktop-table">
           <table className="admin-table">
             <thead>
               <tr>
@@ -427,7 +662,7 @@ export const CaptainAssignments: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {assignments.length === 0 ? (
+              {filteredAssignments.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px" }}>
                     <div style={{ color: "#64748b", fontSize: "14px", fontWeight: 600 }}>
@@ -439,7 +674,7 @@ export const CaptainAssignments: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                assignments.map((row) => (
+                filteredAssignments.map((row) => (
                 <tr key={row._id}>
                   <td>
                     <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "13.5px" }}>

@@ -12,6 +12,7 @@ import {
   CalendarCheck,
   MapPin,
   Receipt,
+  FileText,
   Wallet,
   History,
   BarChart3,
@@ -112,6 +113,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         >
           <Users size={18} />
           <span>Customers</span>
+        </Link>
+
+        <Link
+          to="/admin/invoices"
+          className={`admin-nav-item ${isActive("/admin/invoices") ? "active" : ""}`}
+          onClick={onClose}
+        >
+          <FileText size={18} />
+          <span>Invoices</span>
         </Link>
 
         <Link

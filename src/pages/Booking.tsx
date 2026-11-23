@@ -147,6 +147,7 @@ function Booking() {
   );
 
   const [requests, setRequests] = useState("");
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pickup Locations State (initialized immediately from trip.pickupLocations if available)
@@ -600,6 +601,7 @@ function Booking() {
                   email,
                   phone,
                   requests: combinedRequests,
+                  whatsappOptIn,
                   travellerDetails: travellerDetails.map((t, idx) => ({
                     name: (idx === 0 ? t.name || name : t.name).trim(),
                     phone: (idx === 0 ? t.phone || phone : t.phone)?.trim() || "",
@@ -620,7 +622,7 @@ function Booking() {
               verification.data.bookingConfirmed
             ) {
               alert("Payment successful! Your booking is confirmed.");
-              navigate("/profile");
+              navigate("/customer/dashboard");
             } else {
               alert(
                 "Payment received, but booking confirmation is pending. " +
@@ -1405,6 +1407,36 @@ function Booking() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* ============================================================
+              WHATSAPP NOTIFICATION CONSENT
+              ============================================================ */}
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "10px",
+              marginBottom: "14px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+            }}
+          >
+            <input
+              id="whatsapp-opt-in-checkbox"
+              type="checkbox"
+              checked={whatsappOptIn}
+              onChange={(e) => setWhatsappOptIn(e.target.checked)}
+              style={{ marginTop: "3px", width: "16px", height: "16px", accentColor: "#166534", cursor: "pointer" }}
+            />
+            <label
+              htmlFor="whatsapp-opt-in-checkbox"
+              style={{ fontSize: "13px", color: "#334155", lineHeight: 1.45, cursor: "pointer" }}
+            >
+              Send my booking confirmation, PDF invoice, and trip updates via <strong>WhatsApp</strong> on my provided mobile number.
+            </label>
           </div>
 
           {/* ============================================================

@@ -438,6 +438,7 @@ export const SuperAdminUsers: React.FC = () => {
     <div>
       {/* Top Segmented Bar: Staff & Admin Accounts VS Customer Accounts */}
       <div
+        className="sa-segmented-bar"
         style={{
           display: "flex",
           alignItems: "center",
@@ -637,9 +638,156 @@ export const SuperAdminUsers: React.FC = () => {
             </div>
           </div>
 
-          {/* Staff Table Card */}
-          <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="sa-table-wrapper">
+          {/* Staff Table Card (Desktop) & Cards (Mobile) */}
+          <div className="sa-card sa-list-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="sa-mobile-cards">
+            {loading ? (
+              <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8", fontSize: "13px" }}>
+                Loading staff directory...
+              </div>
+            ) : displayedStaff.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8", fontSize: "13px" }}>
+                No staff accounts found matching your filters.
+              </div>
+            ) : (
+              displayedStaff.map((u) => (
+                <div key={`mob-${u._id}`} className="sa-mobile-card">
+                  <div className="sa-mobile-card-top">
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                      <div className="sa-mobile-avatar">
+                        {(u.name || u.email).charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px", wordBreak: "break-word" }}>
+                          {u.name}
+                        </div>
+                        <div style={{ fontFamily: "monospace", fontSize: "12px", color: "#475569", wordBreak: "break-all" }}>
+                          {u.email}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        background:
+                          u.role === "super_admin"
+                            ? "#fef3c7"
+                            : u.role === "admin"
+                            ? "#dcfce7"
+                            : "#e0f2fe",
+                        color:
+                          u.role === "super_admin"
+                            ? "#b45309"
+                            : u.role === "admin"
+                            ? "#166534"
+                            : "#0369a1",
+                      }}
+                    >
+                      {u.role === "super_admin"
+                        ? "CEO / Super Admin"
+                        : u.role === "admin"
+                        ? "Admin"
+                        : u.role === "sales_lead"
+                        ? "Sales Lead"
+                        : u.role === "sales_executive"
+                        ? "Sales Executive"
+                        : u.role}
+                    </span>
+                  </div>
+
+                  <div className="sa-mobile-card-meta">
+                    {u.status === "Active" ? (
+                      <span className="sa-badge-active">● Active</span>
+                    ) : u.status === "Invited" ? (
+                      <span className="sa-badge-invited">● Invited</span>
+                    ) : u.status === "Pending Verification" ? (
+                      <span className="sa-badge-invited" style={{ background: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" }}>● Pending Verification</span>
+                    ) : u.status === "Verified — Password Pending" ? (
+                      <span className="sa-badge-invited" style={{ background: "#fef3c7", color: "#b45309", borderColor: "#fde68a" }}>● Verified — Password Pending</span>
+                    ) : u.status === "Revoked" || u.status === "Invitation Revoked" ? (
+                      <span className="sa-badge-suspended" style={{ background: "#f1f5f9", color: "#64748b", borderColor: "#cbd5e1" }}>● Revoked</span>
+                    ) : u.status === "Inactive" ? (
+                      <span className="sa-badge-suspended" style={{ background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" }}>● Inactive</span>
+                    ) : (
+                      <span className="sa-badge-suspended">● Suspended</span>
+                    )}
+                    <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                      {u.team ? `${u.team} • ` : ""}{u.lastLogin || "—"}
+                    </span>
+                  </div>
+
+                  <div className="sa-mobile-card-actions">
+                    {u.type === "invitation" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleResendInvite(u._id)}
+                          className="sa-action-btn"
+                          style={{ flex: 1, justifyContent: "center", background: "#f0fdf4", color: "#166534", borderColor: "#bbf7d0" }}
+                        >
+                          <Send size={13} />
+                          <span>Resend</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeInvite(u._id)}
+                          className="sa-action-btn"
+                          style={{ flex: 1, justifyContent: "center", background: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" }}
+                        >
+                          <span>Revoke</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUser(u);
+                            setEditRole(u.role);
+                            setEditTeamId(u.teamId || "");
+                          }}
+                          className="sa-action-btn"
+                          style={{ flex: 1, justifyContent: "center" }}
+                        >
+                          <Edit2 size={13} />
+                          <span>Edit Role</span>
+                        </button>
+                        {u.role !== "super_admin" && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSuspend(u)}
+                            className="sa-action-btn"
+                            style={{
+                              flex: 1,
+                              justifyContent: "center",
+                              color: u.isSuspended || u.status === "Suspended" || u.status === "Inactive" ? "#166534" : "#b91c1c",
+                            }}
+                          >
+                            {u.isSuspended || u.status === "Suspended" || u.status === "Inactive" ? (
+                              <>
+                                <UserCheck size={13} />
+                                <span>Activate</span>
+                              </>
+                            ) : (
+                              <>
+                                <UserX size={13} />
+                                <span>Suspend</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="sa-table-wrapper sa-desktop-table">
             <table className="sa-table">
             <thead>
               <tr>
@@ -937,8 +1085,84 @@ export const SuperAdminUsers: React.FC = () => {
             </div>
           </div>
 
-          <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
-            <div className="sa-table-wrapper">
+          <div className="sa-card sa-list-card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="sa-mobile-cards">
+              {loading ? (
+                <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8", fontSize: "13px" }}>
+                  Loading customer accounts...
+                </div>
+              ) : displayedCustomers.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8", fontSize: "13px" }}>
+                  No customer accounts found matching your filters.
+                </div>
+              ) : (
+                displayedCustomers.map((c) => (
+                  <div key={`mob-cust-${c._id}`} className="sa-mobile-card">
+                    <div className="sa-mobile-card-top">
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                        <div className="sa-mobile-avatar">
+                          {(c.name || c.email).charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px", wordBreak: "break-word" }}>
+                            {c.name}
+                          </div>
+                          <div style={{ fontFamily: "monospace", fontSize: "12px", color: "#475569", wordBreak: "break-all" }}>
+                            {c.email}
+                          </div>
+                          {c.phone && (
+                            <div style={{ fontSize: "12px", color: "#64748b" }}>{c.phone}</div>
+                          )}
+                        </div>
+                      </div>
+                      {c.status === "Active" ? (
+                        <span className="sa-badge-active">● Active</span>
+                      ) : (
+                        <span className="sa-badge-suspended">● Inactive</span>
+                      )}
+                    </div>
+
+                    <div className="sa-mobile-card-meta">
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#166534" }}>
+                        {c.bookingsCount} {c.bookingsCount === 1 ? "Booking" : "Bookings"}
+                      </span>
+                      <span style={{ fontSize: "11.5px", color: "#64748b", textTransform: "capitalize" }}>
+                        {c.authProvider} • {c.createdAt}
+                      </span>
+                    </div>
+
+                    <div className="sa-mobile-card-actions">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCustomerStatus(c)}
+                        className="sa-action-btn"
+                        style={{
+                          flex: 1,
+                          justifyContent: "center",
+                          color: c.status === "Active" ? "#b91c1c" : "#15803d",
+                        }}
+                      >
+                        {c.status === "Active" ? <UserX size={13} /> : <UserCheck size={13} />}
+                        <span>{c.status === "Active" ? "Deactivate" : "Activate"}</span>
+                      </button>
+                      {c.bookingsCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/admin/bookings?search=${encodeURIComponent(c.email || c.phone)}`)}
+                          className="sa-action-btn"
+                          style={{ flex: 1, justifyContent: "center", color: "#0369a1" }}
+                          title="View Customer Bookings"
+                        >
+                          <ExternalLink size={13} />
+                          <span>View Bookings</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="sa-table-wrapper sa-desktop-table">
               <table className="sa-table">
                 <thead>
                   <tr>

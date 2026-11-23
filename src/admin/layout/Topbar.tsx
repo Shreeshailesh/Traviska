@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Search, Bell, LogOut, Menu } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import logo from "../../assets/logo.jpg";
 
 interface TopbarProps {
   onToggleSidebar?: () => void;
@@ -55,6 +56,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
       >
         <Menu size={20} />
       </button>
+
+      {/* Mobile Compact Brand (hidden on desktop) */}
+      <Link to="/admin" className="admin-mobile-brand">
+        <img src={logo} alt="Traviska" className="admin-mobile-brand-logo" />
+        <span className="admin-mobile-brand-title">Traviska</span>
+      </Link>
 
       {/* Global Search Bar */}
       <div className="admin-search-wrapper">

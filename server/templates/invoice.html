@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice {{INVOICE_NUMBER}} — Traviska</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #ffffff;
+      color: #1e293b;
+      font-size: 12px;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .invoice-page {
+      max-width: 794px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 28px 32px;
+      border: 1px solid #e2e8f0;
+    }
+    .sample-banner {
+      background: #fef2f2;
+      border: 1.5px solid #dc2626;
+      color: #991b1b;
+      text-align: center;
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 18px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #114224;
+      margin-bottom: 18px;
+      gap: 20px;
+    }
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo {
+      width: 58px;
+      height: 58px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .brand-name {
+      font-size: 22px;
+      font-weight: 800;
+      color: #114224;
+      letter-spacing: 0.8px;
+    }
+    .brand-tagline {
+      font-size: 10.5px;
+      color: #475569;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    .company-right {
+      text-align: right;
+      font-size: 11px;
+      color: #334155;
+      line-height: 1.45;
+    }
+    .company-right .company-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .company-right .company-type {
+      font-size: 11px;
+      font-weight: 600;
+      color: #114224;
+      margin-bottom: 4px;
+    }
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      gap: 16px;
+    }
+    .invoice-title-wrap {
+      border-left: 4px solid #114224;
+      padding-left: 12px;
+    }
+    .invoice-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: #114224;
+      letter-spacing: 0.5px;
+      line-height: 1.1;
+    }
+    .invoice-subtitle {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-top: 3px;
+      font-weight: 500;
+    }
+    .invoice-meta-box {
+      display: flex;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+    .invoice-meta-cell {
+      padding: 8px 14px;
+    }
+    .invoice-meta-cell + .invoice-meta-cell {
+      border-left: 1px solid #cbd5e1;
+    }
+    .meta-label {
+      font-size: 10px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 600;
+    }
+    .meta-value {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 2px;
+    }
+    .two-col-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .info-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .info-card-header {
+      background: #114224;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 12px;
+    }
+    .info-card-body {
+      padding: 10px 12px;
+      font-size: 11.5px;
+    }
+    .info-row {
+      display: flex;
+      margin-bottom: 4px;
+    }
+    .info-row:last-child {
+      margin-bottom: 0;
+    }
+    .info-key {
+      width: 96px;
+      flex-shrink: 0;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .info-val {
+      color: #0f172a;
+      font-weight: 500;
+      word-break: break-word;
+    }
+    .customer-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    table.items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+      border: 1px solid #cbd5e1;
+    }
+    table.items-table thead tr {
+      background: #114224;
+      color: #ffffff;
+    }
+    table.items-table th {
+      padding: 8px 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-align: left;
+    }
+    table.items-table th.num,
+    table.items-table td.num {
+      text-align: right;
+    }
+    table.items-table td {
+      padding: 10px 12px;
+      border-top: 1px solid #e2e8f0;
+      vertical-align: top;
+      font-size: 11.5px;
+    }
+    .item-title {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .item-sub {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .lower-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: start;
+    }
+    .payment-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .payment-card-header {
+      background: #eef6f0;
+      color: #114224;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 7px 12px;
+      border-bottom: 1px solid #d1ddd5;
+    }
+    .payment-card-body {
+      padding: 10px 12px;
+      font-size: 11px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 10.5px;
+    }
+    .status-paid { background: #dcfce7; color: #166534; }
+    .status-partial { background: #fef3c7; color: #92400e; }
+    .status-pending { background: #e2e8f0; color: #334155; }
+    .status-failed { background: #fee2e2; color: #991b1b; }
+    .summary-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 12px;
+      font-size: 11.5px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .summary-row:last-child {
+      border-bottom: none;
+    }
+    .summary-row.highlight {
+      background: #eef6f0;
+      font-weight: 800;
+      font-size: 13px;
+      color: #114224;
+    }
+    .status-banner {
+      background: #eef6f0;
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: 11.5px;
+      color: #14532d;
+    }
+    .status-banner strong {
+      display: block;
+      font-size: 12.5px;
+      margin-bottom: 2px;
+    }
+    .notes-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      background: #f8fafc;
+      margin-bottom: 18px;
+    }
+    .notes-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 5px;
+    }
+    .notes-box ul {
+      padding-left: 16px;
+      font-size: 10.5px;
+      color: #475569;
+    }
+    .notes-box li {
+      margin-bottom: 2px;
+    }
+    .footer {
+      background: #114224;
+      color: #ffffff;
+      text-align: center;
+      padding: 11px 16px;
+      border-radius: 6px;
+    }
+    .footer-main {
+      font-size: 12.5px;
+      font-weight: 700;
+    }
+    .footer-sub {
+      font-size: 10.5px;
+      color: #bbf7d0;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-page">
+    {{SAMPLE_BANNER}}
+
+    <div class="header">
+      <div class="brand-left">
+        {{LOGO_IMG}}
+        <div>
+          <div class="brand-name">{{COMPANY_BRAND}}</div>
+          <div class="brand-tagline">{{COMPANY_TAGLINE}}</div>
+        </div>
+      </div>
+      <div class="company-right">
+        <div class="company-title">{{COMPANY_LEGAL_NAME}}</div>
+        <div class="company-type">{{COMPANY_TYPE}}</div>
+        <div>{{COMPANY_ADDRESS_LINE1}} {{COMPANY_ADDRESS_LINE2}}</div>
+        <div>{{COMPANY_ADDRESS_LINE3}}</div>
+        <div>{{COMPANY_EMAIL}} &bull; {{COMPANY_WEBSITE}}</div>
+        {{COMPANY_REG_LINES}}
+      </div>
+    </div>
+
+    <div class="title-row">
+      <div class="invoice-title-wrap">
+        <div class="invoice-title">{{INVOICE_TITLE}}</div>
+        <div class="invoice-subtitle">{{INVOICE_SUBTITLE}}</div>
+      </div>
+      <div class="invoice-meta-box">
+        <div class="invoice-meta-cell">
+          <div class="meta-label">Invoice No.</div>
+          <div class="meta-value">{{INVOICE_NUMBER}}</div>
+        </div>
+        <div class="invoice-meta-cell">
+          <div class="meta-label">Invoice Date</div>
+          <div class="meta-value">{{INVOICE_DATE}}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two-col-cards">
+      <div class="info-card">
+        <div class="info-card-header">Billed To</div>
+        <div class="info-card-body">
+          <div class="customer-name">{{CUSTOMER_NAME}}</div>
+          <div class="info-row"><span class="info-key">Email</span><span class="info-val">{{CUSTOMER_EMAIL}}</span></div>
+          {{CUSTOMER_PHONE_ROW}}
+          {{CUSTOMER_ADDRESS_ROW}}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-header">Booking Details</div>
+        <div class="info-card-body">
+          <div class="info-row"><span class="info-key">Booking ID</span><span class="info-val">{{BOOKING_ID}}</span></div>
+          <div class="info-row"><span class="info-key">Trip Name</span><span class="info-val">{{TRIP_NAME}}</span></div>
+          <div class="info-row"><span class="info-key">Duration</span><span class="info-val">{{TRIP_DURATION}}</span></div>
+          <div class="info-row"><span class="info-key">Travel Date</span><span class="info-val">{{TRAVEL_DATE}}</span></div>
+          <div class="info-row"><span class="info-key">Travellers</span><span class="info-val">{{TRAVELLERS}}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 60px;">Sl. No.</th>
+          <th>Description</th>
+          <th class="num" style="width: 140px;">Amount (INR)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{LINE_ITEMS_ROWS}}
+      </tbody>
+    </table>
+
+    <div class="lower-grid">
+      <div class="payment-card">
+        <div class="payment-card-header">Payment Information</div>
+        <div class="payment-card-body">
+          <div class="info-row"><span class="info-key">Payment Mode</span><span class="info-val">{{PAYMENT_MODE}}</span></div>
+          <div class="info-row"><span class="info-key">Reference</span><span class="info-val">{{PAYMENT_REFERENCE}}</span></div>
+          <div class="info-row"><span class="info-key">Payment Date</span><span class="info-val">{{PAYMENT_DATE}}</span></div>
+          <div class="info-row"><span class="info-key">Status</span><span class="info-val"><span class="status-badge {{STATUS_CLASS}}">{{PAYMENT_STATUS}}</span></span></div>
+        </div>
+      </div>
+
+      <div class="summary-box">
+        <div class="summary-row"><span>Subtotal</span><span>{{SUBTOTAL}}</span></div>
+        {{DISCOUNT_ROW}}
+        {{TAX_ROW}}
+        <div class="summary-row"><span>Total Payable</span><span>{{TOTAL_PAYABLE}}</span></div>
+        <div class="summary-row"><span>Amount Paid</span><span>{{AMOUNT_PAID}}</span></div>
+        {{REFUND_ROW}}
+        <div class="summary-row highlight"><span>{{BALANCE_LABEL}}</span><span>{{BALANCE_VALUE}}</span></div>
+      </div>
+    </div>
+
+    <div class="status-banner">
+      <strong>{{STATUS_BANNER_TITLE}}</strong>
+      <span>{{STATUS_BANNER_TEXT}}</span>
+    </div>
+
+    <div class="notes-box">
+      <div class="notes-title">Important Information</div>
+      <ul>
+        <li>This is a computer-generated invoice and does not require a physical signature.</li>
+        <li>This document is issued for travel and tourism services booked with Traviska.</li>
+        <li>For changes, cancellations, or refund requests, please refer to our policy at www.traviska.com.</li>
+        <li>For billing support, contact us at admin@traviska.com.</li>
+      </ul>
+    </div>
+
+    <div class="footer">
+      <div class="footer-main">Thank you for choosing Traviska!</div>
+      <div class="footer-sub">We look forward to travelling with you again.</div>
+    </div>
+  </div>
+</body>
+</html>
+

@@ -54,6 +54,7 @@ export const PickupLocations: React.FC = () => {
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -180,6 +181,7 @@ export const PickupLocations: React.FC = () => {
     } else {
       setPickups((prev) => [...prev, { ...form, order: prev.length }]);
     }
+    setHasUnsavedChanges(true);
     setShowModal(false);
   };
 
@@ -187,6 +189,7 @@ export const PickupLocations: React.FC = () => {
   const handleDelete = (index: number) => {
     if (window.confirm("Remove this pickup point from this trip?")) {
       setPickups((prev) => prev.filter((_, idx) => idx !== index));
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -197,6 +200,7 @@ export const PickupLocations: React.FC = () => {
         idx === index ? { ...item, isActive: !item.isActive } : item
       )
     );
+    setHasUnsavedChanges(true);
   };
 
   // Move Up / Down
@@ -207,6 +211,7 @@ export const PickupLocations: React.FC = () => {
     const [moved] = copy.splice(index, 1);
     copy.splice(target, 0, moved);
     setPickups(copy);
+    setHasUnsavedChanges(true);
   };
 
   // Date Overrides inside modal
@@ -260,6 +265,7 @@ export const PickupLocations: React.FC = () => {
       );
 
       if (data.success) {
+        setHasUnsavedChanges(false);
         setSaveSuccess(`Pickup locations permanently saved for ${selectedTrip?.title || "trip"}!`);
         if (Array.isArray(data.pickupLocations)) {
           setPickups(data.pickupLocations);
@@ -286,6 +292,7 @@ export const PickupLocations: React.FC = () => {
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Header & Trip Package Selector */}
       <div
+        className="pickup-header-card"
         style={{
           background: "#ffffff",
           border: "1px solid #e2e8f0",
@@ -294,17 +301,34 @@ export const PickupLocations: React.FC = () => {
           boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
         }}
       >
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+        <div className="pickup-header-top" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
           <div>
-            <h1 style={{ fontSize: "20px", fontWeight: 700, margin: 0, color: "#0f172a" }}>
-              Trip Pickup Locations Management
-            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <h1 style={{ fontSize: "20px", fontWeight: 700, margin: 0, color: "#0f172a" }}>
+                Trip Pickup Locations Management
+              </h1>
+              {hasUnsavedChanges && (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    background: "#fef3c7",
+                    color: "#92400e",
+                    border: "1px solid #fde68a",
+                    padding: "2px 8px",
+                    borderRadius: "999px",
+                  }}
+                >
+                  Unsaved changes
+                </span>
+              )}
+            </div>
             <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0" }}>
               Each trip owns its own pickup points. Customers select a boarding point during booking.
             </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="pickup-actions-row" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={handleOpenAdd}
@@ -352,6 +376,7 @@ export const PickupLocations: React.FC = () => {
 
         {/* Trip Selector Bar */}
         <div
+          className="pickup-trip-selector-row"
           style={{
             marginTop: "16px",
             paddingTop: "16px",
@@ -359,16 +384,21 @@ export const PickupLocations: React.FC = () => {
             display: "flex",
             alignItems: "center",
             gap: "12px",
+            flexWrap: "wrap",
           }}
         >
           <label style={{ fontSize: "13px", fontWeight: 600, color: "#334155", display: "flex", alignItems: "center", gap: "6px" }}>
             <Compass size={16} color="#166534" /> Select Trip Package:
           </label>
           <select
+            className="pickup-trip-select"
             value={selectedTripId}
-            onChange={(e) => setSelectedTripId(e.target.value)}
+            onChange={(e) => {
+              setSelectedTripId(e.target.value);
+              setHasUnsavedChanges(false);
+            }}
             style={{
-              padding: "7px 12px",
+              padding: "9px 12px",
               border: "1px solid #cbd5e1",
               borderRadius: "8px",
               fontSize: "13.5px",
@@ -472,7 +502,7 @@ export const PickupLocations: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: "16px" }}>
+        <div className="pickup-cards-grid">
           {pickups.map((pickup, idx) => (
             <div
               key={pickup._id || idx}

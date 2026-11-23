@@ -171,9 +171,97 @@ export const SuperAdminEmails: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="sa-card" style={{ padding: 0, overflow: "hidden" }}>
-        <div className="sa-table-wrapper">
+      {/* Table (Desktop) & Cards (Mobile) */}
+      <div className="sa-card sa-list-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="sa-mobile-cards">
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8", fontSize: "13px" }}>
+              Loading email identities...
+            </div>
+          ) : currentList.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8", fontSize: "13px" }}>
+              No accounts found in this category.
+            </div>
+          ) : (
+            currentList.map((item) => (
+              <div key={`mob-email-${item._id}`} className="sa-mobile-card">
+                <div className="sa-mobile-card-top">
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: "monospace", fontSize: "13px", fontWeight: 700, color: "#0f172a", wordBreak: "break-all" }}>
+                      {item.email}
+                    </div>
+                    <div style={{ fontSize: "12.5px", color: "#475569", marginTop: "2px" }}>
+                      Assigned: <strong>{item.name}</strong>
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      flexShrink: 0,
+                      background: item.role === "super_admin" ? "#fef3c7" : "#dcfce7",
+                      color: item.role === "super_admin" ? "#b45309" : "#166534",
+                    }}
+                  >
+                    {item.role === "super_admin"
+                      ? "CEO / Super Admin"
+                      : item.role === "admin"
+                      ? "Admin"
+                      : item.role === "sales_lead"
+                      ? "Sales Lead"
+                      : item.role === "sales_executive"
+                      ? "Sales Executive"
+                      : item.role}
+                  </span>
+                </div>
+
+                <div className="sa-mobile-card-meta">
+                  {item.status === "Active" ? (
+                    <span className="sa-badge-active">● Active</span>
+                  ) : item.status === "Pending" ? (
+                    <span className="sa-badge-invited">● Pending Invite</span>
+                  ) : (
+                    <span className="sa-badge-suspended">● {item.status}</span>
+                  )}
+                  <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                    {item.teamName ? `${item.teamName} • ` : ""}
+                    {item.invitedOn
+                      ? new Date(item.invitedOn).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                      : item.createdAt
+                      ? new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                      : "—"}
+                  </span>
+                </div>
+
+                {tab === "pending" && (
+                  <div className="sa-mobile-card-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleResend(item._id)}
+                      className="sa-action-btn"
+                      style={{ flex: 1, justifyContent: "center", background: "#f0fdf4", color: "#166534", borderColor: "#bbf7d0" }}
+                    >
+                      <Send size={12} />
+                      <span>Resend</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRevoke(item._id, item.email)}
+                      className="sa-action-btn"
+                      style={{ flex: 1, justifyContent: "center", background: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" }}
+                    >
+                      <span>Revoke</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="sa-table-wrapper sa-desktop-table">
           <table className="sa-table">
           <thead>
             <tr>

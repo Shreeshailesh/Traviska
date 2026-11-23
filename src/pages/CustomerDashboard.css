@@ -1133,15 +1133,18 @@
   }
 
   /* =========================================================
-     GRID: Card 1 and Card 2 are SIDE-BY-SIDE in Row 1!
-     Card 3 is full-width in Row 2!
+     GRID: Stack cleanly on mobile (< 768px) so cards are full-width
      ========================================================= */
   .dash-grid {
     display: grid;
-    grid-template-columns: 38% 1fr;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
     align-items: stretch;
     margin-bottom: 20px;
+  }
+
+  .dash-card-bookings {
+    grid-column: 1 / -1;
   }
 
   /* Card 1: User Profile Badge (Left Column) */
@@ -1410,33 +1413,34 @@
   }
 
   .dash-grid {
-    grid-template-columns: 37% 1fr;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 
   .dash-card-user {
-    padding: 14px 6px 12px;
+    padding: 20px 16px;
   }
 
   .dash-avatar-container {
-    width: 62px;
-    height: 62px;
+    width: 72px;
+    height: 72px;
   }
 
   .dash-user-name {
-    font-size: 13px;
+    font-size: 16px;
   }
 
   .dash-card-profile {
-    padding: 14px 10px;
+    padding: 16px 14px;
   }
 
   .dash-row-value {
-    font-size: 11.5px;
+    font-size: 13px;
+    word-break: break-word;
   }
 
   .dash-row-value-email {
-    font-size: 11px;
-    letter-spacing: -0.2px;
+    font-size: 12.5px;
+    word-break: break-all;
   }
 }

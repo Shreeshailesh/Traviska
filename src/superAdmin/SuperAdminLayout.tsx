@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.jpg";
 import {
   LayoutDashboard,
@@ -20,6 +20,25 @@ export const SuperAdminLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [mobileMenuOpen]);
 
   const user = getSuperAdminUser();
   const userName = user?.name || "Shailesh";
@@ -87,7 +106,7 @@ export const SuperAdminLayout: React.FC = () => {
           })}
         </nav>
 
-        <div style={{ padding: "16px 14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ padding: "16px 14px", borderTop: "1px solid rgba(255,255,255,0.08)", position: "relative", zIndex: 2 }}>
           <button
             onClick={handleLogout}
             style={{
@@ -114,8 +133,42 @@ export const SuperAdminLayout: React.FC = () => {
       {/* Main Container */}
       <div className="sa-main">
         {/* Topbar */}
-        <header className="sa-topbar">
-          <div>
+        <header className="sa-topbar sa-topbar-with-mountains">
+          <svg
+            className="sa-topbar-mountain-bg"
+            viewBox="0 0 1200 180"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="saMountGrad1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#166534" stopOpacity="0.16" />
+                <stop offset="100%" stopColor="#166534" stopOpacity="0.02" />
+              </linearGradient>
+              <linearGradient id="saMountGrad2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#0e3820" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#0e3820" stopOpacity="0.03" />
+              </linearGradient>
+            </defs>
+            <path d="M520 180 L680 78 L810 132 L960 42 L1110 112 L1200 68 L1200 180 Z" fill="url(#saMountGrad1)" />
+            <path d="M640 180 L790 96 L920 144 L1065 62 L1200 128 L1200 180 Z" fill="url(#saMountGrad2)" />
+          </svg>
+          <div className="sa-topbar-mobile-left">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="sa-bell-btn sa-mobile-toggle-btn"
+              aria-label="Toggle Navigation"
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <div className="sa-mobile-brand">
+              <img src={logo} alt="Traviska" className="sa-mobile-brand-logo" />
+              <span className="sa-mobile-brand-text">TRAVISKA</span>
+            </div>
+          </div>
+
+          <div className="sa-topbar-desktop-title">
             <div className="sa-title-bar-label">SUPER ADMIN PORTAL</div>
             <h1 className="sa-welcome-title">
               Welcome back, <em>{userName}</em>!
@@ -126,15 +179,6 @@ export const SuperAdminLayout: React.FC = () => {
           </div>
 
           <div className="sa-topbar-right">
-            {/* Mobile menu toggle */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="sa-bell-btn sa-mobile-toggle-btn"
-              aria-label="Toggle Navigation"
-            >
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
 
             {/* Notification Bell */}
             <button className="sa-bell-btn" title="System Notifications">
@@ -220,6 +264,47 @@ export const SuperAdminLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+      {/* Mobile Bottom Navigation (<= 768px only) */}
+      <nav className="sa-mobile-bottom-nav" aria-label="Super Admin Mobile Navigation">
+        <NavLink
+          to="/super-admin"
+          end
+          className={({ isActive }) => `sa-mobile-bottom-item ${isActive ? "active" : ""}`}
+        >
+          <LayoutDashboard size={19} />
+          <span>Dashboard</span>
+        </NavLink>
+        <NavLink
+          to="/super-admin/users"
+          className={({ isActive }) => `sa-mobile-bottom-item ${isActive ? "active" : ""}`}
+        >
+          <Users size={19} />
+          <span>Users</span>
+        </NavLink>
+        <NavLink
+          to="/super-admin/teams"
+          className={({ isActive }) => `sa-mobile-bottom-item ${isActive ? "active" : ""}`}
+        >
+          <Briefcase size={19} />
+          <span>Teams</span>
+        </NavLink>
+        <NavLink
+          to="/super-admin/emails"
+          className={({ isActive }) => `sa-mobile-bottom-item ${isActive ? "active" : ""}`}
+        >
+          <Mail size={19} />
+          <span>Emails</span>
+        </NavLink>
+        <button
+          type="button"
+          className={`sa-mobile-bottom-item ${mobileMenuOpen ? "active" : ""}`}
+          onClick={() => setMobileMenuOpen(true)}
+          aria-label="More Super Admin Options"
+        >
+          <Menu size={19} />
+          <span>More</span>
+        </button>
+      </nav>
     </div>
   );
 };

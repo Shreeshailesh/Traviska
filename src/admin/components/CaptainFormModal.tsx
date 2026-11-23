@@ -187,12 +187,14 @@ export const CaptainFormModal: React.FC<CaptainFormModalProps> = ({
       }}
     >
       <div
+        className="captain-modal-card"
         style={{
           width: "100%",
           maxWidth: "680px",
+          maxHeight: "92vh",
+          overflowY: "auto",
           background: "#ffffff",
           borderRadius: "16px",
-          overflow: "hidden",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)",
           display: "flex",
           flexDirection: "column",

@@ -66,10 +66,10 @@ export const TrendChart: React.FC<TrendChartProps> = ({ data, height = 240, show
   const barWidth = Math.max(6, Math.min(24, (chartWidth / data.length) * 0.45));
 
   return (
-    <div style={{ width: "100%", position: "relative" }}>
+    <div style={{ width: "100%", maxWidth: "100%", position: "relative", overflow: "hidden" }}>
       <svg
         viewBox={`0 0 ${svgWidth} ${height}`}
-        style={{ width: "100%", height: "auto", overflow: "visible" }}
+        style={{ width: "100%", height: "auto", display: "block" }}
       >
         {/* Horizontal Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
@@ -287,11 +287,14 @@ export const DestinationDonut: React.FC<DestinationDonutProps> = ({
 
   return (
     <div
+      className="admin-donut-layout"
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: "24px",
+        gap: "20px",
+        width: "100%",
+        maxWidth: "100%",
       }}
     >
       {/* SVG Donut */}
@@ -412,7 +415,8 @@ export const DestinationDonut: React.FC<DestinationDonutProps> = ({
                   fontWeight: 500,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
                 }}
               >
                 {slice.name} – {slice.percentage}%

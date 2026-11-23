@@ -692,16 +692,21 @@ export const CaptainHistory: React.FC = () => {
 
           {/* Requirement 2: Complete Captain Trip History Section */}
           <div
+            className="captain-history-card"
             style={{
               background: "#ffffff",
               borderRadius: "16px",
               border: "1px solid #e7ecf0",
               boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
               overflow: "hidden",
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
             }}
           >
             {/* History Section Title & 4 Tabs */}
             <div
+              className="captain-history-header"
               style={{
                 padding: "20px 24px 0 24px",
                 borderBottom: "1px solid #e2e8f0",
@@ -712,7 +717,7 @@ export const CaptainHistory: React.FC = () => {
                 gap: "14px",
               }}
             >
-              <div>
+              <div style={{ minWidth: 0, maxWidth: "100%" }}>
                 <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#0f172a" }}>
                   Captain Trip History
                 </h2>
@@ -722,7 +727,10 @@ export const CaptainHistory: React.FC = () => {
               </div>
 
               {/* 4 Tabs: All Trips, Completed Trips, Upcoming Trips, Cancelled Assignments */}
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", overflowX: "auto" }}>
+              <div
+                className="captain-history-tabs"
+                style={{ display: "flex", alignItems: "center", gap: "6px", overflowX: "auto", maxWidth: "100%", width: "100%", WebkitOverflowScrolling: "touch" }}
+              >
                 {[
                   { id: "all", label: "All Trips", count: stats.totalTrips },
                   { id: "completed", label: "Completed Trips", count: stats.completedTrips },
@@ -769,8 +777,100 @@ export const CaptainHistory: React.FC = () => {
               </div>
             </div>
 
-            {/* Trip History Table */}
-            <div className="admin-table-container">
+            {/* Mobile Trip History Cards (<= 768px) */}
+            <div className="captain-history-mobile-cards">
+              {filteredHistory.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "36px 16px", color: "#64748b" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                    <Calendar size={28} color="#94a3b8" />
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#334155" }}>
+                      No {activeTab === "all" ? "" : activeTab} trips found
+                    </span>
+                    <span style={{ fontSize: "12.5px", color: "#94a3b8" }}>
+                      {activeTab === "completed"
+                        ? "Trips only appear here when explicitly marked Completed by the admin."
+                        : "No assignment records currently match this filter."}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                filteredHistory.map((item) => {
+                  const itemRoleInfo = getRoleBadge(item.role);
+                  const statusInfo = getStatusBadge(item.status);
+                  const formattedDate = item.departureDate
+                    ? new Date(item.departureDate).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Date to be scheduled";
+
+                  return (
+                    <div key={`mob-${item.id}`} className="captain-history-mobile-item">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px", wordBreak: "break-word" }}>
+                            {item.tripTitle}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                            {item.destination} • {item.duration}
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            background: statusInfo.bg,
+                            color: statusInfo.color,
+                            border: `1px solid ${statusInfo.border}`,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {statusInfo.label}
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", fontSize: "12px", color: "#475569", alignItems: "center" }}>
+                        <span>📅 {formattedDate}</span>
+                        <span>•</span>
+                        <span>👥 {item.bookedCustomers} travellers</span>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 7px",
+                            borderRadius: "6px",
+                            background: itemRoleInfo.bg,
+                            color: itemRoleInfo.color,
+                            border: itemRoleInfo.border,
+                          }}
+                        >
+                          {itemRoleInfo.icon} {itemRoleInfo.label}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTripDetails(item.slotId)}
+                        className="admin-btn admin-btn-secondary"
+                        style={{ width: "100%", minHeight: "38px", justifyContent: "center" }}
+                      >
+                        View Trip Details
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Trip History Table (Desktop) */}
+            <div className="admin-table-container captain-history-desktop-table">
               <table className="admin-table">
                 <thead>
                   <tr>

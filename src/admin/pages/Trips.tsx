@@ -1053,6 +1053,7 @@ export const Trips: React.FC = () => {
       {activeTab === "packages" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div
+            className="trips-toolbar-card"
             style={{
               background: "#ffffff",
               border: "1px solid #e7ecf0",
@@ -1062,9 +1063,10 @@ export const Trips: React.FC = () => {
               alignItems: "center",
               justifyContent: "space-between",
               gap: "16px",
+              flexWrap: "wrap",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div className="trips-toolbar-left" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <Mountain size={20} color="#166534" />
               <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>
                 Trip Packages ({trips.length})
@@ -1074,8 +1076,8 @@ export const Trips: React.FC = () => {
               </span>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ position: "relative", width: "280px" }}>
+            <div className="trips-toolbar-actions" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <div className="trips-search-box" style={{ position: "relative", width: "280px" }}>
                 <Search
                   size={15}
                   style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}

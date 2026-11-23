@@ -830,8 +830,8 @@ export const Bookings: React.FC = () => {
   // Manual booking submission
   const handleCreateManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualCustomerName.trim() || !manualCustomerPhone.trim()) {
-      alert("Customer name and phone are required");
+    if (!manualCustomerName.trim() || !manualCustomerPhone.trim() || !manualCustomerEmail.trim()) {
+      alert("Customer name, phone, and email are required");
       return;
     }
     if (!manualSlotId) {
@@ -913,7 +913,7 @@ export const Bookings: React.FC = () => {
           <p>View bookings trip-wise, manage customers, reschedule or cancel bookings.</p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div className="bookings-header-actions" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <button
             type="button"
             className="admin-btn admin-btn-secondary"
@@ -1217,7 +1217,7 @@ export const Bookings: React.FC = () => {
                 </button>
 
                 {/* Seats Booked Badge & More Options */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <div className="bookings-hero-badge">
                     <span className="bookings-hero-badge-count">
                       {selectedSlot
@@ -1227,6 +1227,29 @@ export const Bookings: React.FC = () => {
                     <span className="bookings-hero-badge-label">
                       {selectedSlot ? "Seats Booked" : "Total Trip Seats Booked"}
                     </span>
+                    {(() => {
+                      const bookedVal = selectedSlot ? selectedSlot.bookedSlots : selectedTrip.totalBooked;
+                      const capVal = selectedSlot ? selectedSlot.totalSlots : selectedTrip.totalCapacity;
+                      if (capVal > 0 && bookedVal > capVal) {
+                        return (
+                          <span
+                            style={{
+                              marginTop: "4px",
+                              fontSize: "10.5px",
+                              fontWeight: 700,
+                              color: "#991b1b",
+                              background: "#fee2e2",
+                              border: "1px solid #fecaca",
+                              borderRadius: "999px",
+                              padding: "2px 8px",
+                            }}
+                          >
+                            Overbooked (+{bookedVal - capVal})
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   <button
@@ -1376,7 +1399,139 @@ export const Bookings: React.FC = () => {
               </div>
             )}
 
-            <div className="admin-table-container">
+            {/* Mobile Booking Cards (<= 768px) */}
+            <div className="bookings-mobile-cards">
+              {bookingsLoading ? (
+                <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} style={{ height: "110px", borderRadius: "12px", background: "#f1f5f9" }} />
+                  ))}
+                </div>
+              ) : paginatedBookings.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "36px 16px" }}>
+                  <FileText size={30} color="#cbd5e1" style={{ margin: "0 auto 8px" }} />
+                  <p style={{ margin: 0, fontWeight: 600, color: "#475569", fontSize: "14px" }}>
+                    No bookings found
+                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#94a3b8" }}>
+                    {activeTab === "cancelled"
+                      ? "No cancelled bookings for this selection."
+                      : activeTab === "rescheduled"
+                      ? "No rescheduled bookings for this selection."
+                      : "No customers have booked this departure yet."}
+                  </p>
+                </div>
+              ) : (
+                paginatedBookings.map((b) => {
+                  const isSelected = selectedRowIds.includes(b._id);
+                  return (
+                    <div
+                      key={`mob-${b._id}`}
+                      className="booking-mobile-card"
+                      style={{ background: isSelected ? "#f8faf8" : "#ffffff" }}
+                    >
+                      <div className="booking-mobile-card-header" onClick={() => setViewingBooking(b)}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={() => handleToggleRow(b._id)}
+                            aria-label={`Select booking ${b.bookingCode}`}
+                          />
+                          <span className="booking-code-badge">{b.bookingCode}</span>
+                        </div>
+                        <StatusBadge status={b.paymentStatus} />
+                      </div>
+
+                      <div className="booking-mobile-card-body" onClick={() => setViewingBooking(b)}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: "14.5px", color: "#0f172a", wordBreak: "break-word" }}>
+                              {b.name}
+                            </div>
+                            <div style={{ fontSize: "12.5px", color: "#475569", marginTop: "2px" }}>
+                              {b.phone}
+                            </div>
+                          </div>
+                          <div style={{ fontWeight: 700, fontSize: "15px", color: "#0d2b17", flexShrink: 0 }}>
+                            ₹{b.amount.toLocaleString("en-IN")}
+                          </div>
+                        </div>
+
+                        <div className="booking-mobile-card-meta">
+                          <span>📅 {b.date || "—"}</span>
+                          <span>•</span>
+                          <span>👥 {b.travellers} {b.travellers === 1 ? "Traveller" : "Travellers"}</span>
+                          <span>•</span>
+                          <span>📍 {b.pickupLocation || "—"}</span>
+                        </div>
+                      </div>
+
+                      <div className="booking-mobile-card-actions">
+                        {b.phone && b.phone !== "-" && (
+                          <a
+                            href={`tel:${b.phone}`}
+                            className="booking-action-btn"
+                            style={{ textDecoration: "none", color: "#0f172a" }}
+                          >
+                            <Phone size={13} />
+                            <span>Call</span>
+                          </a>
+                        )}
+                        {b.status !== "Cancelled" && (
+                          <button
+                            type="button"
+                            className="booking-action-btn whatsapp"
+                            onClick={() => handleSendWhatsApp(b)}
+                          >
+                            <MessageCircle size={13} color="#15803d" />
+                            <span>WhatsApp</span>
+                          </button>
+                        )}
+                        {b.status !== "Cancelled" && (
+                          <button
+                            type="button"
+                            className="booking-action-btn reschedule"
+                            onClick={() => {
+                              setRescheduleBooking(b);
+                              if (selectedSlotId) setTargetRescheduleSlotId("");
+                            }}
+                          >
+                            <Calendar size={13} />
+                            <span>Reschedule</span>
+                          </button>
+                        )}
+                        {b.status !== "Cancelled" && (
+                          <button
+                            type="button"
+                            className="booking-action-btn cancel"
+                            onClick={() => {
+                              setCancelBooking(b);
+                              setCancelReason("Customer Request");
+                              setCancelNotes("");
+                            }}
+                          >
+                            <X size={13} />
+                            <span>Cancel</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="booking-action-btn"
+                          onClick={() => setViewingBooking(b)}
+                        >
+                          <Eye size={13} />
+                          <span>Details</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="admin-table-container bookings-desktop-table">
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -2380,10 +2535,11 @@ export const Bookings: React.FC = () => {
 
             <div>
               <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
-                Email (Optional)
+                Email Address *
               </label>
               <input
                 type="email"
+                required
                 placeholder="e.g. kushal@example.com"
                 value={manualCustomerEmail}
                 onChange={(e) => setManualCustomerEmail(e.target.value)}
@@ -2798,7 +2954,7 @@ export const Bookings: React.FC = () => {
                         background: isSent ? "#f0fdf4" : isUpNext ? "#fffbeb" : "#ffffff",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div className="bookings-header-actions" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                         <div
                           style={{
                             width: "30px",

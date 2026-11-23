@@ -24,18 +24,41 @@ import Login from "./pages/Login";
 import CustomerLogin from "./pages/CustomerLogin";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import ProtectedCustomer from "./components/ProtectedCustomer";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 
 import { CaptainAuthProvider } from "./captain/CaptainAuthContext";
 import { SalesAuthProvider } from "./sales/SalesAuthContext";
+
+// Auto-reload once if a lazy chunk fails to fetch after a new deployment
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    const storageKey = "traviska_chunk_reload_attempted";
+    try {
+      const mod = await factory();
+      sessionStorage.removeItem(storageKey);
+      return mod;
+    } catch (err) {
+      const alreadyReloaded = sessionStorage.getItem(storageKey) === "1";
+      if (!alreadyReloaded) {
+        sessionStorage.setItem(storageKey, "1");
+        window.location.reload();
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    }
+  });
+}
 
 // Staff portals (admin, captain, sales, super admin) are code-split so public
 // visitors don't download them before the home page / trips can load.
 const named = <T extends Record<string, any>>(
   loader: () => Promise<T>,
   key: keyof T
-) => lazy(() => loader().then((m) => ({ default: m[key] })));
+) => lazyWithRetry(() => loader().then((m) => ({ default: m[key] })));
 
-const ProtectedAdmin = lazy(() => import("./components/ProtectedAdmin"));
+const ProtectedAdmin = lazyWithRetry(() => import("./components/ProtectedAdmin"));
 
 const CaptainLayout = lazy(() => import("./captain/CaptainLayout"));
 const CaptainLogin = lazy(() => import("./captain/CaptainLogin"));
@@ -116,7 +139,26 @@ function AppContent() {
       )}
       {!hidePublicChrome && <Navbar />}
 
-     <Suspense fallback={null}>
+     <RouteErrorBoundary>
+     <Suspense
+       fallback={
+         <div
+           style={{
+             minHeight: "100vh",
+             display: "flex",
+             alignItems: "center",
+             justifyContent: "center",
+             background: "#f4f6f8",
+             color: "#166534",
+             fontFamily: "system-ui, sans-serif",
+             fontSize: "14px",
+             fontWeight: 600,
+           }}
+         >
+           Loading Traviska...
+         </div>
+       }
+     >
      <Routes>
   <Route path="/" element={<Home />} />
   <Route path="/trips" element={<Trips />} />
@@ -138,6 +180,7 @@ function AppContent() {
   <Route path="/admin/trips" element={<ProtectedAdmin />} />
   <Route path="/admin/sections" element={<ProtectedAdmin />} />
   <Route path="/admin/customers" element={<ProtectedAdmin />} />
+  <Route path="/admin/invoices" element={<ProtectedAdmin />} />
   <Route path="/admin/operations" element={<ProtectedAdmin />} />
   <Route path="/admin/operations/*" element={<ProtectedAdmin />} />
   <Route path="/admin/reports" element={<ProtectedAdmin />} />
@@ -231,6 +274,7 @@ function AppContent() {
   <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
 </Routes>
      </Suspense>
+     </RouteErrorBoundary>
 
       {!hidePublicChrome && <Footer />}
 

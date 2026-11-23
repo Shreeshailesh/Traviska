@@ -27,23 +27,51 @@ export const SalesAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Check for sales token or admin token in localStorage
-    const storedToken = localStorage.getItem("sales_token") || localStorage.getItem("token");
-    const storedUser = localStorage.getItem("sales_user");
+    let cancelled = false;
 
-    if (storedToken) {
-      setToken(storedToken);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch {
-          setUser(null);
+    const initAuth = async () => {
+      // Check for sales token or admin token in localStorage
+      const storedToken = localStorage.getItem("sales_token") || localStorage.getItem("token");
+      const storedUser = localStorage.getItem("sales_user");
+
+      if (storedToken) {
+        if (!cancelled) setToken(storedToken);
+        if (storedUser) {
+          try {
+            if (!cancelled) setUser(JSON.parse(storedUser));
+          } catch {
+            if (!cancelled) setUser(null);
+          }
+        } else if (localStorage.getItem("isAdmin") === "true") {
+          try {
+            const res = await axios.get(`${API_BASE_URL}/admin/verify`, {
+              headers: { Authorization: `Bearer ${storedToken}` },
+              timeout: 4000,
+            });
+            if (!cancelled && res.data?.success !== false) {
+              setUser({
+                id: res.data?.user?._id || "admin-user",
+                name: res.data?.user?.name || "Admin User",
+                email: res.data?.user?.email || "admin@traviska.com",
+                role: "admin",
+                department: "Executive Management",
+              });
+            }
+          } catch {
+            if (!cancelled) setUser(null);
+          }
+        } else {
+          if (!cancelled) setUser(null);
         }
-      } else {
-        setUser(null);
       }
-    }
-    setIsLoading(false);
+      if (!cancelled) setIsLoading(false);
+    };
+
+    initAuth();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (email: string, pass: string) => {

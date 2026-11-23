@@ -82,25 +82,38 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="settings-page">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">System Settings</h1>
-          <p className="text-sm text-gray-500 mt-1">
+      <div className="admin-page-header">
+        <div className="admin-page-title-box">
+          <h1>System Settings</h1>
+          <p>
             Configure company information, administrative access, booking policies and operations.
           </p>
         </div>
         {savedAlert && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-medium border border-emerald-200">
-            <CheckCircle2 className="w-4 h-4" />
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 14px",
+              borderRadius: "10px",
+              background: "#ecfdf5",
+              color: "#166534",
+              fontSize: "13px",
+              fontWeight: 600,
+              border: "1px solid #bbf7d0",
+            }}
+          >
+            <CheckCircle2 size={16} />
             Changes saved successfully!
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-gray-200 overflow-x-auto pb-px">
+      <div className="settings-tabs-bar">
         {[
           { id: "company", label: "Company Profile", icon: Building2 },
           { id: "admins", label: "Admin Users & Roles", icon: Users },
@@ -113,25 +126,22 @@ export const SettingsPage: React.FC = () => {
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                isActive
-                  ? "border-[#0d2b17] text-[#0d2b17]"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`settings-tab-btn ${isActive ? "active" : ""}`}
             >
-              <Icon className="w-4 h-4" />
-              {tab.label}
+              <Icon size={16} />
+              <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
       {/* Tab Panels */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div className="settings-panel-card">
         {activeTab === "company" && (
-          <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form onSubmit={handleSave}>
+            <div className="settings-form-grid">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Legal Company Name</label>
                 <input
@@ -192,24 +202,20 @@ export const SettingsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Registered Address</label>
+              <div className="settings-form-full">
+                <label>Registered Address</label>
                 <textarea
                   rows={3}
                   value={company.registeredAddress}
                   onChange={(e) => setCompany({ ...company, registeredAddress: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#0d2b17]"
                 />
               </div>
             </div>
 
-            <div className="pt-4 border-t border-gray-200 flex justify-end">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0d2b17] text-white text-sm font-medium hover:bg-[#143e22] transition-colors shadow-sm"
-              >
-                <Save className="w-4 h-4" />
-                Save Company Profile
+            <div className="settings-form-footer">
+              <button type="submit" className="settings-save-btn">
+                <Save size={16} />
+                <span>Save Company Profile</span>
               </button>
             </div>
           </form>

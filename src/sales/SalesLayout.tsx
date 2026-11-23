@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useSalesAuth } from "./SalesAuthContext";
 import SalesSidebar from "./SalesSidebar";
 import SalesTopbar from "./SalesTopbar";
@@ -7,7 +7,6 @@ import "../admin/admin.css";
 
 export const SalesLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useSalesAuth();
-  const navigate = useNavigate();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   if (isLoading) {
@@ -19,8 +18,7 @@ export const SalesLayout: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    navigate("/sales/login", { replace: true });
-    return null;
+    return <Navigate to="/sales/login" replace />;
   }
 
   return (

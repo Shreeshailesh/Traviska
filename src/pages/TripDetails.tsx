@@ -331,44 +331,7 @@ function TripDetails() {
 
   const activeDot = carouselIndex % pages.length;
 
-  if (loading) {
-    return (
-      <div className="trip-loading-view">
-        <SEO
-          title="Loading Journey... | Traviska"
-          description="Curated group trip with Traviska. View itinerary, inclusions, and book your journey."
-          robots="noindex, follow"
-        />
-        <div className="trip-spinner" />
-        <p>Loading journey details...</p>
-      </div>
-    );
-  }
-
-  if (loadError || !trip) {
-    return (
-      <div className="trip-error-view">
-        <SEO
-          title="Trip Not Found | Traviska"
-          description="The requested trip package could not be found or is no longer available. Explore our upcoming weekend trips and getaways from Bangalore."
-          robots="noindex, follow"
-        />
-        <h2>{loadError || "Trip not found"}</h2>
-        <Link to="/trips" className="trip-back-btn" style={{ textDecoration: "none" }}>
-          Back to Trips
-        </Link>
-      </div>
-    );
-  }
-
-  // Calculate pricing
-  const unitPrice = Number(trip.price || 0);
-  const totalPrice = unitPrice * travellers;
-
-  // Selected slot details
-  const selectedSlotData = slots.find((s) => s._id === selectedSlot);
-
-  // Dynamic SEO metadata based on actual MongoDB trip data
+  // Dynamic SEO metadata based on actual MongoDB trip data (must run before early returns to satisfy Rules of Hooks)
   const tripTitle = (() => {
     if (!trip?.title) return "Trip Details | Traviska";
     const parts: string[] = [trip.title.trim()];
@@ -462,6 +425,43 @@ function TripDetails() {
       }
     ];
   }, [trip, tripDescription]);
+
+  if (loading) {
+    return (
+      <div className="trip-loading-view">
+        <SEO
+          title="Loading Journey... | Traviska"
+          description="Curated group trip with Traviska. View itinerary, inclusions, and book your journey."
+          robots="noindex, follow"
+        />
+        <div className="trip-spinner" />
+        <p>Loading journey details...</p>
+      </div>
+    );
+  }
+
+  if (loadError || !trip) {
+    return (
+      <div className="trip-error-view">
+        <SEO
+          title="Trip Not Found | Traviska"
+          description="The requested trip package could not be found or is no longer available. Explore our upcoming weekend trips and getaways from Bangalore."
+          robots="noindex, follow"
+        />
+        <h2>{loadError || "Trip not found"}</h2>
+        <Link to="/trips" className="trip-back-btn" style={{ textDecoration: "none" }}>
+          Back to Trips
+        </Link>
+      </div>
+    );
+  }
+
+  // Calculate pricing
+  const unitPrice = Number(trip.price || 0);
+  const totalPrice = unitPrice * travellers;
+
+  // Selected slot details
+  const selectedSlotData = slots.find((s) => s._id === selectedSlot);
 
   return (
     <div className="trip-details-page-wrap">

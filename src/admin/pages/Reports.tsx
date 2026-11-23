@@ -3,13 +3,11 @@ import axios from "axios";
 import {
   Download,
   Calendar,
-  IndianRupee,
   Users,
   Receipt,
   BarChart3,
   Sparkles,
   MapPin,
-  ArrowUpRight,
   RefreshCw,
   Loader2,
 } from "lucide-react";
@@ -26,12 +24,6 @@ interface DeparturePerformanceRow {
   seatsCapacity: number;
   bookedSeats: number;
   occupancy: number;
-  grossRevenue: string;
-  grossRaw: number;
-  captainPayouts: string;
-  payoutsRaw: number;
-  netMargin: string;
-  marginPct: string;
 }
 
 export const ReportsPage: React.FC = () => {
@@ -85,12 +77,12 @@ export const ReportsPage: React.FC = () => {
     fetchReportsData();
   }, [dateRange]);
 
-  // Unified KPI calculations from live data
+  // Unified KPI calculations from live operational data (no revenue exposed in Admin Portal)
   const kpis = useMemo(() => {
     const rawKpis = dashboardData?.kpis;
-    const revenue = Number(rawKpis?.revenue) || 0;
-    const revenueChange = rawKpis?.revenueChange || "+0%";
-    const isRevenuePositive = !String(revenueChange).startsWith("-");
+    const totalBookings = Number(rawKpis?.totalBookings) || 0;
+    const paidBookings = Number(rawKpis?.paidBookings) || 0;
+    const pendingBookings = Number(rawKpis?.pendingBookings) || 0;
     const travellers = Number(rawKpis?.travellers) || 0;
     const activeDepartures = Number(rawKpis?.activeDeparturesInPeriod) || 0;
 
@@ -101,9 +93,9 @@ export const ReportsPage: React.FC = () => {
     let totalCapacity = 0;
     if (overviewData?.trips && Array.isArray(overviewData.trips)) {
       overviewData.trips.forEach((t: any) => {
-        if (Array.isArray(t.departures)) {
+        if (t && Array.isArray(t.departures)) {
           t.departures.forEach((d: any) => {
-            totalCapacity += Number(d.totalSlots) || 0;
+            totalCapacity += Number(d?.totalSlots) || 0;
           });
         }
       });
@@ -115,32 +107,34 @@ export const ReportsPage: React.FC = () => {
     // Trend points
     const rawTrend = dashboardData?.trend;
     const trend = Array.isArray(rawTrend)
-      ? rawTrend.map((t: any) => ({
-          date: t.date || "",
-          label: t.label || t.date || "",
-          revenue: Number(t.revenue) || 0,
-          bookings: Number(t.bookings) || 0,
-        }))
+      ? rawTrend
+          .filter((t: any) => t && typeof t === "object")
+          .map((t: any) => ({
+            date: String(t.date || ""),
+            label: String(t.label || t.date || ""),
+            revenue: Number(t.revenue) || 0,
+            bookings: Number(t.bookings) || 0,
+          }))
       : [];
 
     // Destinations breakdown
     const rawDestinations = dashboardData?.destinations;
     const destinations = Array.isArray(rawDestinations)
-      ? rawDestinations.map((d: any) => ({
-          name: d.name || d.destination || "Other",
-          count: Number(d.count || d.bookings) || 0,
-          percentage: Number(d.percentage) || 0,
-          color: d.color,
-        }))
+      ? rawDestinations
+          .filter((d: any) => d && typeof d === "object")
+          .map((d: any) => ({
+            name: String(d.name || d.destination || "Other"),
+            count: Number(d.count || d.bookings) || 0,
+            percentage: Number(d.percentage) || 0,
+            color: typeof d.color === "string" ? d.color : undefined,
+          }))
       : [];
 
     const topDest = destinations[0] || null;
 
     return {
-      revenue: `₹${revenue.toLocaleString("en-IN")}`,
-      revenueChange,
-      isRevenuePositive,
-      revenueSubtitle: revenue > 0 ? "vs previous cycle" : "No revenue recorded for period",
+      totalBookings,
+      bookingsSubtitle: `${paidBookings} Paid • ${pendingBookings} Pending`,
       seats: `${travellers} Booked`,
       seatsSubtitle:
         totalCapacity > 0
@@ -155,10 +149,8 @@ export const ReportsPage: React.FC = () => {
           : "All claims up to date",
       trend,
       destinations,
-      totalBookings: Number(rawKpis?.totalBookings) || 0,
       topDestination: topDest?.name || "None",
       topDestinationShare: topDest ? `${topDest.percentage}%` : "0%",
-      revenueRaw: revenue,
       travellersRaw: travellers,
       totalCapacityRaw: totalCapacity,
       occupancyRateRaw: occupancyRate,
@@ -167,46 +159,37 @@ export const ReportsPage: React.FC = () => {
     };
   }, [dashboardData, overviewData]);
 
-  // Real trip-by-trip performance breakdown
+  // Real trip-by-trip operational breakdown
   const departurePerformance: DeparturePerformanceRow[] = useMemo(() => {
     if (!overviewData?.trips || !Array.isArray(overviewData.trips)) {
       return [];
     }
 
-    return overviewData.trips.map((t: any) => {
-      const departuresCount = Array.isArray(t.departures) ? t.departures.length : 0;
-      let capacity = 0;
-      let booked = 0;
+    return overviewData.trips
+      .filter((t: any) => t && typeof t === "object")
+      .map((t: any) => {
+        const departuresCount = Array.isArray(t.departures) ? t.departures.length : 0;
+        let capacity = 0;
+        let booked = 0;
 
-      if (Array.isArray(t.departures)) {
-        t.departures.forEach((d: any) => {
-          capacity += Number(d.totalSlots) || 0;
-          booked += Number(d.bookedSlots) || 0;
-        });
-      }
+        if (Array.isArray(t.departures)) {
+          t.departures.forEach((d: any) => {
+            capacity += Number(d?.totalSlots) || 0;
+            booked += Number(d?.bookedSlots) || 0;
+          });
+        }
 
-      const occupancy = capacity > 0 ? Math.min(100, Math.round((booked / capacity) * 100)) : 0;
-      const price = Number(t.price) || 0;
-      const gross = booked * price;
-      const estimatedPayout = departuresCount * 5000; // estimated guide fee per run
-      const net = Math.max(0, gross - estimatedPayout);
-      const marginPct = gross > 0 ? `${Math.round((net / gross) * 100)}%` : "0%";
+        const occupancy = capacity > 0 ? Math.min(100, Math.round((booked / capacity) * 100)) : 0;
 
-      return {
-        trip: t.title || "Untitled Trip",
-        tag: occupancy >= 80 ? "High Occupancy" : departuresCount > 0 ? "Active Route" : "No Departures",
-        departures: departuresCount,
-        seatsCapacity: capacity,
-        bookedSeats: booked,
-        occupancy,
-        grossRevenue: `₹${gross.toLocaleString("en-IN")}`,
-        grossRaw: gross,
-        captainPayouts: `₹${estimatedPayout.toLocaleString("en-IN")}`,
-        payoutsRaw: estimatedPayout,
-        netMargin: `₹${net.toLocaleString("en-IN")}`,
-        marginPct,
-      };
-    });
+        return {
+          trip: t.title || "Untitled Trip",
+          tag: occupancy >= 80 ? "High Occupancy" : departuresCount > 0 ? "Active Route" : "No Departures",
+          departures: departuresCount,
+          seatsCapacity: capacity,
+          bookedSeats: booked,
+          occupancy,
+        };
+      });
   }, [overviewData]);
 
   // Portfolio Totals
@@ -214,19 +197,14 @@ export const ReportsPage: React.FC = () => {
     let departures = 0;
     let booked = 0;
     let capacity = 0;
-    let gross = 0;
-    let payouts = 0;
 
     departurePerformance.forEach((d) => {
       departures += d.departures;
       booked += d.bookedSeats;
       capacity += d.seatsCapacity;
-      gross += d.grossRaw;
-      payouts += d.payoutsRaw;
     });
 
     const occupancy = capacity > 0 ? Math.min(100, Math.round((booked / capacity) * 100)) : 0;
-    const net = Math.max(0, gross - payouts);
 
     return {
       tripsCount: departurePerformance.length,
@@ -234,9 +212,6 @@ export const ReportsPage: React.FC = () => {
       booked,
       capacity,
       occupancy,
-      gross: `₹${gross.toLocaleString("en-IN")}`,
-      payouts: `₹${payouts.toLocaleString("en-IN")}`,
-      net: `₹${net.toLocaleString("en-IN")}`,
     };
   }, [departurePerformance]);
 
@@ -247,10 +222,6 @@ export const ReportsPage: React.FC = () => {
       "Seats Capacity",
       "Booked Seats",
       "Occupancy (%)",
-      "Gross Revenue (INR)",
-      "Captain Payouts (INR)",
-      "Estimated Margin (INR)",
-      "Margin Ratio (%)",
     ];
     const rows = departurePerformance.map((d) => [
       `"${d.trip}"`,
@@ -258,10 +229,6 @@ export const ReportsPage: React.FC = () => {
       d.seatsCapacity,
       d.bookedSeats,
       d.occupancy,
-      d.grossRaw,
-      d.payoutsRaw,
-      d.grossRaw - d.payoutsRaw,
-      d.marginPct,
     ]);
 
     const csvContent =
@@ -282,14 +249,14 @@ export const ReportsPage: React.FC = () => {
       <div className="admin-page-header">
         <div className="admin-page-title-box">
           <div className="flex items-center gap-2.5">
-            <h1>Financial &amp; Operations Reports</h1>
+            <h1>Operations Reports</h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
               Live Insights
             </span>
           </div>
           <p>
-            Executive audit of gross bookings, seat occupancy, captain disbursements, and destination economics.
+            Operational overview of bookings, seat occupancy, captain disbursements, and destination volume.
           </p>
         </div>
 
@@ -386,12 +353,10 @@ export const ReportsPage: React.FC = () => {
           {/* Section 1: StatCards Grid */}
           <div className="admin-stats-grid">
             <StatCard
-              icon={<IndianRupee size={18} />}
-              label="Gross Bookings Revenue"
-              value={kpis.revenue}
-              change={kpis.revenueChange}
-              isPositive={kpis.isRevenuePositive}
-              subtitle={kpis.revenueSubtitle}
+              icon={<Calendar size={18} />}
+              label="Total Bookings"
+              value={kpis.totalBookings}
+              subtitle={kpis.bookingsSubtitle}
               iconTheme="green"
             />
 
@@ -424,26 +389,22 @@ export const ReportsPage: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))",
               gap: "20px",
             }}
           >
-            {/* Chart 1: Revenue vs Volume Trend */}
+            {/* Chart 1: Bookings Volume Trend */}
             <div className="admin-panel-card">
               <div className="admin-panel-header">
                 <div>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
-                    Cumulative Revenue vs Passenger Volume
+                    Bookings &amp; Passenger Volume
                   </div>
                   <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                    Gross collections tracking and passenger bookings volume over this period.
+                    Confirmed and pending passenger bookings volume over this period.
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "11.5px" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#0f172a", fontWeight: 600 }}>
-                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#0d2b17" }} />
-                    Revenue (₹)
-                  </span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#16a34a", fontWeight: 600 }}>
                     <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#86efac" }} />
                     Bookings
@@ -451,7 +412,7 @@ export const ReportsPage: React.FC = () => {
                 </div>
               </div>
               <div style={{ padding: "16px 20px 20px" }}>
-                <TrendChart data={kpis.trend} height={230} />
+                <TrendChart data={kpis.trend} height={230} showRevenue={false} />
               </div>
             </div>
 
@@ -514,10 +475,10 @@ export const ReportsPage: React.FC = () => {
                 </div>
                 <div>
                   <div style={{ fontSize: "14.5px", fontWeight: 700, color: "#0f172a" }}>
-                    Departure Performance Breakdown
+                    Departure Occupancy Breakdown
                   </div>
                   <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                    Live economics per trip package including gross collections, captain costs and net margins.
+                    Live departures and seat utilization per trip package.
                   </div>
                 </div>
               </div>
@@ -552,9 +513,6 @@ export const ReportsPage: React.FC = () => {
                       <th style={{ textAlign: "center", minWidth: "110px" }}>Departures</th>
                       <th style={{ minWidth: "200px" }}>Seats &amp; Occupancy</th>
                       <th style={{ textAlign: "center", minWidth: "100px" }}>Occupancy Rate</th>
-                      <th style={{ textAlign: "right", minWidth: "130px" }}>Gross Revenue</th>
-                      <th style={{ textAlign: "right", minWidth: "130px" }}>Captain Payouts</th>
-                      <th style={{ textAlign: "right", minWidth: "140px" }}>Estimated Margin</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -664,50 +622,6 @@ export const ReportsPage: React.FC = () => {
                             {row.occupancy}%
                           </span>
                         </td>
-
-                        <td style={{ textAlign: "right" }}>
-                          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13.5px" }}>
-                            {row.grossRevenue}
-                          </div>
-                          {row.bookedSeats > 0 && (
-                            <div style={{ fontSize: "11px", color: "#64748b" }}>
-                              ₹{Math.round(row.grossRaw / row.bookedSeats).toLocaleString("en-IN")}/seat
-                            </div>
-                          )}
-                        </td>
-
-                        <td style={{ textAlign: "right" }}>
-                          <div style={{ fontWeight: 600, color: "#475569", fontSize: "13px" }}>
-                            {row.captainPayouts}
-                          </div>
-                        </td>
-
-                        <td style={{ textAlign: "right" }}>
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              flexDirection: "column",
-                              alignItems: "flex-end",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                fontWeight: 700,
-                                color: "#15803d",
-                                fontSize: "13.5px",
-                              }}
-                            >
-                              {row.netMargin}
-                              <ArrowUpRight size={13} />
-                            </div>
-                            <span style={{ fontSize: "11px", color: "#166534", fontWeight: 600 }}>
-                              {row.marginPct} margin
-                            </span>
-                          </div>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -741,15 +655,6 @@ export const ReportsPage: React.FC = () => {
                         >
                           {portfolioTotals.occupancy}%
                         </span>
-                      </td>
-                      <td style={{ textAlign: "right", color: "#0f172a", fontSize: "14px" }}>
-                        <strong>{portfolioTotals.gross}</strong>
-                      </td>
-                      <td style={{ textAlign: "right", color: "#475569", fontSize: "13px" }}>
-                        <strong>{portfolioTotals.payouts}</strong>
-                      </td>
-                      <td style={{ textAlign: "right", color: "#15803d", fontSize: "14px" }}>
-                        <strong>{portfolioTotals.net}</strong>
                       </td>
                     </tr>
                   </tfoot>

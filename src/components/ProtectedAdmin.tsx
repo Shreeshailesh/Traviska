@@ -4,6 +4,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
 import { API_BASE_URL } from "../api";
+import RouteErrorBoundary from "./RouteErrorBoundary";
 import AdminLayout from "../admin/layout/AdminLayout";
 import Dashboard from "../admin/pages/Dashboard";
 import Bookings from "../admin/pages/Bookings";
@@ -11,6 +12,7 @@ import Trips from "../admin/pages/Trips";
 import EditTrip from "../admin/pages/EditTrip";
 import DetailedSections from "../admin/pages/DetailedSections";
 import Customers from "../admin/pages/Customers";
+import InvoicesPage from "../admin/pages/Invoices";
 import SettingsPage from "../admin/pages/Settings";
 import ReportsPage from "../admin/pages/Reports";
 import MarketingPage from "../admin/pages/Marketing";
@@ -112,6 +114,8 @@ export default function ProtectedAdmin() {
     content = <DetailedSections />;
   } else if (path === "/admin/customers") {
     content = <Customers />;
+  } else if (path === "/admin/invoices") {
+    content = <InvoicesPage />;
   } else if (path === "/admin/operations" || path === "/admin/operations/overview") {
     content = <OperationsOverview />;
   } else if (path === "/admin/operations/captains") {
@@ -138,5 +142,11 @@ export default function ProtectedAdmin() {
     content = <SettingsPage />;
   }
 
-  return <AdminLayout>{content}</AdminLayout>;
+  return (
+    <AdminLayout>
+      <RouteErrorBoundary title="Unable to render this admin page">
+        {content}
+      </RouteErrorBoundary>
+    </AdminLayout>
+  );
 }

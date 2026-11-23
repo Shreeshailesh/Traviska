@@ -99,7 +99,14 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options(/(.*)/, cors(corsOptions));
 
-app.use(express.json({ limit: "8mb" }));
+app.use(
+  express.json({
+    limit: "8mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use("/uploads", express.static("uploads"));
 
 const authMiddleware = async (req, res, next) => {
@@ -246,6 +253,10 @@ app.use(require("./routes/gallery")({ authMiddleware, adminMiddleware }));
 app.use("/api/super-admin", require("./routes/superAdmin")({ authMiddleware, superAdminMiddleware }));
 app.use("/api/staff-invitation", require("./routes/staffInvitation")());
 app.use("/api/staff-auth", require("./routes/staffPasswordReset")());
+app.use(require("./routes/invoices")({ authMiddleware, adminMiddleware }));
+app.use(require("./routes/customerCheckout")({ authMiddleware }));
+const { issueInvoiceAndNotifyForBooking } = require("./services/bookingInvoiceHook");
+const PaymentEvent = require("./models/PaymentEvent");
 
 const razorpay =
   process.env.NODE_ENV === "production"
@@ -940,6 +951,8 @@ try {
   orderId: razorpay_order_id,
   paymentStatus: "Paid",
   status: "Confirmed",
+  whatsappOptIn: Boolean(bookingDetails.whatsappOptIn),
+  whatsappOptInAt: bookingDetails.whatsappOptIn ? new Date() : null,
 });
 
 if (orderNotes.couponCode && orderNotes.couponCode.trim()) {
@@ -955,6 +968,42 @@ await confirmedBooking.save({ session });
 
 await session.commitTransaction();
 
+let invoiceHook = null;
+try {
+  const isProdEnv = process.env.NODE_ENV === "production";
+  const evtId = `RZP_PAY_${razorpay_payment_id}`;
+  let paymentEvent = await PaymentEvent.findOne({ eventId: evtId });
+  if (!paymentEvent) {
+    paymentEvent = await PaymentEvent.create({
+      eventId: evtId,
+      environment: isProdEnv ? "live" : "test",
+      isSimulated: !isProdEnv,
+      bookingId: confirmedBooking._id,
+      bookingCode: confirmedBooking.bookingCode || "",
+      provider: "razorpay",
+      providerOrderId: razorpay_order_id,
+      providerPaymentId: razorpay_payment_id,
+      paymentType: "Full",
+      paymentMethod: razorpayPayment.method || "Razorpay",
+      amountPaise: razorpayPayment.amount,
+      currency: "INR",
+      status: "succeeded",
+      verified: true,
+      notes: "Customer online payment verified via Razorpay",
+      occurredAt: new Date(),
+      createdBy: authenticatedCustomerId || null,
+    });
+  }
+
+  invoiceHook = await issueInvoiceAndNotifyForBooking({
+    booking: confirmedBooking,
+    currentUser: authenticatedCustomerId ? { _id: authenticatedCustomerId, email: customerEmail, role: "customer" } : null,
+    origin: req.headers.origin || "",
+    paymentEvent,
+  });
+} catch (hookErr) {
+  console.error("Customer verify-payment invoice/notification hook error:", hookErr.message);
+}
 
 return res.json({
   success: true,
@@ -962,6 +1011,9 @@ return res.json({
   bookingConfirmed: true,
   message: "Payment successful! Your booking is confirmed.",
   booking: confirmedBooking,
+  invoice: invoiceHook?.invoice || null,
+  emailResult: invoiceHook?.emailResult || null,
+  whatsappPreview: invoiceHook?.whatsappPreview || null,
 });
 
 } catch (transactionError) {
@@ -1294,6 +1346,7 @@ app.post(
 
     if (
       !name?.trim() ||
+      !email?.trim() ||
       !phone?.trim() ||
       !mongoose.isValidObjectId(slotId) ||
       !Number.isSafeInteger(count) ||
@@ -1446,15 +1499,27 @@ app.post(
     : undefined,
         paymentStatus: paymentConfirmed ? "Paid" : "Pending",
         status: paymentConfirmed ? "Confirmed" : "Pending",
+        whatsappOptIn: Boolean(req.body.whatsappOptIn),
+        whatsappOptInAt: req.body.whatsappOptIn ? new Date() : null,
       });
 
       await booking.save({ session });
       await session.commitTransaction();
 
+      const invoiceHook = paymentConfirmed
+        ? await issueInvoiceAndNotifyForBooking({
+            booking,
+            currentUser: req.currentUser,
+            origin: req.headers.origin,
+          })
+        : null;
+
       return res.status(201).json({
         success: true,
         message: "Manual booking created successfully",
         booking,
+        invoice: invoiceHook?.invoice || null,
+        emailResult: invoiceHook?.emailResult || null,
       });
     } catch (err) {
       if (session.inTransaction()) {
@@ -1578,10 +1643,18 @@ app.put(
       await booking.save({ session });
       await session.commitTransaction();
 
+      const invoiceHook = await issueInvoiceAndNotifyForBooking({
+        booking,
+        currentUser: req.currentUser,
+        origin: req.headers.origin,
+      });
+
       return res.json({
         success: true,
         message: "Payment recorded and booking confirmed",
         booking,
+        invoice: invoiceHook?.invoice || null,
+        emailResult: invoiceHook?.emailResult || null,
       });
     } catch (err) {
       if (session.inTransaction()) {
