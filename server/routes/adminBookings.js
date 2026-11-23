@@ -710,91 +710,22 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
    * DELETE /admin/bookings/:id
    * Permanently deletes a single booking and releases slot capacity if confirmed
    */
-  router.delete("/admin/bookings/:id", authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const booking = await Booking.findById(id);
-
-      if (!booking) {
-        return res.status(404).json({ success: false, message: "Booking not found" });
-      }
-
-      // If active/confirmed booking, release seats from departure slot
-      if (booking.status === "Confirmed" && booking.slotId && booking.travellers) {
-        try {
-          const travellersCount = Number(booking.travellers) || 1;
-          await TripSlot.findByIdAndUpdate(booking.slotId, {
-            $inc: { bookedSlots: -travellersCount },
-          });
-          await TripSlot.updateOne(
-            { _id: booking.slotId, bookedSlots: { $lt: 0 } },
-            { $set: { bookedSlots: 0 } }
-          );
-        } catch (slotErr) {
-          console.warn(`Could not adjust slot ${booking.slotId}:`, slotErr.message);
-        }
-      }
-
-      const bookingCode = formatBookingCode(booking);
-      await Booking.findByIdAndDelete(booking._id);
-
-      return res.json({
-        success: true,
-        message: `Booking ${bookingCode} deleted successfully.`,
-      });
-    } catch (err) {
-      console.error("Delete booking failed:", err);
-      return res.status(500).json({
-        success: false,
-        message: err.message || "Failed to delete booking",
-      });
-    }
+  router.delete("/admin/bookings/:id", authMiddleware, adminMiddleware, async (_req, res) => {
+    return res.status(403).json({
+      success: false,
+      message: "Booking history cannot be deleted. Cancel or reschedule bookings instead.",
+    });
   });
 
   /**
    * POST /admin/bookings/bulk-delete
-   * Bulk deletes multiple selected bookings
+   * Disabled to protect booking history and financial records.
    */
-  router.post("/admin/bookings/bulk-delete", authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-      const { ids } = req.body;
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ success: false, message: "No booking IDs provided for deletion" });
-      }
-
-      const bookings = await Booking.find({ _id: { $in: ids } });
-
-      for (const booking of bookings) {
-        if (booking.status === "Confirmed" && booking.slotId && booking.travellers) {
-          try {
-            const travellersCount = Number(booking.travellers) || 1;
-            await TripSlot.findByIdAndUpdate(booking.slotId, {
-              $inc: { bookedSlots: -travellersCount },
-            });
-            await TripSlot.updateOne(
-              { _id: booking.slotId, bookedSlots: { $lt: 0 } },
-              { $set: { bookedSlots: 0 } }
-            );
-          } catch (slotErr) {
-            console.warn(`Could not adjust slot ${booking.slotId}:`, slotErr.message);
-          }
-        }
-      }
-
-      const deleteResult = await Booking.deleteMany({ _id: { $in: ids } });
-
-      return res.json({
-        success: true,
-        count: deleteResult.deletedCount,
-        message: `Successfully deleted ${deleteResult.deletedCount} booking(s).`,
-      });
-    } catch (err) {
-      console.error("Bulk delete failed:", err);
-      return res.status(500).json({
-        success: false,
-        message: err.message || "Failed to delete selected bookings",
-      });
-    }
+  router.post("/admin/bookings/bulk-delete", authMiddleware, adminMiddleware, async (_req, res) => {
+    return res.status(403).json({
+      success: false,
+      message: "Booking history cannot be deleted. Cancel or reschedule bookings instead.",
+    });
   });
 
   /**

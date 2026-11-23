@@ -27,7 +27,6 @@ import {
   Check,
   Copy,
   Share2,
-  Trash2,
 } from "lucide-react";
 
 import { API_BASE_URL } from "../../api";
@@ -158,9 +157,6 @@ export const Bookings: React.FC = () => {
   const [bookingsPage, setBookingsPage] = useState<number>(1);
   const BOOKINGS_PER_PAGE = 5;
 
-  // Selected bookings checkboxes
-  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
-
   // Modals & Drawers
   const [viewingBooking, setViewingBooking] = useState<BookingItem | null>(null);
   const [rescheduleBooking, setRescheduleBooking] = useState<BookingItem | null>(null);
@@ -210,14 +206,11 @@ export const Bookings: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Delete Modals State
-  const [deletingBooking, setDeletingBooking] = useState<BookingItem | null>(null);
-  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState<boolean>(false);
-  const [deleteSubmitting, setDeleteSubmitting] = useState<boolean>(false);
 
   // Body scroll lock and Escape key listener for Modals
   useEffect(() => {
     const isModalOpen = Boolean(
-      rescheduleBooking || cancelBooking || deletingBooking || isBulkDeleteOpen
+      rescheduleBooking || cancelBooking
     );
     if (isModalOpen) {
       document.body.style.overflow = "hidden";
@@ -229,8 +222,6 @@ export const Bookings: React.FC = () => {
       if (e.key === "Escape") {
         setRescheduleBooking(null);
         setCancelBooking(null);
-        setDeletingBooking(null);
-        setIsBulkDeleteOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -239,7 +230,7 @@ export const Bookings: React.FC = () => {
       document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [rescheduleBooking, cancelBooking, deletingBooking, isBulkDeleteOpen]);
+  }, [rescheduleBooking, cancelBooking]);
 
   // Active Selected Trip
   const selectedTrip = useMemo(() => {
@@ -344,8 +335,7 @@ export const Bookings: React.FC = () => {
     setSelectedTripId(trip._id);
     setSelectedSlotId("all");
     setBookingsPage(1);
-    setSelectedRowIds([]);
-  };
+      };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -384,19 +374,6 @@ export const Bookings: React.FC = () => {
   const totalBookingPages = Math.ceil(bookings.length / BOOKINGS_PER_PAGE) || 1;
 
   // Handle select all rows
-  const handleToggleSelectAll = () => {
-    if (selectedRowIds.length === paginatedBookings.length) {
-      setSelectedRowIds([]);
-    } else {
-      setSelectedRowIds(paginatedBookings.map((b) => b._id));
-    }
-  };
-
-  const handleToggleRow = (id: string) => {
-    setSelectedRowIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
 
   // Reschedule submission
   const handleConfirmReschedule = async () => {
@@ -473,64 +450,6 @@ export const Bookings: React.FC = () => {
       setCancelSubmitting(false);
     }
   };
-
-  // Delete single booking
-  const handleDeleteSingleBooking = async () => {
-    if (!deletingBooking) return;
-    setDeleteSubmitting(true);
-    const token = localStorage.getItem("token");
-
-    try {
-      const { data } = await axios.delete(
-        `${API_BASE_URL}/admin/bookings/${deletingBooking._id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (data.success) {
-        setBookings((prev) => prev.filter((b) => b._id !== deletingBooking._id));
-        setSelectedRowIds((prev) => prev.filter((id) => id !== deletingBooking._id));
-        setDeletingBooking(null);
-        fetchOverview();
-        fetchBookingsList();
-      }
-    } catch (err: any) {
-      console.error("Delete booking failed:", err);
-      alert(err.response?.data?.message || "Failed to delete booking");
-    } finally {
-      setDeleteSubmitting(false);
-    }
-  };
-
-  // Bulk delete selected bookings
-  const handleBulkDelete = async () => {
-    if (selectedRowIds.length === 0) return;
-    setDeleteSubmitting(true);
-    const token = localStorage.getItem("token");
-
-    try {
-      const { data } = await axios.post(
-        `${API_BASE_URL}/admin/bookings/bulk-delete`,
-        { ids: selectedRowIds },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (data.success) {
-        setBookings((prev) => prev.filter((b) => !selectedRowIds.includes(b._id)));
-        setSelectedRowIds([]);
-        setIsBulkDeleteOpen(false);
-        fetchOverview();
-        fetchBookingsList();
-      }
-    } catch (err: any) {
-      console.error("Bulk delete failed:", err);
-      alert(err.response?.data?.message || "Failed to delete selected bookings");
-    } finally {
-      setDeleteSubmitting(false);
-    }
-  };
-
 
   // Helper to resolve WhatsApp group link for a booking's specific departure
   const getDepartureWhatsAppLink = (booking: BookingItem): string => {
@@ -1414,46 +1333,6 @@ export const Bookings: React.FC = () => {
 
           {/* Bookings Table Card */}
           <div className="bookings-table-card">
-            {/* Bulk Selection Actions Bar */}
-            {selectedRowIds.length > 0 && (
-              <div className="bookings-bulk-bar">
-                <div className="bookings-bulk-info">
-                  <CheckCircle size={15} />
-                  <span>{selectedRowIds.length} booking(s) selected</span>
-                </div>
-                <div className="bookings-bulk-actions">
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-secondary"
-                    style={{ padding: "5px 12px", fontSize: "12px" }}
-                    onClick={() => setSelectedRowIds([])}
-                  >
-                    Deselect All
-                  </button>
-                  <button
-                    type="button"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      background: "#dc2626",
-                      color: "#ffffff",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "6px 14px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                    onClick={() => setIsBulkDeleteOpen(true)}
-                  >
-                    <Trash2 size={13} />
-                    <span>Delete Selected ({selectedRowIds.length})</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Mobile Booking Cards (<= 768px) */}
             <div className="bookings-mobile-cards">
               {bookingsLoading ? (
@@ -1478,22 +1357,14 @@ export const Bookings: React.FC = () => {
                 </div>
               ) : (
                 paginatedBookings.map((b) => {
-                  const isSelected = selectedRowIds.includes(b._id);
                   return (
                     <div
                       key={`mob-${b._id}`}
                       className="booking-mobile-card"
-                      style={{ background: isSelected ? "#f8faf8" : "#ffffff" }}
+                      style={{ background: "#ffffff" }}
                     >
                       <div className="booking-mobile-card-header" onClick={() => setViewingBooking(b)}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={() => handleToggleRow(b._id)}
-                            aria-label={`Select booking ${b.bookingCode}`}
-                          />
                           <span className="booking-code-badge">{b.bookingCode}</span>
                         </div>
                         <StatusBadge status={b.paymentStatus} />
@@ -1590,18 +1461,6 @@ export const Bookings: React.FC = () => {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "36px" }}>
-                      <input
-                        type="checkbox"
-                        checked={
-                          paginatedBookings.length > 0 &&
-                          selectedRowIds.length === paginatedBookings.length
-                        }
-                        onChange={handleToggleSelectAll}
-                        style={{ cursor: "pointer" }}
-                        aria-label="Select all bookings"
-                      />
-                    </th>
                     <th>Booking ID</th>
                     <th>Customer & Contact</th>
                     <th>Travellers</th>
@@ -1615,13 +1474,13 @@ export const Bookings: React.FC = () => {
                 <tbody>
                   {bookingsLoading ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
                         Loading customer bookings...
                       </td>
                     </tr>
                   ) : paginatedBookings.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "48px 20px" }}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px" }}>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
                           <FileText size={32} color="#cbd5e1" />
                           <p style={{ margin: 0, fontWeight: 600, color: "#475569" }}>
@@ -1639,19 +1498,8 @@ export const Bookings: React.FC = () => {
                     </tr>
                   ) : (
                     paginatedBookings.map((b) => {
-                      const isSelected = selectedRowIds.includes(b._id);
-
                       return (
-                        <tr key={b._id} style={{ background: isSelected ? "#f8faf8" : undefined }}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleRow(b._id)}
-                              style={{ cursor: "pointer" }}
-                              aria-label={`Select booking ${b.bookingCode}`}
-                            />
-                          </td>
+                        <tr key={b._id}>
 
                           {/* Booking ID */}
                           <td>
@@ -1783,14 +1631,6 @@ export const Bookings: React.FC = () => {
                                 <Eye size={14} />
                               </button>
 
-                              <button
-                                type="button"
-                                className="booking-action-icon-btn delete"
-                                onClick={() => setDeletingBooking(b)}
-                                title="Delete this booking permanently"
-                              >
-                                <Trash2 size={13} />
-                              </button>
                             </div>
                           </td>
                         </tr>
@@ -2076,120 +1916,6 @@ export const Bookings: React.FC = () => {
                 disabled={cancelSubmitting}
               >
                 {cancelSubmitting ? "Cancelling..." : "Confirm Cancellation"}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ======================================================================
-          MODAL 3: DELETE SINGLE BOOKING
-          ====================================================================== */}
-      {deletingBooking && (
-        <Modal
-          isOpen={Boolean(deletingBooking)}
-          onClose={() => setDeletingBooking(null)}
-          title={`Delete Booking — ${deletingBooking.bookingCode}`}
-          subtitle={`Customer: ${deletingBooking.name} • Amount: ₹${deletingBooking.amount.toLocaleString("en-IN")}`}
-          maxWidth="480px"
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div
-              style={{
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: "8px",
-                padding: "12px 14px",
-                fontSize: "12.5px",
-                color: "#991b1b",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
-                <AlertCircle size={15} />
-                <span>Permanent Deletion</span>
-              </div>
-              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#b91c1c", lineHeight: 1.5 }}>
-                Are you sure you want to permanently delete this booking record? If this is an active booking, its reserved seat(s) will be returned to the departure slot.
-              </p>
-            </div>
-
-            <div style={{ fontSize: "12.5px", color: "#475569", lineHeight: 1.6 }}>
-              <div><strong>Trip:</strong> {deletingBooking.trip?.title || "Trip"}</div>
-              <div><strong>Departure Date:</strong> {deletingBooking.date}</div>
-              <div><strong>Status:</strong> {deletingBooking.status} {deletingBooking.isRescheduled ? "(Rescheduled)" : ""}</div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
-              <button
-                type="button"
-                className="admin-btn admin-btn-secondary"
-                onClick={() => setDeletingBooking(null)}
-                disabled={deleteSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="admin-btn"
-                style={{ background: "#dc2626", color: "#ffffff", borderColor: "#dc2626" }}
-                onClick={handleDeleteSingleBooking}
-                disabled={deleteSubmitting}
-              >
-                {deleteSubmitting ? "Deleting..." : "Confirm Delete"}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ======================================================================
-          MODAL 4: BULK DELETE SELECTED BOOKINGS
-          ====================================================================== */}
-      {isBulkDeleteOpen && (
-        <Modal
-          isOpen={isBulkDeleteOpen}
-          onClose={() => setIsBulkDeleteOpen(false)}
-          title="Delete Selected Bookings"
-          subtitle={`${selectedRowIds.length} booking(s) selected`}
-          maxWidth="480px"
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div
-              style={{
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: "8px",
-                padding: "12px 14px",
-                fontSize: "12.5px",
-                color: "#991b1b",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
-                <AlertCircle size={15} />
-                <span>Warning: Irreversible Action</span>
-              </div>
-              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#b91c1c", lineHeight: 1.5 }}>
-                This will permanently delete all <strong>{selectedRowIds.length}</strong> selected booking records from the database. Any reserved seats for confirmed bookings will be released back to their departure slots.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
-              <button
-                type="button"
-                className="admin-btn admin-btn-secondary"
-                onClick={() => setIsBulkDeleteOpen(false)}
-                disabled={deleteSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="admin-btn"
-                style={{ background: "#dc2626", color: "#ffffff", borderColor: "#dc2626" }}
-                onClick={handleBulkDelete}
-                disabled={deleteSubmitting}
-              >
-                {deleteSubmitting ? "Deleting..." : `Delete ${selectedRowIds.length} Booking(s)`}
               </button>
             </div>
           </div>
