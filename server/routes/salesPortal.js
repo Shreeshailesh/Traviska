@@ -794,8 +794,20 @@ module.exports = function ({ authMiddleware }) {
       });
       await enquiry.save();
 
+      const normalizedSalesCustomerEmail = String(enquiry.email || "").trim().toLowerCase();
+      const matchedCustomer = normalizedSalesCustomerEmail
+        ? await User.findOne({
+            role: "customer",
+            email: new RegExp(
+              `^${normalizedSalesCustomerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+              "i"
+            ),
+          }).select("_id")
+        : null;
+
       // Create official Booking
       const booking = new Booking({
+        customerId: matchedCustomer ? matchedCustomer._id : null,
         name: customerName.trim(),
         email: enquiry.email,
         phone: customerPhone.trim(),

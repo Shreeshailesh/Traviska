@@ -1342,9 +1342,22 @@ app.get("/customer/bookings", authMiddleware, async (req, res) => {
       });
     }
 
-    const bookings = await Booking.find({
-      customerId: customer._id,
-    }).sort({ createdAt: -1 });
+    const bookingOwnershipQuery = customer.email
+      ? {
+          $or: [
+            { customerId: customer._id },
+            {
+              customerId: { $in: [null, undefined] },
+              email: new RegExp(
+                `^${String(customer.email).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+                "i"
+              ),
+            },
+          ],
+        }
+      : { customerId: customer._id };
+
+    const bookings = await Booking.find(bookingOwnershipQuery).sort({ createdAt: -1 });
 
     return res.json({
       success: true,
@@ -1504,9 +1517,23 @@ app.post(
             googleMapsUrl: "",
           };
 
+      const normalizedCustomerEmail = String(email || "").trim().toLowerCase();
+      const matchedCustomer = normalizedCustomerEmail
+        ? await User.findOne({
+            role: "customer",
+            email: new RegExp(
+              `^${normalizedCustomerEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+              "i"
+            ),
+          })
+            .select("_id")
+            .session(session)
+        : null;
+
       const booking = new Booking({
+        customerId: matchedCustomer ? matchedCustomer._id : null,
         name: name.trim(),
-        email: String(email || "").trim(),
+        email: normalizedCustomerEmail || String(email || "").trim(),
         phone: phone.trim(),
         trip: {
           title: trip.title,
