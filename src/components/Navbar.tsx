@@ -2,8 +2,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Search, ChevronRight, User, LogOut, LayoutDashboard, ChevronDown, Bell } from "lucide-react";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
 import logo from "../assets/logo.jpg";
 import "./Navbar.css";
 
@@ -25,7 +23,7 @@ function Navbar() {
 
     handleScroll();
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
@@ -75,6 +73,10 @@ function Navbar() {
 
   const handleLogout = async () => {
     try {
+      const [{ signOut }, { auth }] = await Promise.all([
+        import("firebase/auth"),
+        import("../firebase"),
+      ]);
       await signOut(auth);
     } catch (e) {
       console.warn("Firebase signout error:", e);
@@ -107,7 +109,7 @@ function Navbar() {
     <nav className={`navbar ${scrolled ? "scrolled" : ""} ${isTransparent && !scrolled ? "navbar-transparent" : ""}`}>
       {/* LOGO */}
       <Link to="/" className="logo-section">
-        <img src={logo} alt="Traviska" className="logo-img" />
+        <img src={logo} alt="Traviska" width={36} height={36} className="logo-img" />
         <span className="logo-divider" />
         <span className="logo-text">TRAVISKA</span>
       </Link>
@@ -117,6 +119,7 @@ function Navbar() {
         <Search size={18} className="nav-search-icon" />
         <input
           type="text"
+          aria-label="Search destinations"
           placeholder="Search destinations..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}

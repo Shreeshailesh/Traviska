@@ -63,6 +63,7 @@ module.exports = function ({ authMiddleware, adminMiddleware }) {
       const top = items.filter((i) => i.row === "top");
       const bottom = items.filter((i) => i.row === "bottom");
 
+      res.setHeader("Cache-Control", "public, max-age=30, must-revalidate");
       res.json({
         success: true,
         items,

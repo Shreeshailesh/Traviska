@@ -1,6 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import heroVideo from "../assets/videos/hero.mp4";
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { SEO } from "../components/SEO";
 import {
   ChevronRight,
@@ -29,14 +28,22 @@ import {
   FlightTrailDecoration,
   MountainSketchDecoration,
 } from "../components/HomeIllustrations";
-import { HomepageMediaGallery } from "../components/HomepageMediaGallery";
+import { getOptimizedMediaUrl } from "../lib/mediaUrl";
 import "./Home.css";
 
+const HomepageMediaGallery = lazy(() =>
+  import("../components/HomepageMediaGallery").then((m) => ({
+    default: m.HomepageMediaGallery,
+  }))
+);
+
+const IS_MOBILE_VIEWPORT =
+  typeof window !== "undefined" && window.innerWidth <= 768;
+const HERO_WIDTH = IS_MOBILE_VIEWPORT ? 720 : 1280;
+
 // High-speed CDN URLs so video loads smoothly worldwide on mobile & web
-const HERO_VIDEO_URL =
-  "https://res.cloudinary.com/clpacmp1/video/upload/q_auto,f_auto/traviska_hero_video.mp4";
-const HERO_POSTER_URL =
-  "https://res.cloudinary.com/clpacmp1/video/upload/so_0,q_auto,f_auto/traviska_hero_video.jpg";
+const HERO_VIDEO_URL = `https://res.cloudinary.com/clpacmp1/video/upload/q_auto:eco,f_auto,vc_auto,w_${HERO_WIDTH}/traviska_hero_video.mp4`;
+const HERO_POSTER_URL = `https://res.cloudinary.com/clpacmp1/video/upload/so_0,q_auto:good,f_auto,w_${HERO_WIDTH}/traviska_hero_video.jpg`;
 
 function Home() {
   const { trips, loading, error, retry } = useTrips();
@@ -121,11 +128,10 @@ function Home() {
           controls={false}
           disablePictureInPicture
           disableRemotePlayback
-          preload="auto"
+          preload="metadata"
           poster={HERO_POSTER_URL}
         >
           <source src={HERO_VIDEO_URL} type="video/mp4" />
-          <source src={heroVideo} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
 
@@ -233,7 +239,7 @@ function Home() {
                     <div className="trip-card-media">
                       {trip.image?.trim() ? (
                         <img
-                          src={trip.image}
+                          src={getOptimizedMediaUrl(trip.image, 640)}
                           alt={trip.title}
                           className="trip-card-img"
                           loading="lazy"
@@ -388,7 +394,9 @@ function Home() {
           SECTION: HOMEPAGE MEDIA GALLERY (Moments With Traviska)
           Continuous Dual-Row Cinematic Marquee
           ============================================================ */}
-      <HomepageMediaGallery />
+      <Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden="true" />}>
+        <HomepageMediaGallery />
+      </Suspense>
 
       {/* ============================================================
           SECTION 3: TRAVELLER STORIES (Exact Match to Design)
@@ -432,7 +440,7 @@ function Home() {
             <div className="story-profile-row">
               <div className="story-avatar-circle">R</div>
               <div className="story-profile-info">
-                <h4 className="story-name">Rahul Sharma</h4>
+                <h3 className="story-name">Rahul Sharma</h3>
                 <span className="story-trip-name">Wayanad Expedition</span>
               </div>
             </div>
@@ -459,7 +467,7 @@ function Home() {
             <div className="story-profile-row">
               <div className="story-avatar-circle">A</div>
               <div className="story-profile-info">
-                <h4 className="story-name">Ananya Hegde</h4>
+                <h3 className="story-name">Ananya Hegde</h3>
                 <span className="story-trip-name">Ooty &amp; Coonoor Trail</span>
               </div>
             </div>
@@ -486,7 +494,7 @@ function Home() {
             <div className="story-profile-row">
               <div className="story-avatar-circle">A</div>
               <div className="story-profile-info">
-                <h4 className="story-name">Arjun Nair</h4>
+                <h3 className="story-name">Arjun Nair</h3>
                 <span className="story-trip-name">Gokarna Beach Trek</span>
               </div>
             </div>

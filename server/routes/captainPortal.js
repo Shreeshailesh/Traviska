@@ -541,7 +541,7 @@ function captainPortalRoutes() {
 
     const paxAgg = slotIds.length
       ? await Booking.aggregate([
-          { $match: { slotId: { $in: slotIds }, status: { $ne: "Cancelled" } } },
+          { $match: { slotId: { $in: slotIds }, status: "Confirmed" } },
           { $group: { _id: "$slotId", pax: { $sum: { $ifNull: ["$travellers", 1] } }, bookings: { $sum: 1 } } },
         ])
       : [];
@@ -731,13 +731,16 @@ function captainPortalRoutes() {
         return res.status(404).json({ success: false, message: "Trip slot not found" });
       }
 
-      // Fetch bookings for this slot
+      // Fetch confirmed bookings for this slot (and cancelled separately for visibility)
       let bookings = [];
+      let cancelledBookings = [];
       try {
-        bookings = await Booking.find({
-          $or: [{ slotId: slot._id }, { date: slot.startDate }],
-          status: { $ne: "cancelled" },
+        const allSlotBookings = await Booking.find({
+          slotId: slot._id,
+          status: { $in: ["Confirmed", "Cancelled"] },
         });
+        bookings = allSlotBookings.filter((b) => b.status === "Confirmed");
+        cancelledBookings = allSlotBookings.filter((b) => b.status === "Cancelled");
       } catch (e) {
         console.warn("Could not load bookings for slot:", e.message);
       }
@@ -796,6 +799,7 @@ function captainPortalRoutes() {
         success: true,
         slot,
         bookings,
+        cancelledBookings,
         pickups,
         attendanceRecords,
         expenses,
@@ -1305,8 +1309,8 @@ function captainPortalRoutes() {
       if (!slot) return res.status(404).json({ success: false, message: "Departure slot not found" });
 
       const bookings = await Booking.find({
-        $or: [{ slotId: slot._id }, { date: slot.startDate }],
-        status: { $ne: "cancelled" },
+        slotId: slot._id,
+        status: "Confirmed",
       });
 
       // Expand all travellers from confirmed bookings (flat list)

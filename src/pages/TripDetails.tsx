@@ -123,14 +123,32 @@ function TripDetails() {
     }
   };
 
-  // 1. Fetch Global Detailed Trip Sections (Safety, Cancellation, Terms, Notes)
+  // 1. Fetch Global Detailed Trip Sections (with sessionStorage SWR cache)
   useEffect(() => {
     let cancelled = false;
+    const GLOBAL_CACHE_KEY = "traviska:global-trip-sections:v1";
+    try {
+      const cached = sessionStorage.getItem(GLOBAL_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === "object") {
+          setGlobalSections(parsed);
+        }
+      }
+    } catch {
+      // Ignore cache read error
+    }
+
     const fetchGlobal = async () => {
       try {
         const { data } = await axios.get(`${API_BASE_URL}/global-trip-sections`);
         if (!cancelled && data) {
           setGlobalSections(data);
+          try {
+            sessionStorage.setItem(GLOBAL_CACHE_KEY, JSON.stringify(data));
+          } catch {
+            // Ignore storage errors
+          }
         }
       } catch (err) {
         console.error("Failed to load global sections:", err);
@@ -142,68 +160,63 @@ function TripDetails() {
     };
   }, []);
 
-  // 2. Fetch Trip Details
+  // 2. Fetch Trip Details & Slots concurrently
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
-    const fetchTrip = async () => {
+
+    const fetchTripAndSlots = async () => {
       if (!initialTrip) {
         setLoading(true);
       }
       setLoadError("");
-      try {
-        const { data } = await axios.get(`${API_BASE_URL}/trips/${id}`);
-        if (!cancelled) {
-          if (data) {
-            setTrip(data);
-          } else {
-            setLoadError("Trip not found.");
-          }
+
+      const [tripResult, slotsResult] = await Promise.allSettled([
+        axios.get(`${API_BASE_URL}/trips/${id}`),
+        axios.get(`${API_BASE_URL}/trips/${id}/slots`),
+      ]);
+
+      if (cancelled) return;
+
+      if (tripResult.status === "fulfilled") {
+        const data = tripResult.value.data;
+        if (data) {
+          setTrip(data);
+        } else {
+          setLoadError("Trip not found.");
         }
-      } catch (err) {
-        console.error("Failed to load trip:", err);
-        if (!cancelled && !initialTrip) {
+      } else {
+        console.error("Failed to load trip:", tripResult.reason);
+        if (!initialTrip) {
           setLoadError("Unable to load trip details.");
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+
+      if (slotsResult.status === "fulfilled" && Array.isArray(slotsResult.value.data)) {
+        const data = slotsResult.value.data;
+        // Closed slots must completely disappear from customer view
+        const activeSlots = data.filter((s: any) => !s.isClosed && s.status !== "Closed");
+        setSlots(activeSlots);
+        const firstAvailable = activeSlots.find((s: any) => s.status !== "Sold Out");
+        if (firstAvailable) {
+          setSelectedSlot(firstAvailable._id);
+        } else if (activeSlots.length > 0) {
+          setSelectedSlot(activeSlots[0]._id);
+        } else {
+          setSelectedSlot("");
+        }
+      } else if (slotsResult.status === "rejected") {
+        console.error("Failed to load slots:", slotsResult.reason);
+      }
+
+      setLoading(false);
     };
-    fetchTrip();
+
+    fetchTripAndSlots();
     return () => {
       cancelled = true;
     };
   }, [id, initialTrip]);
-
-  // 3. Fetch Trip Slots
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    const fetchSlots = async () => {
-      try {
-        const { data } = await axios.get(`${API_BASE_URL}/trips/${id}/slots`);
-        if (!cancelled && Array.isArray(data)) {
-          // Closed slots must completely disappear from customer view
-          const activeSlots = data.filter((s: any) => !s.isClosed && s.status !== "Closed");
-          setSlots(activeSlots);
-          // Auto-select first available date if not selected yet
-          const firstAvailable = activeSlots.find((s: any) => s.status !== "Sold Out");
-          if (firstAvailable) {
-            setSelectedSlot(firstAvailable._id);
-          } else if (activeSlots.length > 0) {
-            setSelectedSlot(activeSlots[0]._id);
-          } else {
-            setSelectedSlot("");
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load slots:", err);
-      }
-    };
-    fetchSlots();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
 
   // Handle Book Now Click
   const handleBooking = () => {

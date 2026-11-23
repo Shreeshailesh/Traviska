@@ -10,6 +10,7 @@ import {
   PalmTreesWatermark,
 } from "../components/HomeIllustrations";
 import { useTrips } from "../lib/tripsStore";
+import { getOptimizedMediaUrl } from "../lib/mediaUrl";
 
 function Trips() {
   const navigate = useNavigate();
@@ -132,7 +133,7 @@ function Trips() {
               <div className="trip-box-img-wrap">
                 {trip.image?.trim() ? (
                   <img
-                    src={trip.image}
+                    src={getOptimizedMediaUrl(trip.image, 640)}
                     alt={trip.title}
                     // First row is above the fold: load immediately; the rest lazy-load.
                     loading={index < 3 ? "eager" : "lazy"}

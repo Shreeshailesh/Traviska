@@ -13,21 +13,25 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { SEO } from "./components/SEO";
 
-// Public website pages stay in the main bundle so they render instantly.
+// Keep Home in the main bundle for instant initial landing; lazy-load secondary routes.
 import Home from "./pages/Home";
-import Trips from "./pages/Trips";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import TripDetails from "./pages/TripDetails";
-import Booking from "./pages/Booking";
-import Login from "./pages/Login";
-import CustomerLogin from "./pages/CustomerLogin";
-import CustomerDashboard from "./pages/CustomerDashboard";
-import ProtectedCustomer from "./components/ProtectedCustomer";
+const Trips = lazyWithRetry(() => import("./pages/Trips"));
+const About = lazyWithRetry(() => import("./pages/About"));
+const Contact = lazyWithRetry(() => import("./pages/Contact"));
+const TripDetails = lazyWithRetry(() => import("./pages/TripDetails"));
+const Booking = lazyWithRetry(() => import("./pages/Booking"));
+const Login = lazyWithRetry(() => import("./pages/Login"));
+const CustomerLogin = lazyWithRetry(() => import("./pages/CustomerLogin"));
+const CustomerDashboard = lazyWithRetry(() => import("./pages/CustomerDashboard"));
+const ProtectedCustomer = lazyWithRetry(() => import("./components/ProtectedCustomer"));
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 
-import { CaptainAuthProvider } from "./captain/CaptainAuthContext";
-import { SalesAuthProvider } from "./sales/SalesAuthContext";
+const CaptainAuthProvider = lazyWithRetry(() =>
+  import("./captain/CaptainAuthContext").then((m) => ({ default: m.CaptainAuthProvider }))
+);
+const SalesAuthProvider = lazyWithRetry(() =>
+  import("./sales/SalesAuthContext").then((m) => ({ default: m.SalesAuthProvider }))
+);
 
 // Auto-reload once if a lazy chunk fails to fetch after a new deployment
 function lazyWithRetry<T extends React.ComponentType<any>>(

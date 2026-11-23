@@ -172,6 +172,11 @@ paymentReferenceKey: {
     type: Date,
   },
 
+  cancelledBy: {
+    type: String,
+    default: "",
+  },
+
   cancellationReason: {
     type: String,
   },
@@ -211,5 +216,7 @@ paymentReferenceKey: {
     default: Date.now,
   },
 });
+
+bookingSchema.index({ slotId: 1, status: 1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);

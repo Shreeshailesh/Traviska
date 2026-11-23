@@ -9,6 +9,7 @@ if (dns.setDefaultResultOrder) {
 }
 
 const express = require("express");
+const zlib = require("zlib");
 const cors = require("cors");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
@@ -108,6 +109,42 @@ app.use(
   })
 );
 app.use("/uploads", express.static("uploads"));
+
+// Lightweight asynchronous gzip compression for JSON API responses > 1 KB
+app.use((req, res, next) => {
+  const acceptEncoding = req.headers["accept-encoding"] || "";
+  if (!acceptEncoding.includes("gzip")) {
+    return next();
+  }
+  const origJson = res.json.bind(res);
+  res.json = (body) => {
+    if (res.headersSent || res.getHeader("Content-Encoding")) {
+      return origJson(body);
+    }
+    let jsonStr;
+    try {
+      jsonStr = JSON.stringify(body);
+    } catch {
+      return origJson(body);
+    }
+    if (!jsonStr || jsonStr.length < 1024) {
+      return origJson(body);
+    }
+    zlib.gzip(jsonStr, (err, compressed) => {
+      if (err || res.headersSent) {
+        if (!res.headersSent) origJson(body);
+        return;
+      }
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Vary", "Accept-Encoding");
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.removeHeader("Content-Length");
+      res.send(compressed);
+    });
+    return res;
+  };
+  next();
+});
 
 const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -1740,6 +1777,9 @@ app.put(
 
 if (oldStatus === "Pending" && status === "Cancelled") {
   booking.status = "Cancelled";
+  booking.cancelledAt = new Date();
+  booking.cancelledBy = req.user?.email || req.user?.name || "Admin";
+  if (req.body?.reason) booking.cancellationReason = String(req.body.reason).trim();
   await booking.save({ session });
   await session.commitTransaction();
 
@@ -1769,12 +1809,8 @@ if (oldStatus === "Pending" && status === "Cancelled") {
         });
       }
 
-      // Cancel a booking and release its seats.
-      if (
-  oldStatus === "Confirmed" &&
-  status === "Cancelled" &&
-  booking.paymentStatus === "Paid"
-) {
+      // Cancel a confirmed booking and release its seats.
+      if (oldStatus === "Confirmed" && status === "Cancelled") {
         const slot = await TripSlot.findOneAndUpdate(
           {
             _id: booking.slotId,
@@ -1789,6 +1825,9 @@ if (oldStatus === "Pending" && status === "Cancelled") {
         if (!slot) {
           throw new Error("Unable to release booking seats");
         }
+        booking.cancelledAt = new Date();
+        booking.cancelledBy = req.user?.email || req.user?.name || "Admin";
+        if (req.body?.reason) booking.cancellationReason = String(req.body.reason).trim();
       }
 
       // Restore a cancelled booking only if seats are available.
@@ -2059,8 +2098,9 @@ app.get("/sitemap.xml", async (req, res) => {
 
 app.get("/trips", async (req, res) => {
   try {
-    const trips = await Trip.find().sort({ createdAt: -1 });
+    const trips = await Trip.find().sort({ createdAt: -1 }).lean();
 
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(trips);
   } catch (err) {
     console.error(err);
@@ -2075,7 +2115,7 @@ app.get("/trips", async (req, res) => {
 
 app.get("/trips/:id", async (req, res) => {
   try {
-    const trip = await Trip.findById(req.params.id);
+    const trip = await Trip.findById(req.params.id).lean();
 
     if (!trip) {
       return res.status(404).json({
@@ -2084,6 +2124,7 @@ app.get("/trips/:id", async (req, res) => {
       });
     }
 
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(trip);
   } catch (err) {
     console.error(err);
@@ -2166,7 +2207,7 @@ app.put("/trips/:id", authMiddleware, adminMiddleware, async (req, res) => {
 app.get("/trips/:id/pickups", async (req, res) => {
   try {
     const { slotId, date } = req.query;
-    const trip = await Trip.findById(req.params.id);
+    const trip = await Trip.findById(req.params.id).select("pickupLocations").lean();
     if (!trip) {
       return res.status(404).json({
         success: false,
@@ -2205,6 +2246,7 @@ app.get("/trips/:id/pickups", async (req, res) => {
       };
     });
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
       pickupLocations: resolved,
@@ -2261,10 +2303,11 @@ app.put(
 
 app.get("/global-trip-sections", async (req, res) => {
   try {
-    let sections = await GlobalTripSections.findOne();
+    let sections = await GlobalTripSections.findOne().lean();
     if (!sections) {
       sections = await GlobalTripSections.create({});
     }
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
     res.json(sections);
   } catch (err) {
     console.error("Failed to fetch global trip sections:", err);
@@ -2655,7 +2698,7 @@ app.get("/trips/:tripId/slots", async (req, res) => {
       query.isClosed = { $ne: true };
     }
 
-    const slots = await TripSlot.find(query).sort({ date: 1 });
+    const slots = await TripSlot.find(query).sort({ date: 1 }).lean();
 
     const publicSlots = slots
       .filter((slot) => includeClosed === "true" || !slot.isClosed)
@@ -2683,6 +2726,7 @@ app.get("/trips/:tripId/slots", async (req, res) => {
         };
       });
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json(publicSlots);
   } catch (err) {
     console.error(err);

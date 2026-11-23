@@ -2,8 +2,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import axios from "axios";
 import { Camera, Film, ZoomIn, X, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { API_BASE_URL } from "../api";
+import { getOptimizedMediaUrl } from "../lib/mediaUrl";
 import { TitleBrush } from "./HomeIllustrations";
 import "./HomepageMediaGallery.css";
+
+export { getOptimizedMediaUrl };
+
+const GALLERY_CACHE_KEY = "traviska:gallery:v1";
 
 export interface GalleryMediaItem {
   _id?: string;
@@ -18,23 +23,7 @@ export interface GalleryMediaItem {
   isVisible?: boolean;
 }
 
-// Media Optimization Helper: Scales down Cloudinary and Unsplash media to avoid multi-MB full res downloads
-export const getOptimizedMediaUrl = (url: string, targetWidth = 640): string => {
-  if (!url) return "";
-  // Optimize Cloudinary URLs
-  if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
-    if (url.includes("/f_auto,q_auto") || url.includes("/w_")) {
-      return url;
-    }
-    return url.replace("/upload/", `/upload/f_auto,q_auto:good,w_${targetWidth},c_limit/`);
-  }
-  // Optimize Unsplash URLs
-  if (url.includes("images.unsplash.com")) {
-    const cleanUrl = url.split("?")[0];
-    return `${cleanUrl}?auto=format&fit=crop&w=${targetWidth}&q=80`;
-  }
-  return url;
-};
+// Media Optimization Helper re-exported from ../lib/mediaUrl above
 
 // Video Poster Helper: Generates lightweight poster thumbnail
 export const getVideoPosterUrl = (item: GalleryMediaItem): string => {
@@ -168,6 +157,10 @@ const MediaCard: React.FC<MediaCardProps> = React.memo(
       () => getOptimizedMediaUrl(item.thumbnailUrl || item.mediaUrl, 640),
       [item.thumbnailUrl, item.mediaUrl]
     );
+    const optimizedVideoUrl = useMemo(
+      () => getOptimizedMediaUrl(item.mediaUrl, 480, "video"),
+      [item.mediaUrl]
+    );
 
     const posterUrl = useMemo(() => getVideoPosterUrl(item), [item]);
 
@@ -219,13 +212,13 @@ const MediaCard: React.FC<MediaCardProps> = React.memo(
         {isVideo && !isDuplicate ? (
           <video
             ref={videoRef}
-            src={item.mediaUrl}
+            src={isSectionVisible ? optimizedVideoUrl : undefined}
             poster={posterUrl || optimizedImageUrl}
             className="gallery-card-media-element"
             muted
             loop
             playsInline
-            preload="metadata"
+            preload={isSectionVisible ? "metadata" : "none"}
           />
         ) : (
           <img
@@ -270,9 +263,25 @@ export const HomepageMediaGallery: React.FC = () => {
   const [isSectionVisible, setIsSectionVisible] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
 
-  // Fetch gallery items from backend
+  // Fetch gallery items from backend with localStorage SWR cache
   useEffect(() => {
     let isMounted = true;
+    try {
+      const cachedRaw = localStorage.getItem(GALLERY_CACHE_KEY);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        const isFresh = typeof cached?.ts === "number" && Date.now() - cached.ts < 10 * 60 * 1000;
+        if (isFresh) {
+          if (Array.isArray(cached?.top) && cached.top.length > 0) setTopItems(cached.top);
+          if (Array.isArray(cached?.bottom) && cached.bottom.length > 0) setBottomItems(cached.bottom);
+        } else {
+          localStorage.removeItem(GALLERY_CACHE_KEY);
+        }
+      }
+    } catch {
+      // Ignore corrupt cache
+    }
+
     const fetchGallery = async () => {
       try {
         const res = await axios.get(`${API_BASE_URL}/gallery`);
@@ -280,8 +289,18 @@ export const HomepageMediaGallery: React.FC = () => {
           const fetchedTop = (res.data.top || []).filter((i: GalleryMediaItem) => i.isVisible !== false);
           const fetchedBottom = (res.data.bottom || []).filter((i: GalleryMediaItem) => i.isVisible !== false);
 
-          setTopItems(fetchedTop.length > 0 ? fetchedTop : FALLBACK_TOP_ITEMS);
-          setBottomItems(fetchedBottom.length > 0 ? fetchedBottom : FALLBACK_BOTTOM_ITEMS);
+          const finalTop = fetchedTop.length > 0 ? fetchedTop : FALLBACK_TOP_ITEMS;
+          const finalBottom = fetchedBottom.length > 0 ? fetchedBottom : FALLBACK_BOTTOM_ITEMS;
+          setTopItems(finalTop);
+          setBottomItems(finalBottom);
+          try {
+            localStorage.setItem(
+              GALLERY_CACHE_KEY,
+              JSON.stringify({ top: finalTop, bottom: finalBottom, ts: Date.now() })
+            );
+          } catch {
+            // Ignore quota errors
+          }
         }
       } catch (err) {
         console.warn("Using fallback gallery media due to network or server response:", err);

@@ -71,6 +71,26 @@ interface AvailableOffer {
   shortDescription: string;
 }
 
+const loadRazorpayScript = (): Promise<boolean> => {
+  if (typeof window !== "undefined" && (window as any).Razorpay) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 function Booking() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -178,6 +198,11 @@ function Booking() {
   const [availableOffers, setAvailableOffers] = useState<AvailableOffer[]>([]);
   const [loadingOffers, setLoadingOffers] = useState(false);
 
+  // Preload Razorpay SDK only when the customer enters the Booking page
+  useEffect(() => {
+    loadRazorpayScript();
+  }, []);
+
   // Fetch pickup locations for selected trip and recalculate times on departure date change
   useEffect(() => {
     if (!tripId) {
@@ -220,7 +245,7 @@ function Booking() {
       .finally(() => {
         setLoadingPickups(false);
       });
-  }, [tripId, selectedSlotId, availableSlots]);
+  }, [tripId, selectedSlotId]);
 
   // Fetch slots if not passed in location.state
   useEffect(() => {
@@ -519,8 +544,9 @@ function Booking() {
       }
     }
 
-    if (!(window as any).Razorpay) {
-      alert("Payment gateway could not load. Please refresh the page.");
+    const razorpayReady = await loadRazorpayScript();
+    if (!razorpayReady || !(window as any).Razorpay) {
+      alert("Payment gateway could not load. Please check your connection and try again.");
       return;
     }
 

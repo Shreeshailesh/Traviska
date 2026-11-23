@@ -3,11 +3,38 @@
 
 
 <head>
-  <!-- Loaded async so the payment SDK never blocks first paint / trip loading.
-       Booking.tsx only uses window.Razorpay when the user clicks Pay. -->
-  <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
   <link rel="preconnect" href="https://traviska-backend.onrender.com" crossorigin />
   <link rel="dns-prefetch" href="https://traviska-backend.onrender.com" />
+  <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
+  <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap"
+    media="print"
+    onload="this.media='all'"
+  />
+  <noscript>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap"
+    />
+  </noscript>
+  <link
+    rel="preload"
+    as="image"
+    href="https://res.cloudinary.com/clpacmp1/video/upload/so_0,q_auto:good,f_auto,w_720/traviska_hero_video.jpg"
+    media="(max-width: 768px)"
+    fetchpriority="high"
+  />
+  <link
+    rel="preload"
+    as="image"
+    href="https://res.cloudinary.com/clpacmp1/video/upload/so_0,q_auto:good,f_auto,w_1280/traviska_hero_video.jpg"
+    media="(min-width: 769px)"
+    fetchpriority="high"
+  />
   <meta charset="UTF-8" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" />
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png?v=2" />
@@ -79,8 +106,9 @@
     ]
   }
   </script>
-  <script type="module" crossorigin src="/assets/index-V6L-kLfK.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-D5wMDcAn.css">
+  <script type="module" crossorigin src="/assets/index-MO7UN4XW.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/jsx-runtime-n5LQ9ujS.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-CuE6Docs.css">
 </head>
 
 <body>

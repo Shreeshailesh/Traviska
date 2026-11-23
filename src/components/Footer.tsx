@@ -76,6 +76,7 @@ function Footer() {
               rel="noopener noreferrer"
               className="social-circle-btn"
               title="Instagram"
+              aria-label="Traviska on Instagram"
             >
               <InstagramSvg />
             </a>
@@ -86,6 +87,7 @@ function Footer() {
               rel="noopener noreferrer"
               className="social-circle-btn"
               title="YouTube"
+              aria-label="Traviska on YouTube"
             >
               <YoutubeSvg />
             </a>
@@ -96,6 +98,7 @@ function Footer() {
               rel="noopener noreferrer"
               className="social-circle-btn"
               title="WhatsApp"
+              aria-label="Chat with Traviska on WhatsApp"
             >
               <WhatsAppSvg />
             </a>
@@ -104,6 +107,7 @@ function Footer() {
               href="mailto:traviskaadventures@gmail.com"
               className="social-circle-btn"
               title="Email"
+              aria-label="Email Traviska"
             >
               <MailSvg />
             </a>

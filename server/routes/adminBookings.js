@@ -545,6 +545,7 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
       }
 
       const travellersCount = Number(booking.travellers) || 1;
+      const isConfirmed = booking.status === "Confirmed";
       const availableSeats = (newSlot.totalSlots || 24) - (newSlot.bookedSlots || 0);
 
       if (availableSeats < travellersCount) {
@@ -555,20 +556,73 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
         });
       }
 
-      // Step 1: Release seats from old slot (if exists)
       let oldDateStr = booking.date || "Previous Date";
       if (currentSlotId) {
-        const oldSlot = await TripSlot.findById(currentSlotId).session(session);
-        if (oldSlot) {
-          oldSlot.bookedSlots = Math.max(0, (oldSlot.bookedSlots || 0) - travellersCount);
-          await oldSlot.save({ session });
-          oldDateStr = formatISTDate(oldSlot.date);
+        if (isConfirmed) {
+          // Atomically reserve seats in the new slot BEFORE releasing the old slot
+          const reservedNewSlot = await TripSlot.findOneAndUpdate(
+            {
+              _id: newSlotId,
+              isClosed: false,
+              $expr: {
+                $gte: [
+                  { $subtract: ["$totalSlots", "$bookedSlots"] },
+                  travellersCount,
+                ],
+              },
+            },
+            { $inc: { bookedSlots: travellersCount } },
+            { new: true, session }
+          );
+
+          if (!reservedNewSlot) {
+            await session.abortTransaction();
+            return res.status(409).json({
+              success: false,
+              message: "Not enough seats available in selected departure",
+            });
+          }
+
+          const oldSlot = await TripSlot.findOneAndUpdate(
+            {
+              _id: currentSlotId,
+              bookedSlots: { $gte: travellersCount },
+            },
+            { $inc: { bookedSlots: -travellersCount } },
+            { new: true, session }
+          );
+          if (oldSlot) {
+            oldDateStr = formatISTDate(oldSlot.date);
+          }
+        } else {
+          const oldSlot = await TripSlot.findById(currentSlotId).session(session);
+          if (oldSlot) {
+            oldDateStr = formatISTDate(oldSlot.date);
+          }
+        }
+      } else if (isConfirmed) {
+        const reservedNewSlot = await TripSlot.findOneAndUpdate(
+          {
+            _id: newSlotId,
+            isClosed: false,
+            $expr: {
+              $gte: [
+                { $subtract: ["$totalSlots", "$bookedSlots"] },
+                travellersCount,
+              ],
+            },
+          },
+          { $inc: { bookedSlots: travellersCount } },
+          { new: true, session }
+        );
+        if (!reservedNewSlot) {
+          await session.abortTransaction();
+          return res.status(409).json({
+            success: false,
+            message: "Not enough seats available in selected departure",
+          });
         }
       }
-
-      // Step 2: Reserve seats in new slot
-      newSlot.bookedSlots = (newSlot.bookedSlots || 0) + travellersCount;
-      await newSlot.save({ session });
 
       // Step 3: Record reschedule history
       const rescheduleEntry = {
@@ -660,20 +714,24 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
       }
 
       const travellersCount = Number(booking.travellers) || 1;
+      const wasConfirmed = booking.status === "Confirmed";
 
-      // Release seats from the trip slot if assigned
-      if (booking.slotId) {
-        const slot = await TripSlot.findById(booking.slotId).session(session);
-        if (slot) {
-          slot.bookedSlots = Math.max(0, (slot.bookedSlots || 0) - travellersCount);
-          await slot.save({ session });
-        }
+      // Only release seats if the booking had actually confirmed/reserved them
+      if (wasConfirmed && booking.slotId) {
+        await TripSlot.findOneAndUpdate(
+          {
+            _id: booking.slotId,
+            bookedSlots: { $gte: travellersCount },
+          },
+          { $inc: { bookedSlots: -travellersCount } },
+          { new: true, session }
+        );
       }
 
-      // Release coupon usage limit reservation if a coupon was used
-      if (booking.couponCode) {
+      // Release coupon usage limit reservation if a confirmed booking used a coupon
+      if (wasConfirmed && booking.couponCode) {
         await Coupon.updateOne(
-          { code: booking.couponCode },
+          { code: booking.couponCode, usageCount: { $gt: 0 } },
           { $inc: { usageCount: -1 } },
           { session }
         );
@@ -681,6 +739,7 @@ module.exports = function adminBookingRoutes({ authMiddleware, adminMiddleware }
 
       booking.status = "Cancelled";
       booking.cancelledAt = new Date();
+      booking.cancelledBy = req.user?.email || req.user?.name || "Admin";
       booking.cancellationReason = reason.trim();
       booking.cancellationNotes = notes.trim();
 
