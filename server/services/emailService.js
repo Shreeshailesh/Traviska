@@ -20,24 +20,31 @@ function getSmtpConfigSummary() {
   };
 }
 
+function createTransporterWithPort(cfg, portOverride = null) {
+  const port = portOverride || cfg.port;
+  const secure = port === 465 || (process.env.SMTP_SECURE === "true" && port !== 587);
+  return nodemailer.createTransport({
+    host: cfg.host,
+    port,
+    secure,
+    family: 4, // Force IPv4 on cloud hosts like Render where IPv6 SMTP times out
+    auth: { user: cfg.user, pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD },
+    connectionTimeout: 12000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    tls: {
+      rejectUnauthorized: process.env.NODE_ENV === "production",
+    },
+  });
+}
+
 function getSmtpTransporter() {
   const cfg = getSmtpConfigSummary();
   if (!cfg.configured) {
     return null;
   }
 
-  return nodemailer.createTransport({
-    host: cfg.host,
-    port: cfg.port,
-    secure: cfg.secure,
-    auth: { user: cfg.user, pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD },
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
-    tls: {
-      rejectUnauthorized: process.env.NODE_ENV === "production",
-    },
-  });
+  return createTransporterWithPort(cfg);
 }
 
 function getFromAddress() {
@@ -292,7 +299,7 @@ async function dispatchEmailWithAttachment({
   await invoice.save();
 
   try {
-    const info = await transporter.sendMail({
+    const mailPayload = {
       from: getFromAddress(),
       replyTo: process.env.SMTP_REPLY_TO || "admin@traviska.com",
       to: recipient,
@@ -308,7 +315,23 @@ async function dispatchEmailWithAttachment({
             },
           ]
         : [],
-    });
+    };
+
+    let info;
+    try {
+      info = await transporter.sendMail(mailPayload);
+    } catch (primaryErr) {
+      const cfg = getSmtpConfigSummary();
+      const isTimeoutOrConn = /timeout|ETIMEDOUT|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH/i.test(
+        primaryErr?.message || ""
+      );
+      if (isTimeoutOrConn && cfg.port !== 587) {
+        const fallbackTransporter = createTransporterWithPort(cfg, 587);
+        info = await fallbackTransporter.sendMail(mailPayload);
+      } else {
+        throw primaryErr;
+      }
+    }
 
     invoice.emailDelivery.status = "Accepted by Provider";
     invoice.emailDelivery.lastAttemptAt = new Date();
