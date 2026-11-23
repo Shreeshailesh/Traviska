@@ -1331,6 +1331,77 @@ module.exports = function cancellationRescheduleRoutes({ authMiddleware, adminMi
         return res.json({ success: true, request: lockedReq, booking });
       }
 
+      async function notifyCustomerRefundInitiated({ refundRef }) {
+        const initInvoice = invoice || (await Invoice.findOne({ bookingId: booking._id }));
+        const initiatedPaise = Math.round(Number(approvedAmount || 0) * 100);
+        if (initInvoice) {
+          await sendRefundEmail({
+            invoice: initInvoice,
+            stage: "initiated",
+            refundAmountPaise: initiatedPaise,
+            refundReference: refundRef || "Processing",
+            reason: lockedReq.reason || "",
+          });
+          if (booking.whatsappOptIn) {
+            await sendOrPrepareWhatsAppRefund({
+              invoice: initInvoice,
+              stage: "initiated",
+              refundAmountPaise: initiatedPaise,
+              refundReference: refundRef || "Processing",
+              baseUrl: req.headers.origin,
+              optInConfirmed: true,
+            });
+          }
+        } else {
+          const refundInitEmail = renderCustomerEmail({
+            eyebrow: "REFUND UPDATE",
+            statusLabel: "Refund Initiated",
+            statusTone: "warning",
+            title: "Refund Approved & Initiated",
+            customerName: booking.name || "Traveller",
+            introParagraphs: [
+              `Your refund for booking ${booking.bookingCode} (${booking.trip?.title || "Traviska Trip"}) has been approved and initiated.`,
+            ],
+            details: [
+              { label: "Booking ID", value: booking.bookingCode || String(booking._id) },
+              { label: "Trip", value: booking.trip?.title || "Traviska Trip" },
+              { label: "Refund Reference", value: refundRef || "Processing" },
+              { label: "Refund Amount", value: `₹${Number(approvedAmount || 0).toLocaleString("en-IN")}`, highlight: true },
+            ],
+            nextStepsBody:
+              "Refunds typically take 1–3 business days (or up to 5–7 days depending on your bank) to reflect in your original payment account. You will receive another confirmation once settled.",
+            ctaLabel: "View My Trips",
+            ctaUrl: `${(process.env.PUBLIC_WEBSITE_URL || "https://traviska.com").replace(/\/+$/, "")}/customer/dashboard`,
+          });
+          await queueAndSendEmail({
+            audience: "customer",
+            eventType: "RefundInitiated",
+            bookingId: booking._id,
+            requestId: lockedReq._id,
+            recipient: booking.email,
+            subject: `Traviska — Refund Initiated (${booking.bookingCode})`,
+            textBody: refundInitEmail.text,
+            htmlBody: refundInitEmail.html,
+            idempotencyKey: `refund-init-email:${lockedReq._id}`,
+          });
+          await queueAndSendWhatsApp({
+            booking,
+            eventType: "RefundInitiated",
+            requestId: lockedReq._id,
+            templateName: process.env.WHATSAPP_REFUND_INITIATED_TEMPLATE_NAME || "traviska_refund_initiated",
+            templateParams: [
+              booking.name || "Traveller",
+              booking.bookingCode || String(booking._id),
+              booking.trip?.title || "Traviska Trip",
+              `₹${Number(approvedAmount || 0).toLocaleString("en-IN")}`,
+              refundRef || "Processing",
+              "Refund Initiated",
+            ],
+            idempotencyKey: `refund-init-wa:${lockedReq._id}`,
+          });
+        }
+      }
+
       const activeProvider = (process.env.PAYMENT_GATEWAY_PROVIDER || "").trim();
       const hasLiveGateway = Boolean(activeProvider && activeProvider !== "simulator");
 
@@ -1359,33 +1430,7 @@ module.exports = function cancellationRescheduleRoutes({ authMiddleware, adminMi
           booking.refundInitiatedAt = new Date();
           await booking.save();
 
-          const initInvoice = await Invoice.findOne({ bookingId: booking._id });
-          if (initInvoice && booking.whatsappOptIn) {
-            await sendOrPrepareWhatsAppRefund({
-              invoice: initInvoice,
-              stage: "initiated",
-              refundAmountPaise: Math.round(Number(approvedAmount || 0) * 100),
-              refundReference: refundRef || "Processing",
-              baseUrl: req.headers.origin,
-              optInConfirmed: true,
-            });
-          } else {
-            await queueAndSendWhatsApp({
-              booking,
-              eventType: "RefundInitiated",
-              requestId: lockedReq._id,
-              templateName: process.env.WHATSAPP_REFUND_INITIATED_TEMPLATE_NAME || "traviska_refund_initiated",
-              templateParams: [
-                booking.name || "Traveller",
-                booking.bookingCode || String(booking._id),
-                booking.trip?.title || "Traviska Trip",
-                `₹${Number(approvedAmount || 0).toLocaleString("en-IN")}`,
-                refundRef || "Processing",
-                "Refund Initiated",
-              ],
-              idempotencyKey: `refund-init-wa:${lockedReq._id}`,
-            });
-          }
+          await notifyCustomerRefundInitiated({ refundRef });
         } catch (gwErr) {
           const isTimeout = /timeout|ETIMEDOUT|ECONNRESET/i.test(gwErr?.message || "");
           lockedReq.refundState = isTimeout ? "Reconciliation Required" : "Failed — Requires Action";
@@ -1420,7 +1465,12 @@ module.exports = function cancellationRescheduleRoutes({ authMiddleware, adminMi
         await lockedReq.save();
 
         booking.refundState = "Approved — Pending Initiation";
+        booking.refundInitiatedAt = booking.refundInitiatedAt || new Date();
         await booking.save();
+
+        await notifyCustomerRefundInitiated({
+          refundRef: booking.refundReference || lockedReq.requestCode || "Approved",
+        });
 
         await sendStaffAlertEmail({
           eventType: "Refund Approved — Manual Payout Required",
