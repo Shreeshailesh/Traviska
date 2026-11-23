@@ -3,6 +3,96 @@ const { formatINR } = require("./invoiceService");
 
 const TEST_SAFE_RECIPIENT = "travelwithtraviska@gmail.com";
 
+function getHttpsEmailProvider() {
+  const resendKey = (process.env.RESEND_API_KEY || "").trim();
+  if (resendKey) return { provider: "resend", apiKey: resendKey };
+  const brevoKey = (process.env.BREVO_API_KEY || "").trim();
+  if (brevoKey) return { provider: "brevo", apiKey: brevoKey };
+  return null;
+}
+
+function parseFromNameAndEmail(fromStr) {
+  const m = String(fromStr || "").match(/^(?:"([^"]+)"\s*)?<([^>\s]+@[^>\s]+)>$/);
+  if (m) return { name: (m[1] || "Traviska Team").trim(), email: m[2].trim() };
+  return { name: "Traviska Team", email: String(fromStr || "admin@traviska.com").trim() };
+}
+
+async function sendViaHttpsProvider(httpsCfg, { from, replyTo, to, subject, text, html, attachments }) {
+  const att = Array.isArray(attachments) && attachments[0] ? attachments[0] : null;
+  if (httpsCfg.provider === "resend") {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${httpsCfg.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        reply_to: replyTo,
+        to: [to],
+        subject,
+        text,
+        html,
+        ...(att
+          ? {
+              attachments: [
+                {
+                  filename: att.filename,
+                  content: Buffer.isBuffer(att.content)
+                    ? att.content.toString("base64")
+                    : Buffer.from(att.content).toString("base64"),
+                },
+              ],
+            }
+          : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.message || data?.error?.message || `Resend HTTP ${res.status}`);
+    }
+    return { messageId: data?.id || "", provider: "resend" };
+  }
+
+  if (httpsCfg.provider === "brevo") {
+    const sender = parseFromNameAndEmail(from);
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": httpsCfg.apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender,
+        replyTo: { email: replyTo },
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+        htmlContent: html,
+        ...(att
+          ? {
+              attachment: [
+                {
+                  name: att.filename,
+                  content: Buffer.isBuffer(att.content)
+                    ? att.content.toString("base64")
+                    : Buffer.from(att.content).toString("base64"),
+                },
+              ],
+            }
+          : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.message || `Brevo HTTP ${res.status}`);
+    }
+    return { messageId: data?.messageId || "", provider: "brevo" };
+  }
+  throw new Error("Unsupported HTTPS email provider");
+}
+
 function getSmtpConfigSummary() {
   const host = (process.env.SMTP_HOST || "").trim();
   const user = (process.env.SMTP_USER || "").trim();
@@ -257,14 +347,15 @@ async function dispatchEmailWithAttachment({
   const recipient =
     (invoice.customerSnapshot?.email || "").trim() || TEST_SAFE_RECIPIENT;
 
+  const httpsProvider = getHttpsEmailProvider();
   const transporter = getSmtpTransporter();
   const now = new Date();
 
-  if (!transporter) {
+  if (!httpsProvider && !transporter) {
     invoice.emailDelivery.status = "Not Configured";
     invoice.emailDelivery.lastAttemptAt = now;
     invoice.emailDelivery.lastError =
-      "SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASS) are not configured in server/.env.";
+      "Email credentials (RESEND_API_KEY, BREVO_API_KEY, or SMTP_HOST/USER/PASS) are not configured.";
     invoice.emailDelivery.attempts.push({
       attemptedAt: now,
       status: "Not Configured",
@@ -318,18 +409,25 @@ async function dispatchEmailWithAttachment({
     };
 
     let info;
-    try {
-      info = await transporter.sendMail(mailPayload);
-    } catch (primaryErr) {
-      const cfg = getSmtpConfigSummary();
-      const isTimeoutOrConn = /timeout|ETIMEDOUT|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH/i.test(
-        primaryErr?.message || ""
-      );
-      if (isTimeoutOrConn && cfg.port !== 587) {
-        const fallbackTransporter = createTransporterWithPort(cfg, 587);
-        info = await fallbackTransporter.sendMail(mailPayload);
-      } else {
-        throw primaryErr;
+    let usedProvider = "smtp";
+    if (httpsProvider) {
+      info = await sendViaHttpsProvider(httpsProvider, mailPayload);
+      usedProvider = info.provider;
+    } else {
+      try {
+        info = await transporter.sendMail(mailPayload);
+      } catch (primaryErr) {
+        const cfg = getSmtpConfigSummary();
+        const isTimeoutOrConn = /timeout|ETIMEDOUT|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH/i.test(
+          primaryErr?.message || ""
+        );
+        if (isTimeoutOrConn) {
+          const altPort = cfg.port === 587 ? 465 : 587;
+          const fallbackTransporter = createTransporterWithPort(cfg, altPort);
+          info = await fallbackTransporter.sendMail(mailPayload);
+        } else {
+          throw primaryErr;
+        }
       }
     }
 
@@ -339,7 +437,7 @@ async function dispatchEmailWithAttachment({
     invoice.emailDelivery.attempts.push({
       attemptedAt: new Date(),
       status: "Accepted by Provider",
-      provider: "smtp",
+      provider: usedProvider,
       messageId: info.messageId || "",
       recipient,
     });
