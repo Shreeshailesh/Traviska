@@ -1501,6 +1501,7 @@ app.post(
         status: paymentConfirmed ? "Confirmed" : "Pending",
         whatsappOptIn: Boolean(req.body.whatsappOptIn),
         whatsappOptInAt: req.body.whatsappOptIn ? new Date() : null,
+        whatsappOptInSource: req.body.whatsappOptIn ? "admin_manual_booking" : "",
       });
 
       await booking.save({ session });
@@ -1520,6 +1521,7 @@ app.post(
         booking,
         invoice: invoiceHook?.invoice || null,
         emailResult: invoiceHook?.emailResult || null,
+        whatsappPreview: invoiceHook?.whatsappPreview || null,
       });
     } catch (err) {
       if (session.inTransaction()) {

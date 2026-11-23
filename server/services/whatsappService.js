@@ -1051,6 +1051,156 @@ async function processWhatsAppWebhookPayload(body, InvoiceModel = require("../mo
   return results;
 }
 
+async function sendCaptainOtpWhatsApp({ phone, otpCode }) {
+  if (!isWhatsAppConfigured()) {
+    return {
+      configured: false,
+      status: "Not Configured",
+      error: "WhatsApp Business Platform API credentials not configured.",
+    };
+  }
+
+  const parsedPhone = parseAndValidatePhone(phone);
+  if (!parsedPhone.valid) {
+    return {
+      configured: true,
+      status: "Failed",
+      errorCode: "INVALID_PHONE",
+      error: parsedPhone.reason,
+    };
+  }
+
+  const token = process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const templateName = (process.env.WHATSAPP_OTP_TEMPLATE_NAME || "traviska_captain_otp").trim();
+  const langCode = (process.env.WHATSAPP_OTP_TEMPLATE_LANG || process.env.WHATSAPP_TEMPLATE_LANG || "en").trim();
+  const cleanOtp = String(otpCode || "").trim();
+
+  try {
+    const tplRes = await sendMetaWhatsAppPayload({
+      phoneNumberId,
+      token,
+      payload: {
+        to: parsedPhone.waDigits,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: langCode },
+          components: [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: cleanOtp }],
+            },
+            {
+              type: "button",
+              sub_type: "url",
+              index: "0",
+              parameters: [{ type: "text", text: cleanOtp }],
+            },
+          ],
+        },
+      },
+    });
+    return {
+      configured: true,
+      status: "API Accepted",
+      messageId: tplRes.messages?.[0]?.id || "",
+      recipient: parsedPhone.e164,
+      templateName,
+    };
+  } catch (err) {
+    const isPending = Number(err.code) === 132001 || /not exist|translation/i.test(err.message || "");
+    return {
+      configured: true,
+      status: isPending ? "Template Pending Approval" : "Failed",
+      errorCode: String(err.code || ""),
+      error: isPending
+        ? `Template "${templateName}" is awaiting Meta approval.`
+        : err.message,
+      recipient: parsedPhone.e164,
+      templateName,
+    };
+  }
+}
+
+async function sendDepartureGroupLinkWhatsApp({
+  phone,
+  customerName,
+  tripTitle,
+  departureDate,
+  groupLink,
+  bookingCode,
+}) {
+  if (!isWhatsAppConfigured()) {
+    return {
+      configured: false,
+      status: "Not Configured",
+      error: "WhatsApp Business Platform API credentials not configured.",
+    };
+  }
+
+  const parsedPhone = parseAndValidatePhone(phone);
+  if (!parsedPhone.valid) {
+    return {
+      configured: true,
+      status: "Failed",
+      errorCode: "INVALID_PHONE",
+      error: parsedPhone.reason,
+    };
+  }
+
+  const token = process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const templateName = (process.env.WHATSAPP_GROUP_TEMPLATE_NAME || "traviska_departure_group_v1").trim();
+  const langCode = (process.env.WHATSAPP_TEMPLATE_LANG || "en").trim();
+
+  try {
+    const tplRes = await sendMetaWhatsAppPayload({
+      phoneNumberId,
+      token,
+      payload: {
+        to: parsedPhone.waDigits,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: langCode },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: sanitizeTemplateParam(customerName || "Traveller") },
+                { type: "text", text: sanitizeTemplateParam(tripTitle || "Traviska Trip") },
+                { type: "text", text: sanitizeTemplateParam(departureDate || "Upcoming Departure") },
+                { type: "text", text: sanitizeTemplateParam(groupLink) },
+                { type: "text", text: sanitizeTemplateParam(bookingCode || "—") },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    return {
+      configured: true,
+      status: "API Accepted",
+      messageId: tplRes.messages?.[0]?.id || "",
+      recipient: parsedPhone.e164,
+      templateName,
+    };
+  } catch (err) {
+    const isPending = Number(err.code) === 132001 || /not exist|translation/i.test(err.message || "");
+    return {
+      configured: true,
+      status: isPending ? "Template Pending Approval" : "Failed",
+      errorCode: String(err.code || ""),
+      error: isPending
+        ? `Template "${templateName}" is awaiting Meta approval.`
+        : err.message,
+      recipient: parsedPhone.e164,
+      templateName,
+    };
+  }
+}
+
 module.exports = {
   isWhatsAppConfigured,
   hasWhatsAppOptIn,
@@ -1062,5 +1212,7 @@ module.exports = {
   prepareWhatsAppPreview,
   sendOrPrepareWhatsApp,
   sendOrPrepareWhatsAppRefund,
+  sendCaptainOtpWhatsApp,
+  sendDepartureGroupLinkWhatsApp,
   processWhatsAppWebhookPayload,
 };

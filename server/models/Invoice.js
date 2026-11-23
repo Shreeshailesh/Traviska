@@ -198,6 +198,8 @@ const invoiceSchema = new mongoose.Schema(
       templateName: { type: String, default: "" },
       lastMessageId: { type: String, default: "" },
       optIn: { type: Boolean, default: false },
+      optInAt: { type: Date, default: null },
+      optInSource: { type: String, default: "" },
       lastAttemptAt: { type: Date, default: null },
       deliveredAt: { type: Date, default: null },
       readAt: { type: Date, default: null },

@@ -438,6 +438,8 @@ async function createOrReconcileInvoiceForBooking({
     companySnapshot: companyProfile,
     whatsappDelivery: {
       optIn: Boolean(booking.whatsappOptIn),
+      optInAt: booking.whatsappOptInAt || null,
+      optInSource: booking.whatsappOptInSource || "",
     },
     status: isCancelled ? "cancelled" : "issued",
     auditTrail: [

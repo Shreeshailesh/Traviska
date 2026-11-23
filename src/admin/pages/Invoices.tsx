@@ -239,7 +239,17 @@ export default function InvoicesPage() {
         { headers: authHeaders() }
       );
       if (res.data.success) {
-        alert(`Email attempt status: ${res.data.emailResult?.status}`);
+        const st = res.data.emailResult?.status;
+        const errText = res.data.emailResult?.error;
+        setStatusBanner({
+          type: st === "Failed" ? "error" : "success",
+          text:
+            st === "Failed"
+              ? `Email failed: ${errText || "SMTP error"}`
+              : res.data.duplicatePrevented
+              ? `Email already ${st} for this invoice (no duplicate sent).`
+              : `Email status: ${st}`,
+        });
         fetchInvoices();
       }
     } catch (err: any) {
@@ -247,19 +257,40 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleRetryWhatsApp = async (invoiceId: string) => {
+  const handleRetryWhatsApp = async (inv: InvoiceRecord) => {
     try {
+      let optInConfirmed = false;
+      if (inv.whatsappDelivery?.status === "Opt-In Required") {
+        const ok = window.confirm(
+          `WhatsApp notification for ${inv.invoiceNumber} is waiting for customer opt-in.\n\nClick OK ONLY if the customer has explicitly agreed to receive booking confirmations, invoices and trip updates from Traviska via WhatsApp.`
+        );
+        if (!ok) return;
+        await axios.post(
+          `${API_BASE_URL}/api/admin/invoices/${inv._id}/whatsapp-consent`,
+          { confirmed: true },
+          { headers: authHeaders() }
+        );
+        optInConfirmed = true;
+      }
+
       const res = await axios.post(
-        `${API_BASE_URL}/api/admin/invoices/${invoiceId}/retry-whatsapp`,
-        {},
+        `${API_BASE_URL}/api/admin/invoices/${inv._id}/retry-whatsapp`,
+        { optInConfirmed },
         { headers: authHeaders() }
       );
       if (res.data.success) {
-        alert(`WhatsApp status: ${res.data.whatsappPreview?.status}`);
+        const wa = res.data.whatsappPreview;
+        setStatusBanner({
+          type: wa?.status === "Failed" ? "error" : "success",
+          text:
+            wa?.status === "Failed"
+              ? `WhatsApp failed: ${wa?.error || "API error"}`
+              : `WhatsApp status: ${wa?.status}`,
+        });
         fetchInvoices();
       }
-    } catch {
-      alert("Failed to prepare WhatsApp notification.");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to prepare WhatsApp notification.");
     }
   };
 
@@ -633,6 +664,7 @@ export default function InvoicesPage() {
                       </td>
                       <td style={{ padding: "10px 8px" }}>
                         <span
+                          title={inv.emailDelivery?.lastError || ""}
                           style={{
                             ...getStatusBadgeStyle(inv.emailDelivery?.status),
                             padding: "3px 8px",
@@ -644,9 +676,43 @@ export default function InvoicesPage() {
                         >
                           {inv.emailDelivery?.status || "Not Configured"}
                         </span>
+                        {inv.emailDelivery?.status === "Failed" && inv.emailDelivery?.lastError && (
+                          <div
+                            style={{
+                              fontSize: "10.5px",
+                              color: "#b91c1c",
+                              marginTop: "3px",
+                              maxWidth: "160px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={inv.emailDelivery.lastError}
+                          >
+                            {inv.emailDelivery.lastError}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "10px 8px", fontSize: "11px", color: "#475569" }}>
-                        {inv.whatsappDelivery?.status || "Preview Only / Not Configured"}
+                        <div title={inv.whatsappDelivery?.lastError || ""}>
+                          {inv.whatsappDelivery?.status || "Preview Only / Not Configured"}
+                        </div>
+                        {inv.whatsappDelivery?.status === "Failed" && inv.whatsappDelivery?.lastError && (
+                          <div
+                            style={{
+                              fontSize: "10.5px",
+                              color: "#b91c1c",
+                              marginTop: "2px",
+                              maxWidth: "150px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={inv.whatsappDelivery.lastError}
+                          >
+                            {inv.whatsappDelivery.lastError}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "10px 8px" }}>
                         <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
@@ -684,8 +750,12 @@ export default function InvoicesPage() {
                           </button>
                           <button
                             type="button"
-                            title="Prepare WhatsApp"
-                            onClick={() => handleRetryWhatsApp(inv._id)}
+                            title={
+                              inv.whatsappDelivery?.status === "Opt-In Required"
+                                ? "Record WhatsApp Consent & Send"
+                                : "Prepare / Retry WhatsApp"
+                            }
+                            onClick={() => handleRetryWhatsApp(inv)}
                             style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer" }}
                           >
                             <MessageSquare size={14} />

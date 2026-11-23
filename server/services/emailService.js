@@ -3,22 +3,37 @@ const { formatINR } = require("./invoiceService");
 
 const TEST_SAFE_RECIPIENT = "travelwithtraviska@gmail.com";
 
-function getSmtpTransporter() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+function getSmtpConfigSummary() {
+  const host = (process.env.SMTP_HOST || "").trim();
+  const user = (process.env.SMTP_USER || "").trim();
+  const pass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD || "";
   const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const secure = port === 465 || (process.env.SMTP_SECURE === "true" && port !== 587);
+  return {
+    configured: Boolean(host && user && pass),
+    host,
+    port,
+    secure,
+    user,
+    from: getFromAddress(),
+    replyTo: (process.env.SMTP_REPLY_TO || "admin@traviska.com").trim(),
+  };
+}
 
-  if (!host || !user || !pass) {
+function getSmtpTransporter() {
+  const cfg = getSmtpConfigSummary();
+  if (!cfg.configured) {
     return null;
   }
 
   return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure,
+    auth: { user: cfg.user, pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD },
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     tls: {
       rejectUnauthorized: process.env.NODE_ENV === "production",
     },
@@ -26,11 +41,19 @@ function getSmtpTransporter() {
 }
 
 function getFromAddress() {
-  return (
+  const raw = String(
     process.env.SMTP_FROM ||
-    process.env.EMAIL_FROM ||
-    '"Traviska Team" <admin@traviska.com>'
-  );
+      process.env.EMAIL_FROM ||
+      '"Traviska Team" <admin@traviska.com>'
+  ).trim();
+  // Clean stray escaped/unmatched quotes while preserving "Display Name" <addr@domain>
+  const match = raw.match(/^(?:["\\]*([^"<]+?)["\\]*\s*)?<([^>\s]+@[^>\s]+)>$/);
+  if (match) {
+    const displayName = match[1] ? match[1].replace(/["\\]/g, "").trim() : "Traviska Team";
+    const emailAddr = match[2].trim();
+    return displayName ? `"${displayName}" <${emailAddr}>` : emailAddr;
+  }
+  return raw;
 }
 
 /**
@@ -369,6 +392,9 @@ async function sendRefundEmail({
 
 module.exports = {
   TEST_SAFE_RECIPIENT,
+  getSmtpConfigSummary,
+  getSmtpTransporter,
+  getFromAddress,
   buildInvoiceEmailContent,
   buildRefundEmailContent,
   sendInvoiceEmail,

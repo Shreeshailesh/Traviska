@@ -26,10 +26,16 @@ const {
   generateInvoicePdfBuffer,
   ensureInvoicePdfFile,
 } = require("../services/pdfService");
-const { sendInvoiceEmail, sendRefundEmail } = require("../services/emailService");
+const {
+  getSmtpConfigSummary,
+  getSmtpTransporter,
+  sendInvoiceEmail,
+  sendRefundEmail,
+} = require("../services/emailService");
 const {
   prepareWhatsAppPreview,
   sendOrPrepareWhatsAppRefund,
+  sendDepartureGroupLinkWhatsApp,
   processWhatsAppWebhookPayload,
   isWhatsAppConfigured,
 } = require("../services/whatsappService");
@@ -196,41 +202,260 @@ module.exports = function invoiceRoutes({ authMiddleware, adminMiddleware }) {
   );
 
   // =========================================================================
-  // 5. ADMIN: Retry Email & Retry WhatsApp (Idempotent — never creates duplicate invoice)
+  // 5. ADMIN: Retry Email, WhatsApp Consent & Retry, and SMTP Diagnostics
   // =========================================================================
+  router.get(
+    "/api/admin/invoices/diagnostics/smtp",
+    authMiddleware,
+    adminMiddleware,
+    async (req, res) => {
+      const summary = getSmtpConfigSummary();
+      const transporter = getSmtpTransporter();
+      if (!transporter) {
+        return res.json({
+          success: false,
+          ...summary,
+          verified: false,
+          error: "SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASS) are missing.",
+        });
+      }
+      try {
+        await transporter.verify();
+        return res.json({
+          success: true,
+          ...summary,
+          verified: true,
+          error: "",
+        });
+      } catch (err) {
+        return res.json({
+          success: false,
+          ...summary,
+          verified: false,
+          error: err.message,
+        });
+      }
+    }
+  );
+
   router.post(
     "/api/admin/invoices/:id/resend-email",
     authMiddleware,
     adminMiddleware,
     async (req, res) => {
       try {
-        const invoice = await Invoice.findById(req.params.id);
-        if (!invoice) {
+        const forceResend = Boolean(req.body?.forceResend);
+        const existing = await Invoice.findById(req.params.id);
+        if (!existing) {
           return res.status(404).json({ success: false, message: "Invoice not found." });
         }
-        const buffer = await resolvePdfBuffer(invoice);
-        const fileName = `${invoice.invoiceNumber.replace(/\//g, "-")}.pdf`;
+        if (
+          !forceResend &&
+          (existing.emailDelivery?.status === "Accepted by Provider" ||
+            existing.emailDelivery?.status === "Delivered")
+        ) {
+          return res.json({
+            success: true,
+            duplicatePrevented: true,
+            emailResult: {
+              status: existing.emailDelivery.status,
+              duplicatePrevented: true,
+              recipient: existing.customerSnapshot?.email || "",
+            },
+            invoice: existing,
+          });
+        }
+
+        // Atomic concurrency lock so rapid double-clicks cannot dispatch duplicate emails
+        const locked = await Invoice.findOneAndUpdate(
+          { _id: req.params.id, "emailDelivery.status": { $ne: "Sending" } },
+          { $set: { "emailDelivery.status": "Sending" } },
+          { new: true }
+        );
+        if (!locked) {
+          return res.status(409).json({
+            success: false,
+            message: "An email send is already in progress for this invoice.",
+          });
+        }
+
+        const buffer = await resolvePdfBuffer(locked);
+        const fileName = `${locked.invoiceNumber.replace(/\//g, "-")}.pdf`;
         const emailResult = await sendInvoiceEmail({
-          invoice,
+          invoice: locked,
           pdfBuffer: buffer,
           pdfFileName: fileName,
         });
 
-        invoice.auditTrail.push({
+        locked.auditTrail.push({
           action: "email.retry",
           actorEmail: req.currentUser?.email || "",
           actorRole: req.currentUser?.role || "",
-          note: `Email retry status: ${emailResult.status}`,
+          note: `Email retry status: ${emailResult.status}${
+            emailResult.error ? ` (${emailResult.error})` : ""
+          }`,
         });
-        await invoice.save();
+        await locked.save();
 
         res.json({
           success: true,
           emailResult,
-          invoice,
+          invoice: locked,
         });
       } catch (err) {
         res.status(500).json({ success: false, message: "Failed to resend email." });
+      }
+    }
+  );
+
+  router.post(
+    "/api/admin/invoices/:id/whatsapp-consent",
+    authMiddleware,
+    adminMiddleware,
+    async (req, res) => {
+      try {
+        if (req.body?.confirmed !== true) {
+          return res.status(400).json({
+            success: false,
+            message: "Explicit confirmation of customer WhatsApp consent is required.",
+          });
+        }
+        const invoice = await Invoice.findById(req.params.id);
+        if (!invoice) {
+          return res.status(404).json({ success: false, message: "Invoice not found." });
+        }
+
+        const now = new Date();
+        invoice.whatsappDelivery.optIn = true;
+        invoice.whatsappDelivery.optInAt = now;
+        invoice.whatsappDelivery.optInSource = "admin_post_booking";
+        if (invoice.whatsappDelivery.status === "Opt-In Required") {
+          invoice.whatsappDelivery.status = "Queued";
+          invoice.whatsappDelivery.errorCode = "";
+          invoice.whatsappDelivery.lastError = "";
+        }
+        invoice.auditTrail.push({
+          action: "whatsapp.consent_recorded",
+          actorEmail: req.currentUser?.email || "",
+          actorRole: req.currentUser?.role || "",
+          note: "Admin confirmed post-booking customer WhatsApp notification consent.",
+        });
+        await invoice.save();
+
+        if (invoice.bookingId) {
+          await Booking.findByIdAndUpdate(invoice.bookingId, {
+            $set: {
+              whatsappOptIn: true,
+              whatsappOptInAt: now,
+              whatsappOptInSource: "admin_post_booking",
+            },
+          });
+        }
+
+        res.json({ success: true, invoice });
+      } catch (err) {
+        res.status(500).json({ success: false, message: "Failed to record WhatsApp consent." });
+      }
+    }
+  );
+
+  // ADMIN: One-Click Departure WhatsApp Group Link Broadcast (Meta Cloud API)
+  router.post(
+    "/api/admin/bookings/broadcast-whatsapp-group",
+    authMiddleware,
+    adminMiddleware,
+    async (req, res) => {
+      try {
+        const { slotId, whatsappGroupLink } = req.body || {};
+        if (!mongoose.isValidObjectId(slotId)) {
+          return res.status(400).json({ success: false, message: "Invalid departure slot ID." });
+        }
+        const cleanLink = String(whatsappGroupLink || "").trim();
+        if (!cleanLink || !/^https?:\/\//i.test(cleanLink)) {
+          return res.status(400).json({
+            success: false,
+            message: "Please enter a valid WhatsApp group invite link (https://...).",
+          });
+        }
+
+        const slot = await TripSlot.findById(slotId).populate("trip", "title");
+        if (!slot) {
+          return res.status(404).json({ success: false, message: "Departure slot not found." });
+        }
+
+        if (slot.whatsappGroupLink !== cleanLink) {
+          slot.whatsappGroupLink = cleanLink;
+          await slot.save();
+        }
+
+        const bookings = await Booking.find({
+          slotId: slot._id,
+          status: { $ne: "Cancelled" },
+        }).sort({ createdAt: 1 });
+
+        const departureDateStr = slot.date
+          ? new Date(slot.date).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "Upcoming Departure";
+
+        let sentCount = 0;
+        let skippedOptInCount = 0;
+        let failedCount = 0;
+        const results = [];
+
+        for (const bk of bookings) {
+          if (!bk.whatsappOptIn) {
+            skippedOptInCount += 1;
+            results.push({
+              bookingId: String(bk._id),
+              bookingCode: bk.bookingCode,
+              name: bk.name,
+              status: "Opt-In Required",
+            });
+            continue;
+          }
+
+          const sendRes = await sendDepartureGroupLinkWhatsApp({
+            phone: bk.phone,
+            customerName: bk.name,
+            tripTitle: bk.trip?.title || slot.trip?.title || "Traviska Trip",
+            departureDate: departureDateStr,
+            groupLink: cleanLink,
+            bookingCode: bk.bookingCode || "",
+          });
+
+          if (sendRes.status === "API Accepted") {
+            sentCount += 1;
+          } else {
+            failedCount += 1;
+          }
+          results.push({
+            bookingId: String(bk._id),
+            bookingCode: bk.bookingCode,
+            name: bk.name,
+            status: sendRes.status,
+            messageId: sendRes.messageId || "",
+            error: sendRes.error || "",
+          });
+        }
+
+        return res.json({
+          success: true,
+          totalBookings: bookings.length,
+          sentCount,
+          skippedOptInCount,
+          failedCount,
+          results,
+        });
+      } catch (err) {
+        console.error("Broadcast WhatsApp group link error:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to broadcast WhatsApp group link.",
+        });
       }
     }
   );

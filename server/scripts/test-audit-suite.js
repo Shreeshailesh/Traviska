@@ -10,9 +10,13 @@ const {
   sanitizeTemplateParam,
   prepareWhatsAppPreview,
   sendOrPrepareWhatsAppRefund,
+  sendCaptainOtpWhatsApp,
+  sendDepartureGroupLinkWhatsApp,
   processWhatsAppWebhookPayload,
 } = require("../services/whatsappService");
 const {
+  getSmtpConfigSummary,
+  getFromAddress,
   buildInvoiceEmailContent,
   buildRefundEmailContent,
 } = require("../services/emailService");
@@ -637,6 +641,60 @@ async function runAuditSuite() {
       assert.strictEqual(refRes.optInRequired, true);
       assert.strictEqual(refRes.errorCode, "OPT_IN_REQUIRED");
       assert.strictEqual(fetchCalls, 0);
+    });
+
+    await test("17. SMTP From address quote normalization & port 587/465 secure guard", async () => {
+      process.env.SMTP_HOST = "smtp.hostinger.com";
+      process.env.SMTP_USER = "admin@traviska.com";
+      process.env.SMTP_PASS = "test_pass";
+      process.env.SMTP_PORT = "587";
+      process.env.SMTP_SECURE = "true";
+      process.env.SMTP_FROM = '\\"Traviska Team\\" <noreply@traviska.com>';
+
+      const summary = getSmtpConfigSummary();
+      assert.strictEqual(summary.secure, false);
+      assert.strictEqual(getFromAddress(), '"Traviska Team" <noreply@traviska.com>');
+
+      process.env.SMTP_PORT = "465";
+      assert.strictEqual(getSmtpConfigSummary().secure, true);
+    });
+
+    await test("18. POST /api/admin/invoices/:id/whatsapp-consent rejects unconfirmed consent", async () => {
+      const consentHandler = findRouteHandler("post", "/api/admin/invoices/:id/whatsapp-consent");
+      const badRes = createMockRes();
+      await consentHandler({ params: { id: "65f000000000000000000001" }, body: { confirmed: false } }, badRes);
+      assert.strictEqual(badRes.statusCode, 400);
+    });
+
+    await test("19. Captain OTP (body + url button) & Departure Group Link (5-param) Meta template payloads", async () => {
+      process.env.WHATSAPP_API_TOKEN = "mock_token";
+      process.env.WHATSAPP_PHONE_NUMBER_ID = "1448850551644650";
+
+      const captured = [];
+      global.fetch = async (_url, opts) => {
+        captured.push(JSON.parse(opts.body));
+        return { ok: true, json: async () => ({ messages: [{ id: `wamid.NEW_${captured.length}` }] }) };
+      };
+
+      const otpRes = await sendCaptainOtpWhatsApp({ phone: "9876543210", otpCode: "223454" });
+      assert.strictEqual(otpRes.status, "API Accepted");
+      assert.strictEqual(captured[0].template.name, "traviska_captain_otp");
+      assert.strictEqual(captured[0].template.components[0].parameters[0].text, "223454");
+      assert.strictEqual(captured[0].template.components[1].type, "button");
+      assert.strictEqual(captured[0].template.components[1].sub_type, "url");
+      assert.strictEqual(captured[0].template.components[1].parameters[0].text, "223454");
+
+      const grpRes = await sendDepartureGroupLinkWhatsApp({
+        phone: "9876543210",
+        customerName: "Aarav",
+        tripTitle: "Coorg Weekend Trip",
+        departureDate: "20 Nov 2026",
+        groupLink: "https://chat.whatsapp.com/AbCdEf123",
+        bookingCode: "TVK9542",
+      });
+      assert.strictEqual(grpRes.status, "API Accepted");
+      assert.strictEqual(captured[1].template.name, "traviska_departure_group_v1");
+      assert.strictEqual(captured[1].template.components[0].parameters.length, 5);
     });
 
     console.log(`\n🎉 AUDIT TEST SUITE PASSED (${passed}/${passed} tests).`);

@@ -184,6 +184,7 @@ export const Bookings: React.FC = () => {
   const [manualPaymentRef, setManualPaymentRef] = useState("");
   const [manualConfirmed, setManualConfirmed] = useState(true);
   const [manualRequests, setManualRequests] = useState("");
+  const [manualWhatsappOptIn, setManualWhatsappOptIn] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
 
   // WhatsApp Invite Link Modal (when departure link needs configuration)
@@ -198,6 +199,8 @@ export const Bookings: React.FC = () => {
   const [broadcastCustomers, setBroadcastCustomers] = useState<BookingItem[]>([]);
   const [loadingBroadcastCustomers, setLoadingBroadcastCustomers] = useState<boolean>(false);
   const [savingBroadcastLink, setSavingBroadcastLink] = useState<boolean>(false);
+  const [metaBroadcasting, setMetaBroadcasting] = useState<boolean>(false);
+  const [metaBroadcastSummary, setMetaBroadcastSummary] = useState<string | null>(null);
   const [broadcastSentIds, setBroadcastSentIds] = useState<string[]>([]);
   const [broadcastCurrentIndex, setBroadcastCurrentIndex] = useState<number>(0);
   const [isBroadcastActive, setIsBroadcastActive] = useState<boolean>(false);
@@ -650,6 +653,49 @@ export const Bookings: React.FC = () => {
     }
   };
 
+  const handleMetaBroadcastAll = async () => {
+    if (!broadcastSlotId) return;
+    const cleanLink = broadcastLink.trim();
+    if (!cleanLink || !/^https?:\/\//i.test(cleanLink)) {
+      alert("Please enter a valid WhatsApp group invite link starting with https://");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Send the official WhatsApp group link via Meta Cloud API to all opted-in customers on this departure?`
+      )
+    ) {
+      return;
+    }
+
+    setMetaBroadcasting(true);
+    setMetaBroadcastSummary(null);
+    const token = localStorage.getItem("token") || localStorage.getItem("adminToken");
+    try {
+      const res = await axios.post(
+        `${API_BASE_URL}/api/admin/bookings/broadcast-whatsapp-group`,
+        { slotId: broadcastSlotId, whatsappGroupLink: cleanLink },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (res.data?.success) {
+        const { sentCount, skippedOptInCount, failedCount, results } = res.data;
+        const sentBookingIds = (results || [])
+          .filter((r: any) => r.status === "API Accepted")
+          .map((r: any) => r.bookingId);
+        if (sentBookingIds.length > 0) {
+          setBroadcastSentIds((prev) => Array.from(new Set([...prev, ...sentBookingIds])));
+        }
+        setMetaBroadcastSummary(
+          `Meta Cloud API Broadcast: ${sentCount} Sent • ${skippedOptInCount} Skipped (No Opt-In) • ${failedCount} Failed`
+        );
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to send via Meta Cloud API.");
+    } finally {
+      setMetaBroadcasting(false);
+    }
+  };
+
   // Open departure broadcast modal
   const handleOpenDepartureBroadcast = async (preferredSlotId?: string) => {
     if (!selectedTrip || !selectedTrip.departures || selectedTrip.departures.length === 0) {
@@ -864,6 +910,7 @@ export const Bookings: React.FC = () => {
           paymentReference: manualPaymentRef.trim() || undefined,
           paymentConfirmed: manualConfirmed,
           requests: manualRequests.trim(),
+          whatsappOptIn: manualWhatsappOptIn,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -871,13 +918,21 @@ export const Bookings: React.FC = () => {
       );
 
       if (res.data.success || res.data.booking) {
-        alert("Booking created successfully!");
+        const invNum = res.data.invoice?.invoiceNumber;
+        const emailStatus = res.data.emailResult?.status;
+        const waStatus = res.data.whatsappPreview?.status;
+        alert(
+          invNum
+            ? `Booking created successfully!\nInvoice: ${invNum}\nEmail: ${emailStatus || "—"}\nWhatsApp: ${waStatus || "—"}`
+            : "Booking created successfully!"
+        );
         setIsAddDrawerOpen(false);
         setManualCustomerName("");
         setManualCustomerPhone("");
         setManualCustomerEmail("");
         setManualPaymentRef("");
         setManualRequests("");
+        setManualWhatsappOptIn(false);
         fetchOverview();
         fetchBookingsList();
       }
@@ -2549,6 +2604,49 @@ export const Bookings: React.FC = () => {
             </div>
           </div>
 
+          <div
+            style={{
+              padding: "12px 14px",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "10px",
+            }}
+          >
+            <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#0f172a", marginBottom: "6px" }}>
+              WhatsApp Notifications
+            </div>
+            <label
+              htmlFor="admin-manual-whatsapp-optin"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "10px",
+                fontSize: "12.5px",
+                color: "#334155",
+                lineHeight: 1.45,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                id="admin-manual-whatsapp-optin"
+                type="checkbox"
+                checked={manualWhatsappOptIn}
+                onChange={(e) => setManualWhatsappOptIn(e.target.checked)}
+                style={{
+                  marginTop: "2px",
+                  width: "16px",
+                  height: "16px",
+                  accentColor: "#166534",
+                  flexShrink: 0,
+                  cursor: "pointer",
+                }}
+              />
+              <span>
+                I confirm that the customer has agreed to receive booking confirmations, invoices and trip updates from Traviska via WhatsApp.
+              </span>
+            </label>
+          </div>
+
           <div>
             <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
               Select Trip & Departure Date *
@@ -3095,17 +3193,57 @@ export const Bookings: React.FC = () => {
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px" }}>
+            {metaBroadcastSummary && (
+              <div
+                style={{
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  color: "#166534",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                {metaBroadcastSummary}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <button
                 type="button"
                 className="admin-btn admin-btn-secondary"
                 onClick={() => {
                   setIsBroadcastModalOpen(false);
                   setIsBroadcastActive(false);
+                  setMetaBroadcastSummary(null);
                 }}
               >
                 Close
               </button>
+
+              {!isBroadcastActive && (
+                <button
+                  type="button"
+                  onClick={handleMetaBroadcastAll}
+                  disabled={metaBroadcasting || loadingBroadcastCustomers || broadcastCustomers.length === 0}
+                  className="admin-btn admin-btn-primary"
+                  style={{
+                    background: broadcastCustomers.length > 0 ? "#0e3820" : "#94a3b8",
+                    borderColor: broadcastCustomers.length > 0 ? "#0e3820" : "#94a3b8",
+                    color: "#ffffff",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "10px 16px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <Send size={14} />
+                  <span>{metaBroadcasting ? "Sending via Meta..." : "One-Click Send to All (Meta API)"}</span>
+                </button>
+              )}
 
               {isBroadcastActive && broadcastCurrentIndex < broadcastCustomers.length ? (
                 <button

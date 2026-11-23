@@ -10,6 +10,7 @@ export const CaptainLogin: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useCaptainAuth();
 
+  const [authMethod, setAuthMethod] = useState<"whatsapp" | "firebase">("whatsapp");
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
@@ -40,6 +41,21 @@ export const CaptainLogin: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      if (authMethod === "whatsapp") {
+        const res = await fetch(`${API_BASE_URL}/captain/whatsapp/send-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: cleanPhone }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setError(data.message || "Failed to send WhatsApp OTP.");
+          return;
+        }
+        setOtpSent(true);
+        return;
+      }
+
       // 1. Pre-validate captain status on server before sending SMS
       const res = await fetch(`${API_BASE_URL}/captain/send-otp`, {
         method: "POST",
@@ -63,8 +79,8 @@ export const CaptainLogin: React.FC = () => {
       setConfirmationResult(confirmation);
       setOtpSent(true);
     } catch (err: any) {
-      console.error("Firebase send OTP error:", err);
-      setError(err?.message || "Failed to send verification SMS. Please verify your phone number.");
+      console.error("Send OTP error:", err);
+      setError(err?.message || "Failed to send verification code. Please verify your phone number.");
     } finally {
       setLoading(false);
     }
@@ -72,7 +88,7 @@ export const CaptainLogin: React.FC = () => {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!confirmationResult) {
+    if (authMethod === "firebase" && !confirmationResult) {
       setError("Please request an OTP first");
       return;
     }
@@ -85,8 +101,24 @@ export const CaptainLogin: React.FC = () => {
     setError(null);
 
     try {
+      if (authMethod === "whatsapp") {
+        const res = await fetch(`${API_BASE_URL}/captain/whatsapp/verify-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phone.replace(/\D/g, ""), otp: otp.trim() }),
+        });
+        const data = await res.json();
+        if (data.success && data.token) {
+          login(data.token, data.captain);
+          navigate("/captain/trips");
+        } else {
+          setError(data.message || "Invalid or expired WhatsApp OTP.");
+        }
+        return;
+      }
+
       // 1. Confirm verification code with Firebase Auth
-      const userCredential = await confirmationResult.confirm(otp.trim());
+      const userCredential = await confirmationResult!.confirm(otp.trim());
       const idToken = await userCredential.user.getIdToken(true);
 
       // 2. Exchange Firebase Admin ID token with backend
@@ -211,16 +243,69 @@ export const CaptainLogin: React.FC = () => {
             border: "1px solid rgba(255, 255, 255, 0.1)",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
               {!otpSent ? "Captain Verification" : "Enter Verification Code"}
             </h2>
             <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0 0" }}>
               {!otpSent
                 ? "Enter your registered mobile number for secure OTP authentication."
-                : `Enter the 6-digit OTP code sent to +91 ${phone}`}
+                : `Enter the 6-digit ${authMethod === "whatsapp" ? "WhatsApp" : "SMS"} OTP sent to +91 ${phone}`}
             </p>
           </div>
+
+          {!otpSent && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "6px",
+                background: "#f1f5f9",
+                padding: "4px",
+                borderRadius: "10px",
+                marginBottom: "18px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod("whatsapp");
+                  setError(null);
+                }}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: authMethod === "whatsapp" ? "#0e3820" : "transparent",
+                  color: authMethod === "whatsapp" ? "#ffffff" : "#475569",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                WhatsApp OTP
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod("firebase");
+                  setError(null);
+                }}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: authMethod === "firebase" ? "#0e3820" : "transparent",
+                  color: authMethod === "firebase" ? "#ffffff" : "#475569",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                SMS OTP
+              </button>
+            </div>
+          )}
 
           {error && (
             <div

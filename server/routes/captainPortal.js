@@ -1,8 +1,11 @@
 const express = require("express");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const firebaseAdmin = require("../firebaseAdmin");
 const Trip = require("../models/Trip");
 const Captain = require("../models/Captain");
+const CaptainOtp = require("../models/CaptainOtp");
 const CaptainAssignment = require("../models/CaptainAssignment");
 const TripSlot = require("../models/TripSlot");
 const Booking = require("../models/Booking");
@@ -11,6 +14,15 @@ const TripExpense = require("../models/TripExpense");
 const CaptainPayout = require("../models/CaptainPayout");
 const PickupLocation = require("../models/PickupLocation");
 const UserCheck = require("../models/UserCheck");
+const { parseAndValidatePhone, sendCaptainOtpWhatsApp } = require("../services/whatsappService");
+
+function hashCaptainOtp(otpCode, e164Phone) {
+  const secret = process.env.JWT_SECRET || "traviska_captain_otp_fallback";
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`${e164Phone}:${String(otpCode).trim()}`)
+    .digest("hex");
+}
 
 function normalizeRole(role) {
   if (!role) return "Head Captain";
@@ -93,12 +105,27 @@ async function captainAuth(req, res, next) {
   }
 
   try {
-    // 1. Validate Firebase ID token on server via Firebase Admin SDK
-    const decoded = await firebaseAdmin.auth().verifyIdToken(token);
+    let verifiedPhone = "";
+    let decodedClaims = null;
+
+    // 1. Validate Firebase ID token first; if not a Firebase token, validate Captain WhatsApp OTP JWT
+    try {
+      decodedClaims = await firebaseAdmin.auth().verifyIdToken(token);
+      verifiedPhone = decodedClaims.phone_number || "";
+    } catch (_firebaseErr) {
+      if (!process.env.JWT_SECRET) {
+        throw new Error("Invalid captain token");
+      }
+      const jwtDecoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (jwtDecoded?.role !== "captain" || !jwtDecoded?.phone) {
+        throw new Error("Invalid captain JWT claims");
+      }
+      decodedClaims = jwtDecoded;
+      verifiedPhone = jwtDecoded.phone;
+    }
 
     // 2. Extract verified phone number from token claims
-    const firebasePhone = decoded.phone_number;
-    if (!firebasePhone) {
+    if (!verifiedPhone) {
       return res.status(403).json({
         success: false,
         message: "Authenticated account does not have a verified phone number.",
@@ -106,7 +133,7 @@ async function captainAuth(req, res, next) {
     }
 
     // 3. Find matching captain in MongoDB
-    const captain = await findCaptainByPhone(firebasePhone);
+    const captain = await findCaptainByPhone(verifiedPhone);
     if (!captain) {
       return res.status(403).json({
         success: false,
@@ -122,10 +149,10 @@ async function captainAuth(req, res, next) {
       });
     }
 
-    // 5. Attach verified captain identity & Firebase context
+    // 5. Attach verified captain identity & token context
     req.captain = captain;
     req.captain.id = String(captain._id);
-    req.firebaseUser = decoded;
+    req.firebaseUser = decodedClaims;
     next();
   } catch (err) {
     return res.status(401).json({
@@ -231,6 +258,157 @@ function captainPortalRoutes() {
     } catch (err) {
       console.error("Captain login error:", err);
       return res.status(500).json({ success: false, message: "Captain login failed." });
+    }
+  });
+
+  // Meta WhatsApp Cloud API OTP: Send 6-digit OTP to registered Active Captain
+  router.post("/captain/whatsapp/send-otp", async (req, res) => {
+    try {
+      const { phone } = req.body || {};
+      const parsedPhone = parseAndValidatePhone(phone);
+      if (!parsedPhone.valid) {
+        return res.status(400).json({
+          success: false,
+          message: parsedPhone.reason || "Please enter a valid 10-digit mobile number.",
+        });
+      }
+
+      const captain = await findCaptainByPhone(parsedPhone.e164);
+      if (!captain) {
+        return res.status(404).json({
+          success: false,
+          message: "No captain account is registered with this phone number. Please contact Traviska operations.",
+        });
+      }
+
+      if (captain.status !== "Active") {
+        return res.status(403).json({
+          success: false,
+          message: "Your captain account is not active. Please contact Traviska operations.",
+        });
+      }
+
+      const existing = await CaptainOtp.findOne({ phone: parsedPhone.e164 });
+      if (existing && existing.lastSentAt && Date.now() - existing.lastSentAt.getTime() < 45000) {
+        const waitSec = Math.ceil((45000 - (Date.now() - existing.lastSentAt.getTime())) / 1000);
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${waitSec}s before requesting another WhatsApp OTP.`,
+        });
+      }
+
+      const otpCode = String(crypto.randomInt(100000, 999999));
+      const otpHash = hashCaptainOtp(otpCode, parsedPhone.e164);
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await CaptainOtp.findOneAndUpdate(
+        { phone: parsedPhone.e164 },
+        {
+          captainId: captain._id,
+          phone: parsedPhone.e164,
+          otpHash,
+          attempts: 0,
+          lastSentAt: new Date(),
+          expiresAt,
+        },
+        { upsert: true, new: true }
+      );
+
+      const waRes = await sendCaptainOtpWhatsApp({ phone: parsedPhone.e164, otpCode });
+      if (waRes.status !== "API Accepted") {
+        return res.status(waRes.status === "Template Pending Approval" ? 503 : 502).json({
+          success: false,
+          status: waRes.status,
+          message: waRes.error || "Unable to deliver WhatsApp OTP right now.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "6-digit OTP sent to your registered WhatsApp number.",
+        recipient: parsedPhone.e164,
+        messageId: waRes.messageId,
+      });
+    } catch (err) {
+      console.error("Captain WhatsApp send-otp error:", err);
+      return res.status(500).json({ success: false, message: "Failed to send WhatsApp OTP." });
+    }
+  });
+
+  // Meta WhatsApp Cloud API OTP: Verify 6-digit OTP & issue signed Captain JWT
+  router.post("/captain/whatsapp/verify-otp", async (req, res) => {
+    try {
+      const { phone, otp } = req.body || {};
+      const parsedPhone = parseAndValidatePhone(phone);
+      const cleanOtp = String(otp || "").trim();
+
+      if (!parsedPhone.valid || !/^\d{6}$/.test(cleanOtp)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid phone number and 6-digit OTP code are required.",
+        });
+      }
+
+      const record = await CaptainOtp.findOne({ phone: parsedPhone.e164 });
+      if (!record || record.expiresAt.getTime() < Date.now()) {
+        return res.status(401).json({
+          success: false,
+          message: "OTP expired or not requested. Please request a new OTP.",
+        });
+      }
+
+      if (record.attempts >= 5) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many invalid attempts. Please request a new OTP.",
+        });
+      }
+
+      const expectedHash = hashCaptainOtp(cleanOtp, parsedPhone.e164);
+      const valid = crypto.timingSafeEqual(
+        Buffer.from(record.otpHash, "utf8"),
+        Buffer.from(expectedHash, "utf8")
+      );
+
+      if (!valid) {
+        record.attempts += 1;
+        await record.save();
+        return res.status(401).json({
+          success: false,
+          message: "Invalid OTP code. Please check WhatsApp and try again.",
+        });
+      }
+
+      const captain = await findCaptainByPhone(parsedPhone.e164);
+      if (!captain || captain.status !== "Active") {
+        return res.status(403).json({
+          success: false,
+          message: "Captain account is not active.",
+        });
+      }
+
+      await CaptainOtp.deleteOne({ _id: record._id });
+
+      const token = jwt.sign(
+        {
+          id: String(captain._id),
+          role: "captain",
+          phone: parsedPhone.e164,
+          authMethod: "whatsapp_otp",
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.json({
+        success: true,
+        message: "Login successful",
+        token,
+        captain,
+      });
+    } catch (err) {
+      console.error("Captain WhatsApp verify-otp error:", err);
+      return res.status(500).json({ success: false, message: "OTP verification failed." });
     }
   });
 

@@ -201,6 +201,11 @@ paymentReferenceKey: {
     default: null,
   },
 
+  whatsappOptInSource: {
+    type: String,
+    default: "",
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,
