@@ -26,6 +26,9 @@ const { getGatewayAdapter } = require("../services/paymentGatewayAdapter");
 const { rupeesToPaise } = require("../services/invoiceService");
 const { renderCustomerEmail } = require("../services/emailTemplateService");
 const { getPolicyAttachmentFilename } = require("../services/policyPdfService");
+const { sendOrPrepareWhatsAppRefund } = require("../services/whatsappService");
+const { generateInvoicePdfBuffer } = require("../services/pdfService");
+const { sendRefundEmail } = require("../services/emailService");
 
 function formatReqCode() {
   return `REQ-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
@@ -1356,19 +1359,33 @@ module.exports = function cancellationRescheduleRoutes({ authMiddleware, adminMi
           booking.refundInitiatedAt = new Date();
           await booking.save();
 
-          await queueAndSendWhatsApp({
-            booking,
-            eventType: "RefundInitiated",
-            requestId: lockedReq._id,
-            templateName: process.env.WHATSAPP_REFUND_INITIATED_TEMPLATE_NAME || "traviska_refund_initiated",
-            templateParams: [
-              booking.name || "Traveller",
-              booking.bookingCode || String(booking._id),
-              `₹${approvedAmount}`,
-              refundRef || "Processing",
-            ],
-            idempotencyKey: `refund-init-wa:${lockedReq._id}`,
-          });
+          const initInvoice = await Invoice.findOne({ bookingId: booking._id });
+          if (initInvoice && booking.whatsappOptIn) {
+            await sendOrPrepareWhatsAppRefund({
+              invoice: initInvoice,
+              stage: "initiated",
+              refundAmountPaise: Math.round(Number(approvedAmount || 0) * 100),
+              refundReference: refundRef || "Processing",
+              baseUrl: req.headers.origin,
+              optInConfirmed: true,
+            });
+          } else {
+            await queueAndSendWhatsApp({
+              booking,
+              eventType: "RefundInitiated",
+              requestId: lockedReq._id,
+              templateName: process.env.WHATSAPP_REFUND_INITIATED_TEMPLATE_NAME || "traviska_refund_initiated",
+              templateParams: [
+                booking.name || "Traveller",
+                booking.bookingCode || String(booking._id),
+                booking.trip?.title || "Traviska Trip",
+                `₹${Number(approvedAmount || 0).toLocaleString("en-IN")}`,
+                refundRef || "Processing",
+                "Refund Initiated",
+              ],
+              idempotencyKey: `refund-init-wa:${lockedReq._id}`,
+            });
+          }
         } catch (gwErr) {
           const isTimeout = /timeout|ETIMEDOUT|ECONNRESET/i.test(gwErr?.message || "");
           lockedReq.refundState = isTimeout ? "Reconciliation Required" : "Failed — Requires Action";
@@ -1511,50 +1528,95 @@ module.exports = function cancellationRescheduleRoutes({ authMiddleware, adminMi
         }
       );
 
-      const refundDoneEmail = renderCustomerEmail({
-        eyebrow: "REFUND UPDATE",
-        statusLabel: "Refund Completed",
-        statusTone: "success",
-        title: "Refund Completed & Credited",
-        customerName: booking.name || "Traveller",
-        introParagraphs: [
-          `Your refund for booking ${booking.bookingCode} (${booking.trip?.title || "Traviska Trip"}) has been completed.`,
-        ],
-        details: [
-          { label: "Booking ID", value: booking.bookingCode },
-          { label: "Trip", value: booking.trip?.title || "Traviska Trip" },
-          { label: "Transaction Reference", value: booking.refundReference },
-          { label: "Refunded Amount", value: `₹${Number(finalAmount || 0).toLocaleString("en-IN")}`, highlight: true },
-        ],
-        nextStepsBody: "Please check your bank or original payment account statement. Funds typically reflect within 1–3 business days depending on your bank.",
-        ctaLabel: "View My Trips",
-        ctaUrl: "https://traviska.com/customer/dashboard",
-      });
-      await queueAndSendEmail({
-        audience: "customer",
-        eventType: "RefundCompleted",
-        bookingId: booking._id,
-        recipient: booking.email,
-        subject: `Traviska — Refund Completed (${booking.bookingCode})`,
-        textBody: refundDoneEmail.text,
-        htmlBody: refundDoneEmail.html,
-        idempotencyKey: `refund-complete-email:${booking._id}:${booking.refundReference}`,
-      });
+      const completedInvoice = await Invoice.findOne({ bookingId: booking._id });
+      const refundedPaise = Math.round(Number(finalAmount || 0) * 100);
+      if (completedInvoice) {
+        completedInvoice.paymentStatus =
+          refundedPaise >= (completedInvoice.pricing?.totalPayablePaise || 0)
+            ? "Refunded"
+            : "Partially Refunded";
+        if (completedInvoice.pricing) {
+          completedInvoice.pricing.refundedAmountPaise = refundedPaise;
+        }
+        await completedInvoice.save();
 
-      await queueAndSendWhatsApp({
-        booking,
-        eventType: "RefundCompleted",
-        templateName: process.env.WHATSAPP_REFUND_TEMPLATE_NAME || "traviska_refund_completed",
-        templateParams: [
-          booking.name || "Traveller",
-          booking.bookingCode || String(booking._id),
-          booking.trip?.title || "Traviska Trip",
-          "Refund Completed (Credited)",
-          `₹${Number(finalAmount || 0).toLocaleString("en-IN")}`,
-          booking.refundReference || "—",
-        ],
-        idempotencyKey: `refund-complete-wa:${booking._id}:${booking.refundReference}`,
-      });
+        let pdfBuffer = null;
+        let pdfFileName = "";
+        try {
+          const pdf = await generateInvoicePdfBuffer(completedInvoice);
+          pdfBuffer = pdf.buffer;
+          pdfFileName = pdf.fileName;
+        } catch (pdfErr) {
+          console.warn("Refund Invoice PDF generation failed:", pdfErr?.message);
+        }
+
+        await sendRefundEmail({
+          invoice: completedInvoice,
+          pdfBuffer,
+          pdfFileName,
+          stage: "completed",
+          refundAmountPaise: refundedPaise,
+          refundReference: booking.refundReference || "—",
+        });
+
+        if (booking.whatsappOptIn) {
+          await sendOrPrepareWhatsAppRefund({
+            invoice: completedInvoice,
+            stage: "completed",
+            refundAmountPaise: refundedPaise,
+            refundReference: booking.refundReference || "—",
+            baseUrl: req.headers.origin,
+            pdfBuffer,
+            pdfFileName,
+            optInConfirmed: true,
+          });
+        }
+      } else {
+        const refundDoneEmail = renderCustomerEmail({
+          eyebrow: "REFUND UPDATE",
+          statusLabel: "Refund Completed",
+          statusTone: "success",
+          title: "Refund Completed & Credited",
+          customerName: booking.name || "Traveller",
+          introParagraphs: [
+            `Your refund for booking ${booking.bookingCode} (${booking.trip?.title || "Traviska Trip"}) has been completed.`,
+          ],
+          details: [
+            { label: "Booking ID", value: booking.bookingCode },
+            { label: "Trip", value: booking.trip?.title || "Traviska Trip" },
+            { label: "Transaction Reference", value: booking.refundReference },
+            { label: "Refunded Amount", value: `₹${Number(finalAmount || 0).toLocaleString("en-IN")}`, highlight: true },
+          ],
+          nextStepsBody: "Please check your bank or original payment account statement. Funds typically reflect within 1–3 business days depending on your bank.",
+          ctaLabel: "View My Trips",
+          ctaUrl: "https://traviska.com/customer/dashboard",
+        });
+        await queueAndSendEmail({
+          audience: "customer",
+          eventType: "RefundCompleted",
+          bookingId: booking._id,
+          recipient: booking.email,
+          subject: `Traviska — Refund Completed (${booking.bookingCode})`,
+          textBody: refundDoneEmail.text,
+          htmlBody: refundDoneEmail.html,
+          idempotencyKey: `refund-complete-email:${booking._id}:${booking.refundReference}`,
+        });
+
+        await queueAndSendWhatsApp({
+          booking,
+          eventType: "RefundCompleted",
+          templateName: process.env.WHATSAPP_REFUND_TEMPLATE_NAME || "traviska_refund_completed",
+          templateParams: [
+            booking.name || "Traveller",
+            booking.bookingCode || String(booking._id),
+            booking.trip?.title || "Traviska Trip",
+            `₹${Number(finalAmount || 0).toLocaleString("en-IN")}`,
+            booking.refundReference || "—",
+            "Refunded (Credited)",
+          ],
+          idempotencyKey: `refund-complete-wa:${booking._id}:${booking.refundReference}`,
+        });
+      }
 
       res.json({ success: true, booking });
     } catch (err) {
